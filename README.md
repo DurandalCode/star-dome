@@ -25,13 +25,18 @@ No paid CAD subscription is required by the intended workflow.
 ## Repository layout
 
 ```text
-docs/           design notes, geometry, construction, references
+docs/           design notes, roadmap, geometry, construction, references
 configs/        named dome variants
 dome/           OpenSCAD parametric geometry
 connectors/     FreeCAD-oriented connector design areas
 blender/        integration scripts and scene workflow
 exports/        generated output; mostly ignored by Git
 ```
+
+## Project guidance
+
+- Agent instructions: [`AGENTS.md`](AGENTS.md)
+- Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
 
 ## Initial variants
 
