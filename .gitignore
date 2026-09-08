@@ -1,0 +1,34 @@
+# Generated geometry / exports
+exports/*
+!exports/.gitkeep
+*.stl
+*.3mf
+*.obj
+*.ply
+*.gltf
+*.glb
+
+# Blender autosaves / backups
+*.blend1
+*.blend2
+*.blend@
+
+# FreeCAD backups
+*.FCStd1
+
+# Render outputs
+renders/
+*.exr
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local agent/tool state
+.claude/settings.local.json
+.env
+.env.*
