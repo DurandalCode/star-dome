@@ -111,7 +111,10 @@ def test_the_skirt_bay_is_a_plain_rectangle():
 
 
 def test_a_dome_without_a_skirt_reports_no_bay():
-    assert entrance.skirt_bay(model.build(config.load("D6"))) is None
+    """Asked explicitly for a bare dome -- the sizes in variants.toml now
+    carry the skirt their doorway needs, so 'no skirt' has to be said."""
+    bare = model.build(config.load("D6", skirt_height=0.0))
+    assert entrance.skirt_bay(bare) is None
 
 
 def test_the_skirt_a_standing_door_needs_shrinks_as_the_dome_grows():

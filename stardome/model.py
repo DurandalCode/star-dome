@@ -241,9 +241,11 @@ def build(
         "max_diameter_incl_rod": _r(2.0 * max_drawn_radius + variant.rod_diameter),
         "base_edge_arc": _r(2.0 * math.pi * radius / geometry.BASE_POINT_COUNT),
         "base_edge_chord": _r(2.0 * radius * math.sin(math.radians(18.0))),
+        "alias": variant.alias,
         "skirt_height": _r(variant.skirt_height),
         "ground_z": _r(-variant.skirt_height),
         "overall_height": _r(variant.overall_height),
+        "door_template": variant.door,
         "coordinate_basis": (
             "nominal centreline on the sphere (same as weaveMode=flat); "
             "weave offsets are reported per crossing as radial_gap"
@@ -269,4 +271,12 @@ def build(
     }
     if skirt is not None:
         out["skirt"] = skirt
+    if variant.door:
+        # Computed last, because choosing the doorway means reading the model
+        # back: which bay is tall, which node heads it, which rods frame it.
+        # Consumers get the opening as finished geometry and never rediscover
+        # it -- the same contract the rest of this file keeps.
+        from . import doorway
+
+        out["doorway"] = doorway.place(out, variant.door)
     return out

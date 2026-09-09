@@ -252,4 +252,73 @@ def check(data: dict) -> list:
         f"expected 60 lashed contacts (10 nodes x 6 pairs), got {tied_contacts}",
     )
 
+    # --- doorway -------------------------------------------------------------
+    door = data.get("doorway")
+    if door is not None:
+        bay = door["bay"]
+        frame = door["frame"]
+        diameter = meta["dome_diameter"]
+
+        want(
+            door["bay_count"] == 5,
+            f"expected 5 tall bays to choose a door from, got {door['bay_count']}",
+        )
+        # The head is a node on a self-similar shape, so its height is an
+        # exact fraction of the diameter at every size. The *clear* height
+        # under it is that less the rod, and so drifts slightly with how thick
+        # the rod is relative to the dome -- 0.2541 of D on D3, 0.2549 on D12.
+        want(
+            abs(frame["apex_point"][2] / diameter - 0.26287) < 1e-4,
+            f"door head is at {frame['apex_point'][2] / diameter:.5f} of D, "
+            "expected 0.26287",
+        )
+        want(
+            0.2535 < bay["clear_height_mm"] / diameter < 0.2555,
+            f"door clear height is {bay['clear_height_mm'] / diameter:.4f} of D, "
+            "expected about 0.254",
+        )
+        want(
+            abs(bay["span_deg"] - 34.5) < 0.5,
+            f"door bay spans {bay['span_deg']:.2f} deg, expected 34.5",
+        )
+        # The whole point of this doorway: it cuts nothing. Its head is a
+        # lashed four-rod node and its feet are two base points.
+        apex = next(
+            (n for n in data["nodes"] if n["name"] == frame["apex_node"]), None
+        )
+        want(apex is not None, f"door head {frame['apex_node']} is not a node")
+        if apex is not None:
+            want(
+                apex["rod_count"] == 4,
+                f"door head {apex['name']} has {apex['rod_count']} rods, expected 4",
+            )
+        feet_names = {b["name"] for b in data["base_nodes"]}
+        want(
+            set(frame["feet"]) <= feet_names,
+            f"door feet {frame['feet']} are not base points",
+        )
+        want(
+            len(frame["jamb_rods"]) == 2
+            and len(set(frame["jamb_rods"])) == 2
+            and all(r in frame["apex_rods"] for r in frame["jamb_rods"]),
+            f"door jambs {frame['jamb_rods']} do not both meet at the head",
+        )
+        # The outline has to start and end on the ground, or it is not a hole
+        # anyone can walk through.
+        points = door["outline"]["points"]
+        ground = meta.get("ground_z", 0.0)
+        want(
+            abs(points[0][2] - ground) < 1e-3 and abs(points[-1][2] - ground) < 1e-3,
+            f"door outline does not start and end at ground z={ground}",
+        )
+        want(
+            abs(max(p[2] for p in points) - frame["apex_point"][2]) < 1e-3,
+            "door outline does not reach the head node",
+        )
+        want(
+            door["door"]["fits"],
+            f"the {door['door']['template']} silhouette does not fit "
+            f"{meta['variant']}'s door -- the skirt in variants.toml is too short",
+        )
+
     return problems

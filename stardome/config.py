@@ -26,6 +26,13 @@ class Variant:
     section_length: float
     weave_gap: float
     skirt_height: float
+    # Short size name for the sizes that are an actual product -- S, M, L, XL.
+    # The D-names stay the geometric family; an alias is a chosen build of one,
+    # with its skirt and its door settled. Empty for the research variants.
+    alias: str = ""
+    # Which person-silhouette the doorway is sized to, from entrance.TEMPLATES.
+    # Empty means this variant has no door worked out and none is serialised.
+    door: str = ""
 
     @property
     def radius(self) -> float:
@@ -76,23 +83,47 @@ def load_all(path=None) -> dict:
             skirt_height=float(
                 body.get("skirt_height", defaults.get("skirt_height", 0.0))
             ),
+            alias=str(body.get("alias", "")),
+            door=str(body.get("door", defaults.get("door", ""))),
         )
     if not variants:
         raise ValueError(f"no [variants.*] tables found in {path}")
+
+    aliases = [v.alias for v in variants.values() if v.alias]
+    clash = set(aliases) & set(variants)
+    if clash:
+        raise ValueError(f"alias collides with a variant name: {sorted(clash)}")
+    if len(aliases) != len(set(aliases)):
+        raise ValueError(f"duplicate aliases in {path}: {sorted(aliases)}")
     return variants
 
 
+def resolve(name: str, path=None) -> str:
+    """Canonical variant name for a name or an alias.
+
+    ``S`` and ``D4`` are the same dome; the short names are what a person
+    says and the D-names are what the geometry is filed under.
+    """
+    variants = load_all(path)
+    if name in variants:
+        return name
+    for canonical, variant in variants.items():
+        if variant.alias == name:
+            return canonical
+    known = ", ".join(
+        sorted(f"{n}={v.alias}" if v.alias else n for n, v in variants.items())
+    )
+    raise KeyError(f"unknown variant {name!r} -- known: {known}")
+
+
 def load(name: str, path=None, **overrides) -> Variant:
-    """Load one variant by name.
+    """Load one variant by name or by alias.
 
     Fails loudly rather than silently falling back, so a typo in a variant
     name cannot quietly produce the wrong dome.
     """
     variants = load_all(path)
-    if name not in variants:
-        known = ", ".join(sorted(variants))
-        raise KeyError(f"unknown variant {name!r} -- known: {known}")
-    variant = variants[name]
+    variant = variants[resolve(name, path)]
     if overrides:
         variant = replace(variant, **overrides)
     return variant

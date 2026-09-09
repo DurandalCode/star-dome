@@ -41,6 +41,26 @@ section_length = 2400
 # diameter. A drawing convention only -- NOT a build instruction.
 weave_gap = 1.0
 
+# ---------------------------------------------------------------------------
+# SIZES AND ALIASES
+#
+# The D-names are the geometric family: one per diameter, nothing else fixed.
+# Four of them are also a *chosen build* -- skirt settled, doorway settled --
+# and those carry a short alias, which is what a person actually says:
+#
+#   S = D4     M = D6     L = D8     XL = D10
+#
+# Either name loads the same dome. D3 and D12 have no alias: they are the
+# ends of the range kept for study, not sizes anyone is asked to build.
+#
+# `skirt_height` on an aliased size is not a preference. It is the shortest
+# skirt that lets the `door` silhouette walk in, rounded up for about 100 mm
+# of headroom to spare -- see docs/doorway.md. Change the door and the skirt
+# has to be recomputed:
+#
+#     python3 -m stardome doorway <name> --skirt-for carry
+# ---------------------------------------------------------------------------
+
 [variants.D3]
 diameter = 3000
 rod_diameter = 8
@@ -50,24 +70,36 @@ note = "small dome on a 1 m skirt; 1473 mm of dome is not standing height on its
 [variants.D4]
 diameter = 4000
 rod_diameter = 8
-note = "small experimental dome"
+alias = "S"
+skirt_height = 1350
+door = "carry"
+note = "S -- smallest size with a walk-in door; needs the tallest skirt to get one"
 
 [variants.D6]
 diameter = 6000
 rod_diameter = 10
-note = "reference prototype"
+alias = "M"
+skirt_height = 800
+door = "carry"
+note = "M -- reference prototype; best all-round trade in the family"
 
 [variants.D8]
 diameter = 8000
 rod_diameter = 10
-note = "large dome; expect reinforcement work"
+alias = "L"
+skirt_height = 300
+door = "carry"
+note = "L -- large dome; the skirt is barely a sill. Expect reinforcement work"
 
 [variants.D10]
 diameter = 10000
 rod_diameter = 12
-note = "large dome; expect the same reinforcement work as D8"
+alias = "XL"
+door = "carry"
+note = "XL -- takes a walk-in door with no skirt at all; expect D8's reinforcement work"
 
 [variants.D12]
 diameter = 12000
 rod_diameter = 12
-note = "XL research variant; explicitly unvalidated"
+door = "carry"
+note = "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"
