@@ -478,3 +478,52 @@ def test_an_envelope_with_a_piece_removed_is_never_lower_than_without(bare):
     plain = entrance.door_envelope(bare)["envelope_mm"]
     cut = entrance.door_envelope(bare, removed=doorway.jamb_cut(bare))["envelope_mm"]
     assert all(c >= p - 1e-6 for p, c in zip(plain, cut))
+
+
+def test_the_skirt_bay_under_a_door_is_actually_open():
+    """Taking the diagonals out of a bay does not make a doorway.
+
+    Both rings still ran straight across it -- one along the ground to trip
+    on, one at the top of the skirt at head height. Neither is a hole, and the
+    drawing looked fine either way, which is how it survived a review.
+    """
+    data = model.build(config.load("S"))
+    skirt = data["skirt"]
+    bay = skirt["open_bays"][0]
+
+    assert not [b for b in skirt["braces"] if b["bay"] == bay]
+    assert not [seg for seg in skirt["top_ring"] if seg["bay"] == bay]
+    assert not [seg for seg in skirt["bottom_ring"] if seg["bay"] == bay]
+    assert len(skirt["top_ring"]) == skirt["bay_count"] - 1
+    assert len(skirt["bottom_ring"]) == skirt["bay_count"] - 1
+
+
+def test_a_header_carries_the_hoop_force_over_the_doorway():
+    """An open bay leaves the top ring an open arc, which carries no hoop
+    tension at all. The header takes it round: post head, up the U bow,
+    across, and down the other side."""
+    data = model.build(config.load("S"))
+    skirt = data["skirt"]
+    header = skirt["header"]
+
+    assert header["bay"] == skirt["open_bays"][0]
+    assert len(set(header["rods"])) == 2
+    assert all(rod.startswith("U") for rod in header["rods"])
+    # Level, and clear of anyone walking under it.
+    assert header["a"][2] == pytest.approx(header["b"][2], abs=1.0)
+    assert header["height_above_ground"] > 1800.0
+    # But not above the dome's own opening, where it would carry nothing.
+    assert (
+        header["height_above_ground"]
+        <= data["doorway"]["in_bay"]["clear_height_mm"] + skirt["height"] + 1.0
+    )
+
+
+def test_a_dome_with_no_door_keeps_its_rings_closed():
+    """D3 has no doorway worked out, so nothing is taken out of its skirt."""
+    d3 = model.build(config.load("D3"))
+    skirt = d3["skirt"]
+    assert skirt["open_bays"] == []
+    assert len(skirt["top_ring"]) == skirt["bay_count"]
+    assert len(skirt["braces"]) == 2 * skirt["bay_count"]
+    assert "header" not in skirt
