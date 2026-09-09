@@ -292,17 +292,26 @@ def build(values, fan_gaps=None):
     stake_azimuth = stake_axis
     bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
     bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
-    closest = min(
-        abs(math.sin(math.radians(b - a)))
-        for b in bolt_azimuths
-        for a in azimuths
+    # An arm is a RAY, not a line: the rods end at the hub and there is nothing
+    # on the far side. Treating them as lines -- which the first version did,
+    # copying the node where every rod does pass through -- makes a bolt sitting
+    # nearly opposite an arm look blocked by it, and the offset needed to
+    # "clear" a phantom ran to 247 mm. The tail then reached out that far and
+    # the bottom plate came out 311 mm across.
+    ratios = []
+    for b in bolt_azimuths:
+        for a in azimuths:
+            separation = abs((b - a + 180.0) % 360.0 - 180.0)
+            if separation >= 90.0:
+                continue  # behind the hub; that arm is not there
+            ratios.append(math.sin(math.radians(separation)))
+    clear_of_arms = (
+        (boss_r + channel_r) / max(min(ratios), 1e-6) if ratios else 0.0
     )
-    bolt_offset = max(
-        (boss_r + channel_r) / max(closest, 1e-6),
-        (slot_half + boss_r + wall) / max(
-            abs(math.sin(math.radians(bolt_spread))), 1e-6
-        ),
+    clear_of_slot = (slot_half + boss_r + wall) / max(
+        abs(math.sin(math.radians(bolt_spread))), 1e-6
     )
+    bolt_offset = max(clear_of_arms, clear_of_slot)
 
     hub_r = values["hubRadiusFactor"] * rod_d
     arm_w = values["armWidthFactor"] * boss_r * 2.0
