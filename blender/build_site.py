@@ -61,6 +61,20 @@ def parse_args(argv):
     p.add_argument("--gap", type=float, default=2.0, help="metres between domes")
     p.add_argument("--no-labels", action="store_true")
     p.add_argument(
+        "--hide-cuts",
+        action="store_true",
+        help="leave the removed pieces out entirely instead of ghosting them, "
+             "for a picture of the thing as built rather than of the decision",
+    )
+    p.add_argument(
+        "--camp",
+        type=float,
+        default=0.0,
+        metavar="DEPTH",
+        help="curve the row back by this many metres at its ends, so it reads "
+             "as a camp round a yard rather than as a size chart",
+    )
+    p.add_argument(
         "--named-only",
         action="store_true",
         help="only the sizes with a short name (S, M, L, XL), skipping the "
@@ -131,12 +145,12 @@ def spin_for_door(data):
     return 270.0 - door["bay"]["apex_azimuth_deg"]
 
 
-def _place(x_mm, y_mm, origin_x, spin_deg):
+def _place(x_mm, y_mm, origin_x, spin_deg, origin_y=0.0):
     """Model mm -> scene metres, spun about the dome's own axis and offset."""
     a = math.radians(spin_deg)
     x = x_mm * math.cos(a) - y_mm * math.sin(a)
     y = x_mm * math.sin(a) + y_mm * math.cos(a)
-    return x * MM + origin_x, y * MM
+    return x * MM + origin_x, y * MM + origin_y
 
 
 def rod_runs(rod):
@@ -174,7 +188,7 @@ def rod_runs(rod):
 
 
 def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0,
-            points=None, suffix="", bevel=None):
+            points=None, suffix="", bevel=None, origin_y=0.0):
     points = rod["points"] if points is None else points
     curve = bpy.data.curves.new(f"C_{rod['name']}{suffix}", "CURVE")
     curve.dimensions = "3D"
@@ -184,7 +198,7 @@ def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0,
     spline = curve.splines.new("POLY")
     spline.points.add(len(points) - 1)
     for i, (x, y, z) in enumerate(points):
-        px, py = _place(x, y, origin_x, spin_deg)
+        px, py = _place(x, y, origin_x, spin_deg, origin_y)
         spline.points[i].co = (px, py, z * MM + lift, 1.0)
     obj = bpy.data.objects.new(f"Rod_{rod['name']}{suffix}", curve)
     obj.data.materials.append(material_)
@@ -193,11 +207,11 @@ def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0,
 
 
 def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
-              lift, spin_deg=0.0):
+              lift, spin_deg=0.0, origin_y=0.0):
     for post in skirt["posts"]:
         z_lo = post["z_bottom"] * MM + lift
         z_hi = post["z_top"] * MM + lift
-        px, py = _place(post["x"], post["y"], origin_x, spin_deg)
+        px, py = _place(post["x"], post["y"], origin_x, spin_deg, origin_y)
         bpy.ops.mesh.primitive_cylinder_add(
             radius=rod_radius_m,
             depth=z_hi - z_lo,
@@ -212,7 +226,7 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
     bpy.ops.mesh.primitive_torus_add(
         major_radius=radius_m,
         minor_radius=rod_radius_m,
-        location=(origin_x, 0.0, skirt["ground_z"] * MM + lift),
+        location=(origin_x, origin_y, skirt["ground_z"] * MM + lift),
         major_segments=72,
         minor_segments=8,
     )
@@ -250,10 +264,11 @@ def make_transparent(mat, alpha):
     return mat
 
 
-def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0):
+def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
+                origin_y=0.0):
     """The opening, outlined and filled, exactly as the model reports it."""
     points = [
-        (*_place(x, y, origin_x, spin_deg), z * MM + lift)
+        (*_place(x, y, origin_x, spin_deg, origin_y), z * MM + lift)
         for x, y, z in door["outline"]["points"]
     ]
 
@@ -290,7 +305,7 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0):
     return obj, panel
 
 
-def add_humans(origin_x, offset_y, mats, collection, name):
+def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
     """Both figures side by side. Proportions scale with height, so the tall
     one reads as tall rather than as one standing nearer the camera."""
     for (height, label, _), dx in zip(HUMAN_HEIGHTS, (-HUMAN_SPREAD, HUMAN_SPREAD)):
@@ -299,14 +314,14 @@ def add_humans(origin_x, offset_y, mats, collection, name):
         bpy.ops.mesh.primitive_cylinder_add(
             radius=0.17 * scale,
             depth=body_h,
-            location=(origin_x + dx, offset_y, body_h / 2.0),
+            location=(origin_x + dx, offset_y + origin_y, body_h / 2.0),
             vertices=16,
         )
         body = bpy.context.active_object
         body.name = f"{name}_{label}_Body"
         bpy.ops.mesh.primitive_uv_sphere_add(
             radius=0.115 * scale,
-            location=(origin_x + dx, offset_y, body_h + 0.155 * scale),
+            location=(origin_x + dx, offset_y + origin_y, body_h + 0.155 * scale),
             segments=16,
             ring_count=8,
         )
@@ -353,7 +368,12 @@ def build(args, models):
     x = 0.0
     placed = []
     max_radius = 0.0
-    for data in models:
+    # A camp rather than a size chart: the ends of the row swing back so the
+    # domes stand round a yard, with every door still facing the open side.
+    span_guess = sum(d["meta"]["dome_radius"] * MM * 2 for d in models) + (
+        args.gap * max(0, len(models) - 1)
+    )
+    for index, data in enumerate(models):
         meta = data["meta"]
         radius_m = meta["dome_radius"] * MM
         rod_radius_m = meta["rod_diameter"] * MM / 2.0
@@ -361,26 +381,35 @@ def build(args, models):
 
         if placed:
             x += args.gap + radius_m
+        if args.camp and len(models) > 1:
+            # Parabolic: flat in the middle, swept back at both ends.
+            t = (x / span_guess) * 2.0 - 1.0
+            y0 = args.camp * t * t
+        else:
+            y0 = 0.0
         coll = new_collection(meta["variant"], root)
 
         door = data.get("doorway")
         spin = spin_for_door(data)
         # A portal has no lancet, so no pair of jambs to pick out: the
-    # traced outline and the ghosts of the cut pieces carry it instead.
-    jambs = (
-        set(door["frame"]["jamb_rods"])
-        if door and door.get("frame")
-        else set()
-    )
+        # traced outline and the ghosts of the cut pieces carry it instead.
+        jambs = (
+            set(door["frame"]["jamb_rods"])
+            if door and door.get("frame")
+            else set()
+        )
 
         for rod in data["rods"]:
             mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
             runs = rod_runs(rod)
-            for index, (pts, present) in enumerate(runs):
+            for piece, (pts, present) in enumerate(runs):
                 if present:
-                    suffix = f"_{index}" if len(runs) > 1 else ""
-                    add_rod(rod, rod_radius_m, mat, coll, x, lift, spin, pts, suffix)
-                else:
+                    suffix = f"_{piece}" if len(runs) > 1 else ""
+                    add_rod(
+                        rod, rod_radius_m, mat, coll, x, lift, spin, pts, suffix,
+                        origin_y=y0,
+                    )
+                elif not args.hide_cuts:
                     add_rod(
                         rod,
                         rod_radius_m,
@@ -392,19 +421,26 @@ def build(args, models):
                         pts,
                         "_cut",
                         bevel=rod_radius_m * 0.7,
+                        origin_y=y0,
                     )
         if data.get("skirt"):
             add_skirt(
-                data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift, spin
+                data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift,
+                spin, origin_y=y0,
             )
         if door:
-            add_doorway(door, rod_radius_m, coll, x, lift, spin)
+            add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
             # In the doorway, not beside it: the row exists to be read at a
             # glance, and the one thing worth reading is whether the person
             # gets in.
-            add_humans(x, -radius_m, human_mats, coll, meta["variant"])
+            add_humans(
+                x, -radius_m, human_mats, coll, meta["variant"], origin_y=y0
+            )
         else:
-            add_humans(x + radius_m * 0.45, 0.0, human_mats, coll, meta["variant"])
+            add_humans(
+                x + radius_m * 0.45, 0.0, human_mats, coll, meta["variant"],
+                origin_y=y0,
+            )
 
         if not args.no_labels:
             skirt_mm = meta.get("skirt_height", 0.0)
@@ -415,7 +451,7 @@ def build(args, models):
             text = f"{name}  {meta['dome_diameter'] * MM:.0f} x {tall:.1f} m"
             if skirt_mm:
                 text += f" (+{skirt_mm * MM:.1f} skirt)"
-            add_label(text, x, -radius_m - 1.6, label_mat, coll)
+            add_label(text, x, -radius_m - 1.6 + y0, label_mat, coll)
 
         placed.append((meta["variant"], x, radius_m, meta))
         max_radius = max(max_radius, radius_m)
