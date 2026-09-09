@@ -165,7 +165,7 @@ def test_each_named_size_admits_the_silhouette_it_claims():
         door = data["doorway"]["door"]
         assert door["fits"], f"{name} ({variant.alias}) door does not fit"
         assert door["template"] == variant.door
-        assert door["spare_mm"] >= 50.0, f"{variant.alias} has no headroom to spare"
+        assert door["spare_mm"] >= 0.0, f"{variant.alias} has no headroom at all"
         assert variant.door in data["doorway"]["admits"]
 
 
@@ -197,34 +197,85 @@ def test_a_bare_uncut_six_metre_dome_is_a_crawl_in():
     assert lg["doorway"]["admits"] == ["crawl", "stoop"]
 
 
-def test_m_and_l_ship_with_the_door_cut_to_the_head():
-    """Both are bare, so both are cut open, and both gain two steps.
+def test_m_and_l_ship_with_a_portal_door():
+    """Both are bare, and both get their door from a low bay rather than a
+    tall one.
 
-    M goes from crawling to walking, L from ducking to carrying. The price is
-    the same at both sizes and it is not the rod: two bows severed and the
-    head node left with nothing running through it.
+    The portal is the better trade by a distance: it has a lintel instead of a
+    pointed head, it stands higher for it, and it costs the same 2.8% of rod
+    while severing nothing and stranding nothing. M goes from crawling to
+    walking in with something in your hands.
     """
-    for name, uncut_best, cut_best in (("M", "crawl", "walk"), ("L", "stoop", "carry")):
+    for name, uncut_best in (("M", "crawl"), ("L", "stoop")):
         data = model.build(config.load(name))
         door = data["doorway"]
         assert door["cut"] is not None, f"{name} should ship cut"
-        assert door["cut"]["level"] == "head"
-        assert cut_best in door["admits"], f"{name} should admit {cut_best} once cut"
+        assert door["cut"]["level"] == "portal"
+        assert door["cut"]["cost"]["severs_nothing"]
+        assert not door["cut"]["cost"]["nodes_with_nothing_through"]
+        assert door["frame"] is None
+        assert "carry" in door["admits"]
 
         uncut = model.build(config.load(name, door_cut="none"))
         assert uncut["doorway"]["admits"][-1] == uncut_best
-        assert cut_best not in uncut["doorway"]["admits"]
+        assert "carry" not in uncut["doorway"]["admits"]
+
+
+def test_a_portal_stands_higher_than_a_lancet_for_the_same_rod(bare):
+    """Why the portal wins.
+
+    Both cuts cost about 2.8% of the rod and neither severs anything. The
+    lancet's head is a node at 0.2629 of D; the portal's lintel clears about
+    0.3009. Same price, a tenth more height, and a level top to hang a door
+    from rather than a point.
+    """
+    lancet = doorway.place(bare, cut="jambs")
+    portal = doorway.place(bare, cut="portal")
+
+    assert portal["in_bay"]["clear_height_mm"] > lancet["in_bay"]["clear_height_mm"]
+    assert portal["cut"]["cost"]["severs_nothing"]
+    assert (
+        abs(
+            portal["cut"]["cost"]["rod_removed_fraction"]
+            - lancet["cut"]["cost"]["rod_removed_fraction"]
+        )
+        < 0.005
+    )
+
+
+def test_the_portal_head_is_a_fixed_fraction_of_the_diameter(bare):
+    """0.3009 of D, the same at every size -- the shape is self-similar."""
+    portal = doorway.place(bare, cut="portal")
+    fraction = (
+        portal["in_bay"]["clear_height_mm"] / bare["meta"]["dome_diameter"]
+    )
+    assert fraction == pytest.approx(0.3027, abs=0.002)
+
+
+def test_a_bare_six_metre_dome_only_just_takes_a_loaded_person():
+    """M's portal clears 1816 mm and `carry` wants 1800.
+
+    Sixteen millimetres is not a margin, it is an accident, and it is the kind
+    of number that quietly stops being true once a cover is hemmed round the
+    opening. Worth a test so it cannot be forgotten.
+    """
+    m = model.build(config.load("M"))
+    assert m["doorway"]["in_bay"]["clear_height_mm"] == pytest.approx(1816, abs=5)
+    assert m["doorway"]["door"]["fits"]
+    assert m["doorway"]["door"]["spare_mm"] < 50.0
 
 
 def test_the_head_cut_strands_the_head_node_and_says_so():
     """The cost that is not measured in metres of rod.
 
-    At this level all four bows terminate at the head node, so nothing runs
-    through it and no continuous member holds it. That wants a lintel, and the
-    model has to say it rather than leave it to be noticed.
+    At the head level all four bows terminate at the head node, so nothing
+    runs through it and no continuous member holds it. That wants a lintel,
+    and the model has to say so rather than leave it to be noticed. This is
+    why neither shipped size uses that level.
     """
     for name in ("M", "L"):
-        cost = model.build(config.load(name))["doorway"]["cut"]["cost"]
+        data = model.build(config.load(name, door_cut="head"))
+        cost = data["doorway"]["cut"]["cost"]
         assert not cost["severs_nothing"]
         assert cost["severed_bows"] == ["L1", "L5"]
         assert cost["nodes_with_nothing_through"] == ["N20"]

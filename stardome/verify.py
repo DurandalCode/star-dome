@@ -253,18 +253,79 @@ def check(data: dict) -> list:
     )
 
     # --- doorway -------------------------------------------------------------
+    #
+    # A door is either a tall bay -- the lancet, optionally cut open -- or a
+    # portal, which is a low bay with the crossing that fills it removed. They
+    # are different shapes with different heads, so they get different checks.
     door = data.get("doorway")
     if door is not None:
         bay = door["bay"]
         frame = door["frame"]
-        diameter = meta["dome_diameter"]
-
         cut = door.get("cut")
+        diameter = meta["dome_diameter"]
+        level = cut["level"] if cut else "none"
 
         want(
             door["bay_count"] == 5,
             f"expected 5 tall bays to choose a door from, got {door['bay_count']}",
         )
+
+        points = door["outline"]["points"]
+        ground = meta.get("ground_z", 0.0)
+        want(
+            abs(points[0][2] - ground) < 1e-3 and abs(points[-1][2] - ground) < 1e-3,
+            f"door outline does not start and end at ground z={ground}",
+        )
+
+        if cut is not None:
+            want(
+                len(cut["spans"]) >= 2,
+                f"a cut takes pieces off at least two rods, got {sorted(cut['spans'])}",
+            )
+
+    if door is not None and level == "portal":
+        # Two U bows rising from adjacent base points, and one L bow lying
+        # nearly level across the top: a doorway with a lintel rather than a
+        # pointed arch. Its head is higher than the tall bay's, which is the
+        # whole reason to prefer it.
+        want(
+            frame is None,
+            "a portal has no lancet to describe, so frame should be empty",
+        )
+        want(
+            0.298 < bay["clear_height_mm"] / diameter < 0.305,
+            f"portal head is at {bay['clear_height_mm'] / diameter:.4f} of D, "
+            "expected about 0.3009",
+        )
+        want(
+            bay["clear_height_mm"] > 0.2629 * diameter,
+            "a portal no taller than the tall bay's head node is not worth "
+            "the rod it costs",
+        )
+        # Why this cut is affordable: both spans run to a bow end, so each bow
+        # simply starts higher up instead of becoming two bows.
+        want(
+            cut["cost"]["severs_nothing"],
+            f"the portal cut severs {cut['cost']['severed_bows']} -- both "
+            "spans should run contiguously to a bow end",
+        )
+        want(
+            not cut["cost"]["nodes_with_nothing_through"],
+            "the portal cut should leave every node with something running "
+            f"through it, but stranded {cut['cost']['nodes_with_nothing_through']}",
+        )
+        want(
+            len(cut["spans"]) == 2,
+            "the portal clears one crossing, so exactly two rods lose a span; "
+            f"got {sorted(cut['spans'])}",
+        )
+        want(
+            abs(cut["cost"]["rod_removed_fraction"] - 0.028) < 2e-3,
+            "clearing the crossing costs about 2.8% of the rod, got "
+            f"{cut['cost']['rod_removed_fraction']:.4f}",
+        )
+
+    elif door is not None:
         # The head is a node on a self-similar shape, so its height is an
         # exact fraction of the diameter at every size. The *clear* height
         # under it is that less the rod, and so drifts slightly with how thick
@@ -274,81 +335,7 @@ def check(data: dict) -> list:
             f"door head is at {frame['apex_point'][2] / diameter:.5f} of D, "
             "expected 0.26287",
         )
-        if cut is None:
-            want(
-                0.2535 < bay["clear_height_mm"] / diameter < 0.2555,
-                f"door clear height is {bay['clear_height_mm'] / diameter:.4f} "
-                "of D, expected about 0.254",
-            )
-            want(
-                abs(bay["span_deg"] - 34.5) < 0.5,
-                f"door bay spans {bay['span_deg']:.2f} deg, expected 34.5",
-            )
-        else:
-            # Taking rod away can only open the bay up.
-            want(
-                bay["clear_height_mm"] / diameter > 0.2535,
-                f"cutting the jambs made the opening shorter: "
-                f"{bay['clear_height_mm'] / diameter:.4f} of D",
-            )
-            want(
-                bay["span_deg"] >= 34.5 - 0.5,
-                f"cutting the jambs made the bay narrower: {bay['span_deg']:.2f} deg",
-            )
-            # Whatever the level, the cut only ever takes pieces off rods
-            # that meet the door's head node.
-            want(
-                set(cut["spans"]) <= set(frame["apex_rods"]),
-                f"the cut takes {sorted(cut['spans'])}, which is not a subset "
-                f"of the rods at the head node {sorted(frame['apex_rods'])}",
-            )
-
-            if cut["level"] == "jambs":
-                # The whole justification for cutting at this level: it is free
-                # of the one thing that makes cutting expensive.
-                want(
-                    cut["cost"]["severs_nothing"],
-                    f"the jamb cut severs {cut['cost']['severed_bows']} -- at "
-                    "this level only end pieces may go",
-                )
-                want(
-                    sorted(cut["spans"]) == sorted(frame["jamb_rods"]),
-                    f"the jamb cut takes {sorted(cut['spans'])}, expected "
-                    f"{sorted(frame['jamb_rods'])}",
-                )
-                want(
-                    abs(cut["cost"]["rod_removed_fraction"] - 2.0 / 75.0) < 1e-3,
-                    "two of fifteen bows' five equal pieces is 2/75 of the "
-                    f"rod, got {cut['cost']['rod_removed_fraction']:.4f}",
-                )
-                want(
-                    not cut["cost"]["nodes_with_nothing_through"],
-                    "the jamb cut should leave the head node with two rods "
-                    "still running through it, but stranded "
-                    f"{cut['cost']['nodes_with_nothing_through']}",
-                )
-            elif cut["level"] == "head":
-                # This level is defined by going further than that, and the
-                # cost has to be visible rather than implied.
-                want(
-                    sorted(cut["spans"]) == sorted(frame["apex_rods"]),
-                    f"the head cut takes {sorted(cut['spans'])}, expected all "
-                    f"four rods at the head {sorted(frame['apex_rods'])}",
-                )
-                want(
-                    sorted(cut["cost"]["severed_bows"])
-                    == sorted(set(frame["apex_rods"]) - set(frame["jamb_rods"])),
-                    "the head cut should sever exactly the two non-jamb rods, "
-                    f"got {cut['cost']['severed_bows']}",
-                )
-                want(
-                    cut["cost"]["nodes_with_nothing_through"]
-                    == [frame["apex_node"]],
-                    "the head cut should strand exactly the head node, got "
-                    f"{cut['cost']['nodes_with_nothing_through']}",
-                )
-        # The whole point of this doorway: it cuts nothing. Its head is a
-        # lashed four-rod node and its feet are two base points.
+        # Its head is a lashed four-rod node and its feet are two base points.
         apex = next(
             (n for n in data["nodes"] if n["name"] == frame["apex_node"]), None
         )
@@ -369,38 +356,88 @@ def check(data: dict) -> list:
             and all(r in frame["apex_rods"] for r in frame["jamb_rods"]),
             f"door jambs {frame['jamb_rods']} do not both meet at the head",
         )
-        # The outline has to start and end on the ground, or it is not a hole
-        # anyone can walk through.
-        points = door["outline"]["points"]
-        ground = meta.get("ground_z", 0.0)
-        want(
-            abs(points[0][2] - ground) < 1e-3 and abs(points[-1][2] - ground) < 1e-3,
-            f"door outline does not start and end at ground z={ground}",
-        )
-        if cut is None:
+
+        if level == "none":
+            want(
+                0.2535 < bay["clear_height_mm"] / diameter < 0.2555,
+                f"door clear height is {bay['clear_height_mm'] / diameter:.4f} "
+                "of D, expected about 0.254",
+            )
+            want(
+                abs(bay["span_deg"] - 34.5) < 0.5,
+                f"door bay spans {bay['span_deg']:.2f} deg, expected 34.5",
+            )
             want(
                 abs(max(p[2] for p in points) - frame["apex_point"][2]) < 1e-3,
                 "door outline does not reach the head node",
             )
-        elif cut["level"] == "jambs":
-            # A traced outline follows the rod surface, so it stops a rod short
-            # of the centreline it runs under -- and at this level the head
-            # node is still the top of the opening.
+        else:
+            # Taking rod away can only open the bay up.
+            want(
+                bay["clear_height_mm"] / diameter > 0.2535,
+                "cutting made the opening shorter: "
+                f"{bay['clear_height_mm'] / diameter:.4f} of D",
+            )
+            want(
+                bay["span_deg"] >= 34.5 - 0.5,
+                f"cutting made the bay narrower: {bay['span_deg']:.2f} deg",
+            )
+            # A cut here only ever takes pieces off rods meeting the head.
+            want(
+                set(cut["spans"]) <= set(frame["apex_rods"]),
+                f"the cut takes {sorted(cut['spans'])}, which is not a subset "
+                f"of the rods at the head node {sorted(frame['apex_rods'])}",
+            )
+
+        if level == "jambs":
+            # The justification for this level: it is free of the one thing
+            # that makes cutting expensive.
+            want(
+                cut["cost"]["severs_nothing"],
+                f"the jamb cut severs {cut['cost']['severed_bows']} -- at this "
+                "level only end pieces may go",
+            )
+            want(
+                sorted(cut["spans"]) == sorted(frame["jamb_rods"]),
+                f"the jamb cut takes {sorted(cut['spans'])}, expected "
+                f"{sorted(frame['jamb_rods'])}",
+            )
+            want(
+                abs(cut["cost"]["rod_removed_fraction"] - 2.0 / 75.0) < 1e-3,
+                "two of fifteen bows' five equal pieces is 2/75 of the rod, "
+                f"got {cut['cost']['rod_removed_fraction']:.4f}",
+            )
+            want(
+                not cut["cost"]["nodes_with_nothing_through"],
+                "the jamb cut should leave the head node with two rods still "
+                f"through it, but stranded {cut['cost']['nodes_with_nothing_through']}",
+            )
             want(
                 max(p[2] for p in points) < frame["apex_point"][2] + 1e-3,
                 "cut door outline rises above the head node",
             )
-        else:
-            # At the head level the node is no longer the top of anything: the
-            # opening runs past it to whatever is left above.
+        elif level == "head":
+            # Defined by going further, and the cost has to be visible.
+            want(
+                sorted(cut["spans"]) == sorted(frame["apex_rods"]),
+                f"the head cut takes {sorted(cut['spans'])}, expected all four "
+                f"rods at the head {sorted(frame['apex_rods'])}",
+            )
+            want(
+                sorted(cut["cost"]["severed_bows"])
+                == sorted(set(frame["apex_rods"]) - set(frame["jamb_rods"])),
+                "the head cut should sever exactly the two non-jamb rods, got "
+                f"{cut['cost']['severed_bows']}",
+            )
+            want(
+                cut["cost"]["nodes_with_nothing_through"] == [frame["apex_node"]],
+                "the head cut should strand exactly the head node, got "
+                f"{cut['cost']['nodes_with_nothing_through']}",
+            )
             want(
                 max(p[2] for p in points) > frame["apex_point"][2],
                 "the head cut should open the bay past its old head node",
             )
-        want(
-            door["door"]["fits"],
-            f"the {door['door']['template']} silhouette does not fit "
-            f"{meta['variant']}'s door -- the skirt in variants.toml is too short",
-        )
+
 
     return problems

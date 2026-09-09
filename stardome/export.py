@@ -43,9 +43,16 @@ def write_csv(rows: list, path: Path | str) -> Path:
     if not rows:
         path.write_text("", encoding="utf-8")
         return path
-    fields = list(rows[0].keys())
+    # The union, in first-seen order, rather than whatever the first row
+    # happens to carry: a rod that has had a piece cut out of it gains a field
+    # the other fourteen do not have, and a table is not the place to lose it.
+    fields: list = []
+    for row in rows:
+        for key in row:
+            if key not in fields:
+                fields.append(key)
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fields)
+        writer = csv.DictWriter(fh, fieldnames=fields, restval="")
         writer.writeheader()
         for row in rows:
             writer.writerow({k: _flatten(v) for k, v in row.items()})

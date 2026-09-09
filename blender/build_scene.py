@@ -68,6 +68,12 @@ def parse_args(argv):
     p = argparse.ArgumentParser(prog="build_scene")
     p.add_argument("--model", required=True, help="path to model.json")
     p.add_argument(
+        "--label-nodes",
+        action="store_true",
+        help="write each crossing's name beside it, so a node can be named "
+             "from the viewport instead of by clicking through the outliner",
+    )
+    p.add_argument(
         "--no-doorway",
         action="store_true",
         help="skip the doorway highlight even if the model carries one",
@@ -393,6 +399,29 @@ def door_azimuth_deg(door):
     return door["bay"]["apex_azimuth_deg"]
 
 
+def label_node(name, xyz_mm, size_m, material, collection, lift=0.0):
+    """The node's name, standing up beside it and facing the camera.
+
+    Reading a crossing off the outliner means clicking it first, which is the
+    wrong way round when the question is "which crossing is that one".
+    """
+    bpy.ops.object.text_add(
+        location=(
+            xyz_mm[0] * MM,
+            xyz_mm[1] * MM,
+            xyz_mm[2] * MM + lift + size_m * 0.6,
+        )
+    )
+    obj = bpy.context.active_object
+    obj.data.body = name
+    obj.data.align_x = "CENTER"
+    obj.data.size = size_m
+    obj.name = f"Label_{name}"
+    obj.rotation_euler = (math.radians(90.0), 0.0, 0.0)
+    obj.data.materials.append(material)
+    return move_to(obj, collection)
+
+
 def add_camera_and_light(scene, radius_m, height_m, facing_deg=None):
     cam_data = bpy.data.cameras.new("Camera")
     cam_data.lens = 35.0
@@ -509,6 +538,32 @@ def build(args):
             tied_coll if tied else untied_coll,
             lift,
         )
+
+    if args.label_nodes:
+        label_coll = new_collection("Labels", root)
+        label_mat = make_material("NodeLabel", (0.98, 0.98, 0.98, 1.0))
+        # Sized off the dome so the text is legible at any variant.
+        size = radius_m * 0.055
+        for node in data["nodes"]:
+            if node["rod_count"] != 4 and not args.untied_nodes:
+                continue
+            label_node(
+                node["name"],
+                (node["x"], node["y"], node["z"]),
+                size,
+                label_mat,
+                label_coll,
+                lift,
+            )
+        for node in data["base_nodes"]:
+            label_node(
+                node["name"],
+                (node["x"], node["y"], node["z"]),
+                size,
+                label_mat,
+                label_coll,
+                lift,
+            )
 
     for node in data["base_nodes"]:
         marker(
