@@ -47,6 +47,7 @@ UNTIED_COLOUR = (0.55, 0.55, 0.60, 1.0)
 BASE_COLOUR = (0.25, 0.25, 0.30, 1.0)
 SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
+GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
 
 # Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
@@ -120,21 +121,56 @@ def new_collection(name, parent):
     return coll
 
 
-def rod_object(rod, radius_m, material, collection, lift=0.0):
-    """One bow as a poly curve with a round bevel at the real rod radius."""
-    curve = bpy.data.curves.new(f"RodCurve_{rod['name']}", "CURVE")
+def rod_runs(rod):
+    """Split a rod's polyline into the pieces that are there and the pieces gone.
+
+    A cut is recorded on the rod as spans of the bow parameter t, and the
+    polyline samples t evenly from 0 to 180 -- so the index gives t back. The
+    removed piece is still worth drawing, as a ghost: a door you cannot see the
+    price of is a door that looks free.
+    """
+    points = rod["points"]
+    spans = rod.get("cut_spans_deg") or []
+    if not spans:
+        return [(points, True)]
+
+    last = len(points) - 1
+    runs = []
+    current = []
+    state = None
+    for i, point in enumerate(points):
+        t = 180.0 * i / last
+        present = not any(lo - 1e-6 <= t <= hi + 1e-6 for lo, hi in spans)
+        if state is None:
+            state = present
+        if present != state:
+            # The boundary point belongs to both runs, so the ghost meets the
+            # rod instead of leaving a gap at the joint.
+            current.append(point)
+            runs.append((current, state))
+            current = [points[i - 1]]
+            state = present
+        current.append(point)
+    runs.append((current, state))
+    return [(pts, keep) for pts, keep in runs if len(pts) > 1]
+
+
+def rod_object(rod, radius_m, material, collection, lift=0.0, points=None,
+               suffix="", bevel=None):
+    """One bow, or one piece of one, as a poly curve bevelled at rod radius."""
+    points = rod["points"] if points is None else points
+    curve = bpy.data.curves.new(f"RodCurve_{rod['name']}{suffix}", "CURVE")
     curve.dimensions = "3D"
-    curve.bevel_depth = radius_m
+    curve.bevel_depth = radius_m if bevel is None else bevel
     curve.bevel_resolution = 6
     curve.use_fill_caps = True
 
     spline = curve.splines.new("POLY")
-    points = rod["points"]
     spline.points.add(len(points) - 1)
     for i, (x, y, z) in enumerate(points):
         spline.points[i].co = (x * MM, y * MM, z * MM + lift, 1.0)
 
-    obj = bpy.data.objects.new(f"Rod_{rod['name']}", curve)
+    obj = bpy.data.objects.new(f"Rod_{rod['name']}{suffix}", curve)
     obj["family"] = rod["family"]
     obj["layer"] = rod["layer"]
     obj["length_mm"] = rod["length_drawn"]
@@ -431,11 +467,31 @@ def build(args):
     jambs = set(door["frame"]["jamb_rods"]) if door else set()
     jamb_mat = make_material("Rod_Jamb", JAMB_COLOUR)
 
+    ghost_mat = make_transparent(make_material("Rod_Cut", GHOST_COLOUR), 0.50)
+    ghost_coll = None
+
     for rod in data["rods"]:
         # The two rods that frame the door get their own colour: they are what
         # a cover panel is hemmed against and what a frame bolts to.
         mat = jamb_mat if rod["name"] in jambs else materials[rod["family"]]
-        rod_object(rod, rod_radius_m, mat, rods_coll, lift)
+        runs = rod_runs(rod)
+        for index, (points, present) in enumerate(runs):
+            if present:
+                suffix = f"_{index}" if len(runs) > 1 else ""
+                rod_object(rod, rod_radius_m, mat, rods_coll, lift, points, suffix)
+            else:
+                if ghost_coll is None:
+                    ghost_coll = new_collection("Cut_Away", root)
+                rod_object(
+                    rod,
+                    rod_radius_m,
+                    ghost_mat,
+                    ghost_coll,
+                    lift,
+                    points,
+                    "_cut",
+                    bevel=rod_radius_m * 0.7,
+                )
 
     # Big enough to find at a glance, small enough to still be honest about
     # where the crossing actually is: 25 mm at a 10 mm rod, about the footprint

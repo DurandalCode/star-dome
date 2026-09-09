@@ -246,6 +246,7 @@ def build(
         "ground_z": _r(-variant.skirt_height),
         "overall_height": _r(variant.overall_height),
         "door_template": variant.door,
+        "door_cut": variant.door_cut,
         "coordinate_basis": (
             "nominal centreline on the sphere (same as weaveMode=flat); "
             "weave offsets are reported per crossing as radial_gap"
@@ -278,5 +279,16 @@ def build(
         # it -- the same contract the rest of this file keeps.
         from . import doorway
 
-        out["doorway"] = doorway.place(out, variant.door)
+        out["doorway"] = doorway.place(out, variant.door, cut=variant.door_cut)
+        cut = out["doorway"].get("cut")
+        if cut:
+            # Carry the removed spans on the rods themselves so a consumer can
+            # draw what is actually there without re-deriving the cut. The
+            # rod's own length fields stay nominal: the dome underneath is
+            # still the whole Takekawa dome, and the cut is a modification of
+            # it that verify checks separately.
+            for rod in out["rods"]:
+                spans = cut["spans"].get(rod["name"])
+                if spans:
+                    rod["cut_spans_deg"] = spans
     return out

@@ -39,6 +39,7 @@ FAMILY_COLOUR = {
 }
 SKIRT_COLOUR = (0.80, 0.80, 0.78, 1.0)
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)
+GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)
 GROUND_COLOUR = (0.26, 0.29, 0.24, 1.0)
 LABEL_COLOUR = (0.95, 0.95, 0.95, 1.0)
@@ -138,19 +139,54 @@ def _place(x_mm, y_mm, origin_x, spin_deg):
     return x * MM + origin_x, y * MM
 
 
-def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0):
-    curve = bpy.data.curves.new(f"C_{rod['name']}", "CURVE")
+def rod_runs(rod):
+    """Split a rod's polyline into the pieces that are there and the pieces gone.
+
+    A cut is recorded on the rod as spans of the bow parameter t, and the
+    polyline samples t evenly from 0 to 180 -- so the index gives t back. The
+    removed piece is still worth drawing, as a ghost: a door you cannot see the
+    price of is a door that looks free.
+    """
+    points = rod["points"]
+    spans = rod.get("cut_spans_deg") or []
+    if not spans:
+        return [(points, True)]
+
+    last = len(points) - 1
+    runs = []
+    current = []
+    state = None
+    for i, point in enumerate(points):
+        t = 180.0 * i / last
+        present = not any(lo - 1e-6 <= t <= hi + 1e-6 for lo, hi in spans)
+        if state is None:
+            state = present
+        if present != state:
+            # The boundary point belongs to both runs, so the ghost meets the
+            # rod instead of leaving a gap at the joint.
+            current.append(point)
+            runs.append((current, state))
+            current = [points[i - 1]]
+            state = present
+        current.append(point)
+    runs.append((current, state))
+    return [(pts, keep) for pts, keep in runs if len(pts) > 1]
+
+
+def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0,
+            points=None, suffix="", bevel=None):
+    points = rod["points"] if points is None else points
+    curve = bpy.data.curves.new(f"C_{rod['name']}{suffix}", "CURVE")
     curve.dimensions = "3D"
-    curve.bevel_depth = radius_m
+    curve.bevel_depth = radius_m if bevel is None else bevel
     curve.bevel_resolution = 4
     curve.use_fill_caps = True
     spline = curve.splines.new("POLY")
-    points = rod["points"]
     spline.points.add(len(points) - 1)
     for i, (x, y, z) in enumerate(points):
         px, py = _place(x, y, origin_x, spin_deg)
         spline.points[i].co = (px, py, z * MM + lift, 1.0)
-    obj = bpy.data.objects.new(f"Rod_{rod['name']}", curve)
+    obj = bpy.data.objects.new(f"Rod_{rod['name']}{suffix}", curve)
     obj.data.materials.append(material_)
     collection.objects.link(obj)
     return obj
@@ -312,6 +348,7 @@ def build(args, models):
     }
     label_mat = material("Label", LABEL_COLOUR)
     jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
+    ghost_mat = make_transparent(material("Rod_Cut", GHOST_COLOUR), 0.50)
 
     x = 0.0
     placed = []
@@ -332,7 +369,24 @@ def build(args, models):
 
         for rod in data["rods"]:
             mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
-            add_rod(rod, rod_radius_m, mat, coll, x, lift, spin)
+            runs = rod_runs(rod)
+            for index, (pts, present) in enumerate(runs):
+                if present:
+                    suffix = f"_{index}" if len(runs) > 1 else ""
+                    add_rod(rod, rod_radius_m, mat, coll, x, lift, spin, pts, suffix)
+                else:
+                    add_rod(
+                        rod,
+                        rod_radius_m,
+                        ghost_mat,
+                        coll,
+                        x,
+                        lift,
+                        spin,
+                        pts,
+                        "_cut",
+                        bevel=rod_radius_m * 0.7,
+                    )
         if data.get("skirt"):
             add_skirt(
                 data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift, spin

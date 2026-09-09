@@ -83,15 +83,17 @@ note = "S -- smallest size with a walk-in door; needs the tallest skirt to get o
 diameter = 6000
 rod_diameter = 10
 alias = "M"
-door = "crawl"
-note = "M -- reference prototype. Bare by choice, so you get in on all fours"
+door = "stoop"
+door_cut = true
+note = "M -- reference prototype, bare, with the door cut open. You duck in"
 
 [variants.D8]
 diameter = 8000
 rod_diameter = 10
 alias = "L"
-door = "stoop"
-note = "L -- large dome, bare by choice: you duck in. Expect reinforcement work"
+door = "carry"
+door_cut = true
+note = "L -- large dome, bare, door cut open: you walk in carrying something"
 
 [variants.D10]
 diameter = 10000
