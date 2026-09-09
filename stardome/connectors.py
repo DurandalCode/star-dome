@@ -116,7 +116,7 @@ def schedule(data: dict) -> dict:
             "nodes": entry["nodes"],
             "tied": True,
             "crossing_types": entry["crossing_types"],
-            "generator": "fan_node_v1",
+            "generator": "fan_node_v2",
             "fan_gaps_deg": group["gaps_deg"],
             "families_in_fan_order": group["families_in_fan_order"],
             "stack_order": fan["stack_order"],
