@@ -62,15 +62,19 @@ is still one object per node.
 | pieces per node | 5 | 2 |
 | rods positively located | 4 | 2 |
 | rod-on-rod contacts | 0 | 3 |
-| stack pitch | 17.86 mm | 10 mm |
-| stack height | 53.6 mm | 30 mm |
-| assembly height | 77.3 mm | 51.4 mm |
+| stack pitch | 13.40 mm | 10 mm |
+| stack height | 40.2 mm | 30 mm |
+| assembly height | 63.9 mm | 51.4 mm |
 | footprint | 76.0 mm | 91.2 mm |
-| bolts | 2 × M5 × 80 | 2 × M5 × 55 |
-| volume per node | 139.8 cm³ | 60.2 cm³ |
+| bolts | 2 × M5 × 70 | 2 × M5 × 55 |
+| volume per node | 115.7 cm³ | 60.2 cm³ |
 
-V2 is **2.3× the plastic and 50% taller**. That is the price of putting every
-rod in a channel, and it should be weighed honestly against V1 before ten of
+13.40 mm is the **floor** for a 3 mm web: two channel radii plus the web, with
+nothing else in the way. The stack cannot be made denser without thinning the
+web, which is the piece carrying the clamping load between two rods.
+
+V2 is still 1.9× the plastic of V1 and 12 mm taller. That is the price of
+putting every rod in a channel, and it should be weighed honestly before ten of
 these get printed. The footprint shrinks because V2 needs no solid posts beside
 the rods — only bolt holes.
 
@@ -80,53 +84,89 @@ The pitch has to leave real material between two channels, and the first attempt
 did not:
 
 ```
-pitch = webThickness + channelRadius + upperReach + 2 * tiltSlack
+pitch = webThickness + channelRadius + upperReach
 ```
 
-where `upperReach` is `channelRadius` for a plain channel and
-`sqrt(2) * channelRadius` for a gabled one. Setting `pitch = 2*channelRadius +
-web`, as the first attempt did, left **0.85 mm of web instead of 3** — because
-the tilt slack stretches both channels and the gable reaches 41% higher than the
-channel radius. That web is the piece carrying the clamping load between two
-rods.
+Three versions of this arithmetic were wrong before it was right:
 
-`verify` now walks the node's own axis, where the two channels come closest, and
-reports how much material is actually there: **3.0 mm on all three middle
-plates**, matching the request. Measured, not asserted.
+1. `pitch = 2*channelRadius + web` left **0.85 mm of web instead of 3**: the
+   tilt slack stretches both channels and a gable reaches 41% higher than the
+   channel radius, and neither was accounted for.
+2. Adding `2 * tiltSlack` fixed the web but spent **2.3 mm of pitch per
+   interface** on tilt clearance at the node centre — which is precisely where
+   the rod needs none. See "The flare" below.
+3. Removing it left the pitch at its floor, `web + 2 * channelRadius` = 13.40 mm.
+
+`verify` walks the node's own axis, where the two channels come closest, and
+reports how much material is actually there: **2.95 mm measured on all three
+middle plates** against 3.0 requested, the difference being the 0.05 mm probe
+step. Measured, not asserted.
+
+## The flare
+
+Tilt clearance used to widen the channel uniformly along its whole length. That
+is wrong twice over. The tilt is a rotation of the rod about the transverse axis
+through the node centre, so the rod sits on the nominal axis at the centre and
+deviates only towards the ends — and the centre is exactly where the web between
+two stacked channels is thinnest.
+
+The channel is now the swept volume of the rod rotated through the allowed
+range: **narrow in the middle, flared at the mouths.** It costs nothing in pitch
+and recovered 2.3 mm per interface, 6.9 mm off the stack.
+
+It is built in a local frame with the rod along +X and its axis at the origin,
+then placed. Fusing nearly-tangent cylinders is badly conditioned in OCC and the
+result depends on how the seams happen to line up: done in world coordinates it
+raised `Bnd_Box is void` on the fourth rod and produced an invalid solid on the
+third, while the first two were fine. In the local frame every rod is the same
+well-conditioned problem.
 
 ## Printability
 
 All five plates print without supports, the cap upside down and the rest as they
 sit:
 
-| plate | worst overhang | area below 45° | flat ceiling |
-|---|---|---|---|
-| Bottom | 50.06° | 26 mm² | 0 mm² |
-| Mid1 | 45.00° | 0 mm² | 0 mm² |
-| Mid2 | 45.00° | 0 mm² | 0 mm² |
-| Mid3 | 45.00° | 0 mm² | 0 mm² |
-| Cap | 49.99° | 0 mm² | 0 mm² |
+| plate | worst overhang | unsupported below 45° | bridged channel roof | flat ceiling |
+|---|---|---|---|---|
+| Bottom | 50.06° | 26 mm² | 0 mm² | 0 mm² |
+| Mid1 | 88.35° | 0 mm² | 866 mm² | 0 mm² |
+| Mid2 | 90.00° | 0 mm² | 721 mm² | 0 mm² |
+| Mid3 | 86.50° | 0 mm² | 721 mm² | 0 mm² |
+| Cap | 49.99° | 0 mm² | 0 mm² | 0 mm² |
 
 Each middle plate carries one channel that opens downward whichever way it is
-printed. `teardropRoof` caps those with a 45° gable tangent to the channel, so
-they print unsupported; the extra clearance sits above the rod where it does
-nothing. The middle plates land at exactly 45.0° because that is what the gable
-is set to.
+printed. Its roof is a **bridge**: a horizontal-axis cylindrical surface walled
+on both sides, exactly like the top of every horizontal hole in every printed
+part, and FDM spans that routinely. The checker now classifies those separately
+instead of counting them as unsupported overhang, which was making a sound part
+look broken.
 
 Bottom's 26 mm² is the same hexagonal-pocket-meets-round-taper corner as V1's.
 
-**Turning the gable off** (`teardropRoof = 0`) saves 6.5 mm of stack height and
-13 cm³, at the cost of ~800 mm² per middle plate of arched channel roof. That
-roof is a *bridge* between two walls, which FDM handles routinely — every
-horizontal hole in every printed part is one — but this checker cannot tell a
-bridge from a free-air overhang, so it reports it as a failure. The gable is on
-by default because it makes the check mean something.
+### The gable is currently broken — leave `teardropRoof` at 0
+
+`teardropRoof` was meant to cap each downward channel with a gable so its roof
+never exceeds 45°, removing the bridge. Two things went wrong:
+
+- Added *after* the flare, the gable only covered the nominal axis and the
+  flared ends stuck out from under it as shallow round overhangs, dropping the
+  middle plates from 45° to 26°. Fusing it *before* the flare fixes that, and
+  the gable is built steeper than 45° by the tilt allowance so it still clears
+  45° after being rotated.
+- With that in place, the gabled cut then **silently removes nothing** from the
+  middle plates, though the identical operation works in isolation — another
+  instance of OCC boolean instability. `verify` catches it as 2094 mm³ of rod
+  interference and a blind channel, so it cannot ship unnoticed, but it is not
+  fixed.
+
+The plain channel is the default and is what gives the density anyway: the gable
+would cost 2.35 mm of pitch per interface, 7 mm on the stack.
 
 ## Known compromises for V2
 
 1. **Five distinct plates per node**, fifty per dome. Mitigated by keeping the
    stack captive on its bolts, not eliminated.
-2. **2.3× the material of V1** and a 77 mm tall assembly.
+2. **1.9x the material of V1** and a 63.9 mm tall assembly.
 3. **Nothing tested in plastic.** Every number here comes from the solid model.
    No sample printed, no bolt torqued, no rod bent into it.
 4. **Helpers are copied** from `fan_node_v1.py` rather than shared. All three

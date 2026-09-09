@@ -84,7 +84,7 @@ INPUTS = [
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with; the weave needs up to 1.2 deg"),
-    ("teardropRoof",           1.0,  "-",   "1 = give every downward channel a 45 deg roof so it prints unsupported"),
+    ("teardropRoof",           0.0,  "-",   "1 = gable every downward channel. CURRENTLY BROKEN, see docs/fan-node-v2.md: with the flare in place the gabled cut silently removes nothing from the middle plates, and verify() catches it as rod interference. Leave at 0."),
     ("fastenerDiameter",       5.5,  "mm",  "M5 clearance hole diameter"),
     ("fastenerHeadDiameter",  10.0,  "mm",  "M5 head / washer outside diameter"),
     ("headClearance",          0.6,  "mm",  "diametral clearance for the head counterbore"),
@@ -127,6 +127,28 @@ def rod_solid(radius, length, azimuth_deg, z):
     return Part.makeCylinder(radius, length, base, d)
 
 
+def _local_teardrop_roof(radius, length, angle_deg):
+    """A gable tangent to the channel at `angle_deg` from horizontal.
+
+    Built with the rod along +X and its axis at the origin. The tangent lines
+    touch the circle at (+/- r sin a, r cos a) and meet at r / cos a, so a 45
+    deg gable peaks at sqrt(2) r. It is set steeper than 45 by the tilt
+    allowance, because the finished channel is rotated through +/- that much
+    to make the flare, and a gable built at exactly 45 comes out at 43.5 on
+    one side afterwards.
+    """
+    a = math.radians(angle_deg)
+    half = radius * math.sin(a)
+    apex = radius / math.cos(a)
+    pts = [
+        App.Vector(-length / 2.0, -half, radius * math.cos(a)),
+        App.Vector(-length / 2.0, 0.0, apex),
+        App.Vector(-length / 2.0, half, radius * math.cos(a)),
+    ]
+    pts.append(pts[0])
+    return Part.Face(Part.makePolygon(pts)).extrude(App.Vector(length, 0, 0))
+
+
 def teardrop_roof(radius, length, azimuth_deg, z):
     """A 45 deg gable over a channel, tangent to it at the 45 deg points.
 
@@ -149,15 +171,54 @@ def teardrop_roof(radius, length, azimuth_deg, z):
     return prism
 
 
-def rod_channel(radius, length, azimuth_deg, z, tilt_slack, roof=False):
-    """Channel for one rod, stretched vertically for tilt, optionally gabled."""
-    body = rod_solid(radius, length, azimuth_deg, z)
-    if tilt_slack > 0.0:
-        for dz in (-tilt_slack, tilt_slack):
-            body = body.fuse(rod_solid(radius, length, azimuth_deg, z + dz))
+def rod_channel(radius, length, azimuth_deg, z, tilt_deg, steps=2, roof=False):
+    """Channel for one rod, flared at the ends to admit a tilted rod.
+
+    The rod arrives at up to `tilt_deg` of radial tilt, which is a rotation
+    about the transverse axis through the node centre -- so at the centre the
+    rod is on the nominal axis and the deviation grows towards the ends. The
+    channel is therefore the swept volume of the rod rotated through the
+    allowed range, approximated by fusing a few rotated copies: narrow in the
+    middle, flared at the mouths.
+
+    Widening the channel uniformly instead, as the first version did, spends
+    tilt clearance at the node centre -- which is exactly where the web
+    between two stacked channels is thinnest, and where the rod needs no
+    clearance at all. That cost 2.3 mm of stack pitch per interface for
+    nothing.
+
+    Built in a local frame with the rod along +X and its axis through the
+    origin, then placed. Fusing nearly-tangent cylinders is badly conditioned
+    in OCC and the outcome depends on how the seams happen to line up: done in
+    world coordinates, this raised "Bnd_Box is void" on the fourth rod and
+    produced an invalid solid on the third, while the first two were fine.
+    In the local frame every rod is the same well-conditioned problem.
+    """
+    origin = App.Vector(0.0, 0.0, 0.0)
+    base = Part.makeCylinder(
+        radius, length, App.Vector(-length / 2.0, 0.0, 0.0), App.Vector(1, 0, 0)
+    )
+    # The gable goes on BEFORE the flare, so every tilted position carries its
+    # own roof. Added afterwards it only covers the nominal axis, and the
+    # flared ends stick out from under it as shallow round overhangs -- which
+    # is what happened first, dropping the middle plates from 45 deg to 26.
     if roof:
-        body = body.fuse(teardrop_roof(radius, length, azimuth_deg, z + tilt_slack))
-    return body.removeSplitter()
+        base = base.fuse(
+            _local_teardrop_roof(radius, length, OVERHANG_LIMIT_DEG + tilt_deg)
+        ).removeSplitter()
+
+    body = base
+    if tilt_deg > 0.0 and steps > 0:
+        for k in range(1, steps + 1):
+            angle = tilt_deg * k / steps
+            for sign in (1.0, -1.0):
+                turned = base.copy()
+                turned.rotate(origin, App.Vector(0, 1, 0), sign * angle)
+                body = body.fuse(turned)
+    body = body.removeSplitter()
+    body.rotate(origin, App.Vector(0, 0, 1), azimuth_deg)
+    body.translate(App.Vector(0.0, 0.0, z))
+    return body
 
 
 def hex_prism(across_flats, height, base):
@@ -289,19 +350,29 @@ def build(values, fan_gaps=None):
     # Opening the pitch is the whole point of V2: it is what makes room for a
     # plate between every pair of rods. The pitch is DERIVED so that
     # webThickness is the material that actually remains at the thinnest point,
-    # which is above the lower channel and below the upper one:
+    # which is at the node centre, above the lower channel and below the upper
+    # one:
     #
-    #   both channels are stretched by tilt_slack, top and bottom;
-    #   a gabled channel reaches sqrt(2)*channel_r above its axis, not
-    #   channel_r, so the roof eats a further 0.414*channel_r.
+    #   the lower channel reaches channel_r above its axis, or sqrt(2)*channel_r
+    #   if it is gabled for printing;
+    #   the upper channel reaches channel_r below its axis.
     #
-    # Setting pitch to 2*channel_r + web, as the first attempt did, left 0.85 mm
-    # of web instead of 3 -- and that web is the piece carrying the clamping
-    # load between two rods.
-    upper_reach = channel_r * math.sqrt(2.0) if roof else channel_r
-    pitch = values["webThickness"] + channel_r + upper_reach + 2.0 * tilt_slack
+    # Tilt no longer appears here. The channel is flared at its ends rather
+    # than widened along its whole length, so at the centre it is exactly the
+    # rod -- see rod_channel. Two earlier versions of this arithmetic were
+    # wrong: the first left 0.85 mm of web instead of 3, the second spent
+    # 2.3 mm per interface on tilt clearance the centre does not need.
+    upper_reach = (
+        channel_r
+        / math.cos(math.radians(OVERHANG_LIMIT_DEG + values["tiltAllowance"]))
+        if roof
+        else channel_r
+    )
+    pitch = values["webThickness"] + channel_r + upper_reach
     levels = [(k - 1.5) * pitch for k in range(4)]
 
+    # The outer faces do need the tilt clearance: that is where the flare is
+    # widest, and the rod must still be enclosed.
     z_bottom = levels[0] - channel_r - tilt_slack - values["baseFloor"]
     z_top = levels[3] + channel_r + tilt_slack + values["capThickness"]
 
@@ -366,7 +437,7 @@ def build(values, fan_gaps=None):
                     length * 1.02,
                     azimuths[rod_index],
                     levels[rod_index],
-                    tilt_slack,
+                    values["tiltAllowance"],
                     roof=roof and downward,
                 )
             )
@@ -483,6 +554,7 @@ def printability(shape, flipped=False, samples=5):
     worst = 90.0
     worst_area = 0.0
     steep_area = 0.0
+    bridge_area = 0.0
     flat_area = 0.0
     for face in shape.Faces:
         u0, u1, v0, v1 = face.ParameterRange
@@ -509,7 +581,26 @@ def printability(shape, flipped=False, samples=5):
             if n.z * sign <= 1e-3:
                 continue
             face_worst = min(face_worst, math.degrees(math.acos(min(1.0, abs(n.z)))))
+        # A rod channel's roof is a BRIDGE: a horizontal-axis cylindrical
+        # surface, walled on both sides, exactly like the top of every
+        # horizontal hole in every printed part. FDM spans that routinely.
+        # Counting it as an unsupported overhang makes a sound part look
+        # broken, so it is reported separately.
+        bridged = False
+        try:
+            surface = face.Surface
+            # The flare tilts each channel piece by up to the tilt
+            # allowance, so a channel wall's axis is near-horizontal rather
+            # than exactly horizontal. Bolt holes are vertical, |z| ~ 1.
+            if isinstance(surface, Part.Cylinder) and abs(surface.Axis.z) < 0.2:
+                bridged = True
+        except Exception:
+            pass
+
         if face_worst < OVERHANG_LIMIT_DEG:
+            if bridged:
+                bridge_area += face.Area
+                continue
             steep_area += face.Area
         if face.Area >= NEGLIGIBLE_FACE_MM2 and face_worst < worst:
             worst = face_worst
@@ -520,6 +611,7 @@ def printability(shape, flipped=False, samples=5):
         "worst_overhang_deg": round(worst, 2),
         "worst_overhang_face_area_mm2": worst_area,
         "area_steeper_than_limit_mm2": round(steep_area, 2),
+        "bridged_channel_area_mm2": round(bridge_area, 2),
         "flat_ceiling_area_mm2": round(flat_area, 2),
     }
 
