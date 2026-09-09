@@ -28,7 +28,7 @@ def skirted(name: str, skirt_mm: float):
 
 def test_a_bare_dome_wastes_most_of_its_floor_when_small():
     """D4 has 12.6 m2 of floor and 2.4 m2 you can stand in."""
-    d4 = model.build(config.load("D4"))
+    d4 = model.build(config.load("D4", skirt_height=0.0))
     result = interior.usable_area(d4, 1800.0)
     assert result["floor_m2"] == pytest.approx(12.57, abs=0.05)
     assert result["usable_m2"] == pytest.approx(2.39, abs=0.05)
@@ -42,7 +42,7 @@ def test_a_small_dome_on_a_skirt_beats_a_bigger_one_without():
     worth a test rather than a note.
     """
     d3 = skirted("D3", 1000.0)
-    d4 = model.build(config.load("D4"))
+    d4 = model.build(config.load("D4", skirt_height=0.0))
     a3 = interior.usable_area(d3, 1800.0)
     a4 = interior.usable_area(d4, 1800.0)
     assert a3["usable_m2"] > 2 * a4["usable_m2"]

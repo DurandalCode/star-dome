@@ -15,7 +15,17 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import config, connectors, entrance, export, interior, model, verify, weave
+from . import (
+    config,
+    connectors,
+    doorway,
+    entrance,
+    export,
+    interior,
+    model,
+    verify,
+    weave,
+)
 
 
 def _variant_names(args) -> list:
@@ -120,6 +130,30 @@ def cmd_entrance(args) -> int:
     return 0
 
 
+def cmd_doorway(args) -> int:
+    for name in _variant_names(args):
+        overrides = {}
+        if args.skirt is not None:
+            overrides["skirt_height"] = float(args.skirt)
+        variant = config.load(name, args.config, **overrides)
+        template = args.template or variant.door or doorway.DEFAULT_TEMPLATE
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(doorway.format_analysis(data, template, clearance_mm=args.clearance))
+        if args.skirt_for:
+            wanted = args.skirt_for
+            needed = doorway.skirt_for_template(
+                data, wanted, clearance_mm=args.clearance
+            )
+            if needed != needed:  # NaN
+                print(f"  no skirt under 3 m lets a {wanted} silhouette through")
+            else:
+                print(
+                    f"  a {wanted} silhouette needs {needed:.0f} mm of skirt "
+                    f"({variant.skirt_height:.0f} mm present)"
+                )
+    return 0
+
+
 def cmd_interior(args) -> int:
     for name in _variant_names(args):
         variant = config.load(name, args.config)
@@ -172,6 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
         ("weave", cmd_weave, "four-rod node fan geometry and the stacking order"),
         ("entrance", cmd_entrance, "where a doorway fits, and how big it can be"),
+        ("doorway", cmd_doorway, "the chosen door: which bay, framed by what"),
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
     ):
         p = sub.add_parser(name, help=helptext)
@@ -195,14 +230,27 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
         if name == "scad-config":
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
-        if name == "interior":
+        if name in ("interior", "doorway"):
             p.add_argument(
                 "--skirt",
                 type=float,
                 default=None,
                 help="override the variant's skirt height, mm, to try a trade",
             )
-        if name == "entrance":
+        if name == "doorway":
+            p.add_argument(
+                "--template",
+                default=None,
+                help="person silhouette to fit; default is the variant's own",
+            )
+            p.add_argument(
+                "--skirt-for",
+                dest="skirt_for",
+                default=None,
+                metavar="TEMPLATE",
+                help="also solve for the shortest skirt this silhouette needs",
+            )
+        if name in ("entrance", "doorway"):
             p.add_argument(
                 "--clearance",
                 type=float,

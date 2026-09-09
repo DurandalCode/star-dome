@@ -1,0 +1,224 @@
+"""The door.
+
+The results worth locking in are that the opening is *free* -- it cuts no rod
+and invents no joint -- and that its proportions are a property of the shape
+rather than of the size, so a door drawn on one variant is the same door on
+every other.
+"""
+
+from __future__ import annotations
+
+import math
+
+import pytest
+
+from stardome import config, doorway, entrance, model
+
+VARIANTS = sorted(config.load_all())
+ALIASED = sorted(n for n, v in config.load_all().items() if v.alias)
+
+
+@pytest.fixture(scope="module", params=VARIANTS)
+def bare(request):
+    return model.build(config.load(request.param, skirt_height=0.0))
+
+
+def test_the_star_leaves_ten_openings_in_two_sizes(bare):
+    """Five tall bays and five low ones, alternating -- D5 all the way down."""
+    found = doorway.bays(bare)
+    assert len(found) == 10
+    assert sum(1 for b in found if b["kind"] == "tall") == 5
+    assert sum(1 for b in found if b["kind"] == "low") == 5
+
+
+def test_the_door_bay_is_the_same_shape_at_every_size(bare):
+    """Span and head height are fixed fractions of the diameter.
+
+    This is what makes one door drawing serve the whole family: the head sits
+    at 0.26287 * D on every variant, exactly, because the shape is
+    self-similar and the head is a node.
+    """
+    diameter = bare["meta"]["dome_diameter"]
+    bay = doorway.tall_bays(bare)[0]
+    frame = doorway.frame(bare, bay["apex_azimuth_deg"])
+
+    assert frame["apex_point"][2] / diameter == pytest.approx(0.26287, abs=1e-5)
+    assert bay["span_deg"] == pytest.approx(34.5, abs=0.5)
+    assert bay["open_area_m2"] * 1e6 / diameter ** 2 == pytest.approx(0.042, abs=1e-3)
+
+
+def test_the_clear_height_is_not_quite_self_similar():
+    """Because the rod is not.
+
+    The head node scales exactly; the *free* height under it is that less the
+    rod, and a rod is a fixed thickness eating a shrinking share of a growing
+    dome. So the clear fraction creeps up with size -- 0.2541 of D on D3 to
+    0.2549 on D12 -- and anything claiming one number for all of them is
+    quoting the big end.
+    """
+    fractions = []
+    for name in sorted(VARIANTS, key=lambda k: config.load(k).diameter):
+        data = model.build(config.load(name, skirt_height=0.0))
+        bay = doorway.tall_bays(data)[0]
+        fractions.append(bay["clear_height_mm"] / data["meta"]["dome_diameter"])
+
+    assert 0.2540 < min(fractions) < max(fractions) < 0.2550
+    # Not monotone in diameter alone -- rod diameter steps too -- but the
+    # smallest dome with the thickest relative rod is always the worst.
+    assert fractions[0] == min(fractions)
+
+
+def test_the_door_is_framed_by_joints_that_already_exist(bare):
+    """Head on a lashed four-rod node, feet on two base points, no rod cut.
+
+    The alternative -- shortening a bow to widen the hole -- would remove a
+    whole structural member, since every bow runs unbroken from base to base.
+    """
+    bay = doorway.tall_bays(bare)[0]
+    frame = doorway.frame(bare, bay["apex_azimuth_deg"])
+
+    apex = next(n for n in bare["nodes"] if n["name"] == frame["apex_node"])
+    assert apex["rod_count"] == 4
+
+    base_names = {b["name"] for b in bare["base_nodes"]}
+    assert set(frame["feet"]) <= base_names
+    assert len(set(frame["jamb_rods"])) == 2
+    for rod in frame["jamb_rods"]:
+        assert rod in frame["apex_rods"]
+
+
+def test_the_two_jambs_come_from_the_same_rod_family(bare):
+    """Both jambs are G bows, which is why the opening is a symmetric lancet."""
+    bay = doorway.tall_bays(bare)[0]
+    frame = doorway.frame(bare, bay["apex_azimuth_deg"])
+    families = {rod[0] for rod in frame["jamb_rods"]}
+    assert families == {"G"}
+
+
+def test_the_outline_never_dips_below_the_ground(bare):
+    """Regression: Bow.t_of wraps to [0, 360), so a base point can read as
+    359.999 instead of 0. Sweeping smallest-to-largest then took the long way
+    round -- under the ground and over the top -- and did it on some variants
+    and not others, purely on rounding."""
+    bay = doorway.tall_bays(bare)[0]
+    outline = doorway.outline(bare, bay["apex_azimuth_deg"])
+    ground = bare["meta"].get("ground_z", 0.0)
+    for x, y, z in outline["points"]:
+        assert z >= ground - 1e-6
+
+
+def test_the_outline_runs_ground_to_apex_to_ground(bare):
+    bay = doorway.tall_bays(bare)[0]
+    frame = doorway.frame(bare, bay["apex_azimuth_deg"])
+    outline = doorway.outline(bare, bay["apex_azimuth_deg"], frame_info=frame)
+    points = outline["points"]
+    ground = bare["meta"].get("ground_z", 0.0)
+
+    assert points[0][2] == pytest.approx(ground, abs=1e-3)
+    assert points[-1][2] == pytest.approx(ground, abs=1e-3)
+    assert max(p[2] for p in points) == pytest.approx(
+        frame["apex_point"][2], abs=1e-3
+    )
+
+
+def test_every_outline_point_sits_on_the_sphere_or_under_it(bare):
+    """The arch is rod centreline, so it lies on the sphere; the two skirt
+    drops hang straight below the base ring."""
+    radius = bare["meta"]["dome_radius"]
+    bay = doorway.tall_bays(bare)[0]
+    for x, y, z in doorway.outline(bare, bay["apex_azimuth_deg"])["points"]:
+        if z < 0.0:
+            continue
+        assert math.sqrt(x * x + y * y + z * z) == pytest.approx(radius, abs=1e-3)
+
+
+def test_the_skirt_a_door_needs_shrinks_as_the_dome_grows():
+    needed = [
+        doorway.skirt_for_template(
+            model.build(config.load(name, skirt_height=0.0)), "carry"
+        )
+        for name in sorted(VARIANTS, key=lambda k: config.load(k).diameter)
+    ]
+    assert needed == sorted(needed, reverse=True)
+    assert needed[-1] == 0.0  # the biggest needs none
+
+
+def test_a_wider_silhouette_never_needs_less_skirt(bare):
+    """walk < walk_wide < carry in width, so the skirt can only go up."""
+    needed = [
+        doorway.skirt_for_template(bare, name)
+        for name in ("walk", "walk_wide", "carry")
+    ]
+    assert needed == sorted(needed)
+
+
+def test_each_named_size_carries_a_skirt_that_actually_works():
+    """S, M, L and XL are builds, not wishes: the skirt in variants.toml has
+    to let the configured silhouette through, with room over its head."""
+    for name in ALIASED:
+        variant = config.load(name)
+        data = model.build(variant)
+        door = data["doorway"]["door"]
+        assert door["fits"], f"{name} ({variant.alias}) door does not fit"
+        assert door["template"] == variant.door
+        assert door["spare_mm"] >= 50.0, f"{variant.alias} has no headroom to spare"
+
+
+def test_the_short_names_and_the_d_names_are_the_same_dome():
+    for name in ALIASED:
+        variant = config.load(name)
+        assert config.load(variant.alias) == variant
+        assert config.resolve(variant.alias) == name
+
+
+def test_an_unknown_name_names_the_aliases_it_knows():
+    with pytest.raises(KeyError) as caught:
+        config.load("XXL")
+    assert "XL" in str(caught.value)
+
+
+def test_the_doorway_is_only_serialised_when_the_variant_asks_for_one():
+    with_door = model.build(config.load("M"))
+    without = model.build(config.load("M", door=""))
+    assert "doorway" in with_door
+    assert "doorway" not in without
+
+
+def test_the_clearance_allowance_only_ever_shrinks_the_opening(bare):
+    plain = doorway.tall_bays(bare)[0]
+    padded = doorway.tall_bays(bare, clearance_mm=25.0)[0]
+    assert padded["clear_height_mm"] < plain["clear_height_mm"]
+    assert padded["open_area_m2"] < plain["open_area_m2"]
+
+
+def test_the_envelope_and_the_head_node_disagree_by_one_rod(bare):
+    """The envelope measures to the rod surface, the node is a centreline.
+
+    Worth pinning because the two numbers look like a contradiction in the
+    output and are not: 0.2549 * D of free height under a head at 0.2629 * D.
+    """
+    bay = doorway.tall_bays(bare)[0]
+    frame = doorway.frame(bare, bay["apex_azimuth_deg"])
+    gap = frame["apex_point"][2] - bay["clear_height_mm"]
+    assert gap > bare["meta"]["rod_diameter"] / 2.0
+    assert gap == pytest.approx(0.008 * bare["meta"]["dome_diameter"], rel=0.25)
+
+
+def test_five_doors_fit_and_they_are_the_five_tall_bays():
+    data = model.build(config.load("XL"))
+    door = data["doorway"]["door"]
+    assert door["place_count"] == 5
+
+    tall = {round(b["apex_azimuth_deg"]) for b in doorway.tall_bays(data)}
+    placed = {round(p["centre_azimuth_deg"]) for p in door["places"]}
+    for azimuth in placed:
+        assert min(abs(azimuth - t) for t in tall) <= 5
+
+
+def test_entrance_and_doorway_agree_on_the_free_height(bare):
+    """Two modules, one number: doorway must not re-derive the envelope."""
+    env = entrance.analyse(bare)
+    bay = doorway.tall_bays(bare)[0]
+    assert bay["clear_height_mm"] == pytest.approx(
+        env["free_height_max_mm"], abs=0.1
+    )

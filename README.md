@@ -55,15 +55,30 @@ single interchange format every other tool reads — see
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
 - Dome geometry: [`dome/README.md`](dome/README.md)
 - Crossing clamp V1: [`docs/crossing-clamp-v1.md`](docs/crossing-clamp-v1.md)
+- The doorway: [`docs/doorway.md`](docs/doorway.md)
+- How much room you get: [`docs/interior.md`](docs/interior.md)
 
-## Initial variants
+## Sizes
 
-- D4 — small experimental dome
-- D6 — reference prototype
-- D8 — large dome
-- D12 — XL / physical-limit research variant
+Four sizes are a chosen build -- skirt settled, doorway settled -- and carry a
+short name. Either name loads the same dome.
 
-The D12 variant is explicitly experimental. Wind loading, anchoring, cover behavior, rod buckling/bending, and connector loads must be validated before real-world use.
+| | dome | skirt | overall | why |
+|---|---|---|---|---|
+| **S** | D4 | 1350 mm | 3.31 m | smallest size that takes a walk-in door |
+| **M** | D6 | 800 mm | 3.75 m | reference prototype; best all-round trade |
+| **L** | D8 | 300 mm | 4.23 m | the skirt is barely a sill |
+| **XL** | D10 | none | 4.91 m | needs no skirt for either headroom or a door |
+
+D3 and D12 stay in `configs/variants.toml` without a short name: they are the
+ends of the range, kept for study rather than to build. See
+[`docs/doorway.md`](docs/doorway.md) for where each skirt height comes from.
+
+The full geometric family is D3, D4, D6, D8, D10 and D12 — one entry per
+diameter, nothing else fixed. D12 in particular is explicitly experimental:
+wind loading, anchoring, cover behaviour, rod buckling and bending, and
+connector loads must all be validated before any real-world use, and at 5.9 m
+tall it is a serious thing to stand up by hand.
 
 ## Reference concept
 
