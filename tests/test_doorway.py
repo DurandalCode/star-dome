@@ -181,19 +181,54 @@ def test_what_a_door_admits_only_grows_with_the_dome():
         previous = got
 
 
-def test_a_bare_six_metre_dome_is_a_crawl_in():
-    """The price of leaving M and L bare, stated so it cannot be forgotten.
+def test_a_bare_uncut_six_metre_dome_is_a_crawl_in():
+    """The price of leaving M and L bare, before anything is cut.
 
-    D6's opening is 497 mm wide at 1200 mm and 209 mm at 1400. That is not a
-    door anyone walks through; it is a door you go through on all fours.
+    Untouched, D6's opening is 497 mm wide at 1200 mm and 209 mm at 1400 --
+    not a door anyone walks through. D8 manages a duck and no more. This is
+    the baseline the cut is measured against.
     """
-    m = model.build(config.load("M"))
+    m = model.build(config.load("M", door_cut=False))
     assert m["meta"]["skirt_height"] == 0.0
     assert m["doorway"]["admits"] == ["crawl"]
 
-    lg = model.build(config.load("L"))
+    lg = model.build(config.load("L", door_cut=False))
     assert lg["meta"]["skirt_height"] == 0.0
     assert lg["doorway"]["admits"] == ["crawl", "stoop"]
+
+
+def test_m_and_l_ship_with_the_cut_made():
+    """Both are bare, so both have their jambs out, and both gain a step.
+
+    M goes from crawling to ducking, L from ducking to walking in with
+    something in your hands -- and neither pays a severed bow for it.
+    """
+    for name, before, after in (("M", "crawl", "stoop"), ("L", "stoop", "carry")):
+        data = model.build(config.load(name))
+        door = data["doorway"]
+        assert door["cut"] is not None, f"{name} should ship cut"
+        assert door["cut"]["cost"]["severs_nothing"]
+        assert before in door["admits"]
+        assert after in door["admits"], f"{name} should admit {after} once cut"
+
+        uncut = model.build(config.load(name, door_cut=False))
+        assert after not in uncut["doorway"]["admits"]
+
+
+def test_the_cut_reaches_the_rods_that_draw_it():
+    """A consumer must be able to draw the cut without re-deriving it."""
+    data = model.build(config.load("M"))
+    spans = data["doorway"]["cut"]["spans"]
+    carried = {
+        rod["name"]: rod["cut_spans_deg"]
+        for rod in data["rods"]
+        if "cut_spans_deg" in rod
+    }
+    assert carried == spans
+
+    untouched = model.build(config.load("XL"))
+    assert untouched["doorway"]["cut"] is None
+    assert not any("cut_spans_deg" in rod for rod in untouched["rods"])
 
 
 def test_only_the_biggest_domes_take_a_two_and_a_bit_metre_character():

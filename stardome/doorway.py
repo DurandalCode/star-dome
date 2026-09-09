@@ -280,6 +280,66 @@ def _places(env: dict, centres: list) -> list:
     ]
 
 
+
+def opening_outline(
+    data: dict,
+    env: dict,
+    bay: dict,
+    samples: int = 96,
+) -> dict:
+    """The clear opening of one bay, traced from the envelope itself.
+
+    ``outline`` follows the two rod centrelines that frame an untouched
+    lancet, which is exact but only works while the opening *is* a lancet.
+    Once pieces have been cut out the boundary is made of whatever rods are
+    left -- on a cut M bay that is a U rod, then L1, then L5, then another U --
+    so the general answer is to trace the envelope: at each azimuth take the
+    free height, and put the point on the sphere at that height.
+
+    The result is the *clear* opening rather than a centreline, which is what
+    a door frame wants anyway.
+    """
+    radius = data["meta"]["dome_radius"]
+    ground_z = data["meta"].get("ground_z", 0.0)
+    envelope = env["envelope_mm"]
+    count = len(envelope)
+    step = env["bin_width_deg"]
+
+    start = bay["centre_azimuth_deg"] - bay["span_deg"] / 2.0
+    points = []
+    for i in range(samples + 1):
+        azimuth = start + bay["span_deg"] * i / samples
+        z = envelope[int(round(azimuth / step)) % count]
+        # Horizontal radius of the sphere at that height; the two ends sit on
+        # the base ring where z is zero.
+        horizontal = math.sqrt(max(0.0, radius * radius - z * z))
+        a = math.radians(azimuth)
+        points.append([horizontal * math.cos(a), horizontal * math.sin(a), z])
+
+    # Close it down to the ground at both ends. The envelope's outermost bins
+    # sit just above zero rather than on it, and with a skirt the opening
+    # continues below the base ring, so neither end closes itself.
+    def foot(point):
+        a = math.atan2(point[1], point[0])
+        return [radius * math.cos(a), radius * math.sin(a), ground_z]
+
+    points = [foot(points[0])] + points + [foot(points[-1])]
+
+    return {
+        "apex_azimuth_deg": bay["apex_azimuth_deg"],
+        "point_count": len(points),
+        "closed": True,
+        "ground_z": ground_z,
+        "traced_from": "envelope",
+        "points": [[round(c, 6) for c in p] for p in points],
+        "note": (
+            "The clear opening, to the rod surface -- not a centreline. Traced "
+            "from the door envelope, so it stays right whatever is left of the "
+            "rods around it."
+        ),
+    }
+
+
 def fit(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
@@ -383,20 +443,56 @@ def place(
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
     samples: int = 32,
+    cut: bool = False,
 ) -> dict:
-    """The chosen doorway, ready to serialise into the model."""
-    env = entrance.door_envelope(data, clearance_mm=clearance_mm)
-    tall = tall_bays(data, env, clearance_mm)
+    """The chosen doorway, ready to serialise into the model.
+
+    (``jamb_cut`` and ``cut_pieces`` live below, under the cutting section.)
+
+    With ``cut`` the two jamb pieces are taken out and everything reported
+    afterwards describes the opening that leaves. The uncut lancet is still
+    reported as ``frame``, because that is what was cut, and the cut itself
+    is reported as ``cut`` with its cost.
+    """
+    plain = entrance.door_envelope(data, clearance_mm=clearance_mm)
+    tall = tall_bays(data, plain, clearance_mm)
     if not tall:
         raise ValueError("no tall bay found; this dome has nowhere to put a door")
-    bay = tall[0]
-    info = frame(data, bay["apex_azimuth_deg"])
+    info = frame(data, tall[0]["apex_azimuth_deg"])
+
+    cuts = jamb_cut(data, info) if cut else None
+    env = (
+        entrance.door_envelope(data, clearance_mm=clearance_mm, removed=cuts)
+        if cuts
+        else plain
+    )
+    bay = tall_bays(data, env, clearance_mm)[0] if cuts else tall[0]
     skirt = data["meta"].get("skirt_height", 0.0)
     return {
         "bay": bay,
         "bay_count": len(tall),
         "frame": info,
-        "outline": outline(data, bay["apex_azimuth_deg"], samples, info),
+        "cut": (
+            {
+                "spans": {r: [list(s) for s in v] for r, v in cuts.items()},
+                "cost": cut_pieces(data, cuts),
+                "note": (
+                    "The jamb pieces are gone. Both were end pieces, so the "
+                    "two bows are a fifth shorter and each now starts at the "
+                    "head node instead of a base point -- but neither is "
+                    "severed. The head node stops being a crossing and "
+                    "becomes the termination of two bows, which is a "
+                    "different connector from the one in docs/fan-node-v2.md."
+                ),
+            }
+            if cuts
+            else None
+        ),
+        "outline": (
+            opening_outline(data, env, bay)
+            if cuts
+            else outline(data, bay["apex_azimuth_deg"], samples, info)
+        ),
         "clearance_mm": clearance_mm,
         "skirt_height_mm": skirt,
         "opening_height_mm": round(bay["clear_height_mm"] + skirt, 1),
@@ -404,7 +500,7 @@ def place(
         # Everything that gets through, largest last. Naming only the chosen
         # silhouette hides both failures and headroom: it cannot show that a
         # dome admits nothing, nor that it would take much more.
-        "admits": admits(data, env, clearance_mm),
+        "admits": admits_env(data, env, clearance_mm),
         "note": (
             "One of five identical tall bays; any of them can be the door, and "
             "a second one opposite gives a through-draught without changing "
@@ -502,7 +598,12 @@ def analyse(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
+    cut: bool | None = None,
 ) -> dict:
+    """``cut`` defaults to whatever the variant asked for, so the report and
+    the serialised model can never disagree about which dome they describe."""
+    if cut is None:
+        cut = bool(data["meta"].get("door_cut", False))
     env = entrance.door_envelope(data, clearance_mm=clearance_mm)
     meta = data["meta"]
     all_bays = bays(data, env, clearance_mm)
@@ -513,7 +614,7 @@ def analyse(
         "bay_count": len(all_bays),
         "tall_bay_count": sum(1 for b in all_bays if b["kind"] == "tall"),
         "bays": all_bays,
-        "doorway": place(data, template_name, clearance_mm),
+        "doorway": place(data, template_name, clearance_mm, cut=cut),
     }
 
 
@@ -521,8 +622,9 @@ def format_analysis(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
+    cut: bool | None = None,
 ) -> str:
-    a = analyse(data, template_name, clearance_mm)
+    a = analyse(data, template_name, clearance_mm, cut)
     d = a["doorway"]
     bay = d["bay"]
     info = d["frame"]
@@ -545,6 +647,25 @@ def format_analysis(
         f"  framed by rods {info['jamb_rods'][0]} and {info['jamb_rods'][1]}, "
         f"meeting at lashed node {info['apex_node']}; "
         f"feet at {info['feet'][0]} and {info['feet'][1]}",
+        *(
+            [
+                "  CUT: "
+                + ", ".join(
+                    f"{rod} {lo:.0f}-{hi:.0f} deg"
+                    for rod, spans in d["cut"]["spans"].items()
+                    for lo, hi in spans
+                )
+                + f"  ({d['cut']['cost']['rod_removed_mm'] / 1000:.1f} m, "
+                + f"{d['cut']['cost']['rod_removed_fraction'] * 100:.1f}% of rod, "
+                + (
+                    "severs nothing)"
+                    if d["cut"]["cost"]["severs_nothing"]
+                    else "SEVERS " + ", ".join(d["cut"]["cost"]["severed_bows"]) + ")"
+                )
+            ]
+            if d.get("cut")
+            else []
+        ),
         "  admits: " + (", ".join(d["admits"]) if d["admits"] else "nothing"),
         f"  {door['template']} template "
         f"({door['width_mm']:.0f} x {door['height_mm']:.0f} mm): "

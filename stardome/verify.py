@@ -259,6 +259,8 @@ def check(data: dict) -> list:
         frame = door["frame"]
         diameter = meta["dome_diameter"]
 
+        cut = door.get("cut")
+
         want(
             door["bay_count"] == 5,
             f"expected 5 tall bays to choose a door from, got {door['bay_count']}",
@@ -272,15 +274,43 @@ def check(data: dict) -> list:
             f"door head is at {frame['apex_point'][2] / diameter:.5f} of D, "
             "expected 0.26287",
         )
-        want(
-            0.2535 < bay["clear_height_mm"] / diameter < 0.2555,
-            f"door clear height is {bay['clear_height_mm'] / diameter:.4f} of D, "
-            "expected about 0.254",
-        )
-        want(
-            abs(bay["span_deg"] - 34.5) < 0.5,
-            f"door bay spans {bay['span_deg']:.2f} deg, expected 34.5",
-        )
+        if cut is None:
+            want(
+                0.2535 < bay["clear_height_mm"] / diameter < 0.2555,
+                f"door clear height is {bay['clear_height_mm'] / diameter:.4f} "
+                "of D, expected about 0.254",
+            )
+            want(
+                abs(bay["span_deg"] - 34.5) < 0.5,
+                f"door bay spans {bay['span_deg']:.2f} deg, expected 34.5",
+            )
+        else:
+            # Taking rod away can only open the bay up.
+            want(
+                bay["clear_height_mm"] / diameter > 0.2535,
+                f"cutting the jambs made the opening shorter: "
+                f"{bay['clear_height_mm'] / diameter:.4f} of D",
+            )
+            want(
+                bay["span_deg"] >= 34.5 - 0.5,
+                f"cutting the jambs made the bay narrower: {bay['span_deg']:.2f} deg",
+            )
+            # The whole justification for cutting at all.
+            want(
+                cut["cost"]["severs_nothing"],
+                f"the door cut severs {cut['cost']['severed_bows']} -- only end "
+                "pieces may be removed without turning a bow into two bows",
+            )
+            want(
+                sorted(cut["spans"]) == sorted(frame["jamb_rods"]),
+                f"the cut takes {sorted(cut['spans'])}, expected the jambs "
+                f"{sorted(frame['jamb_rods'])}",
+            )
+            want(
+                abs(cut["cost"]["rod_removed_fraction"] - 2.0 / 75.0) < 1e-3,
+                "cutting two of fifteen bows' five equal pieces should remove "
+                f"2/75 of the rod, got {cut['cost']['rod_removed_fraction']:.4f}",
+            )
         # The whole point of this doorway: it cuts nothing. Its head is a
         # lashed four-rod node and its feet are two base points.
         apex = next(
@@ -311,10 +341,18 @@ def check(data: dict) -> list:
             abs(points[0][2] - ground) < 1e-3 and abs(points[-1][2] - ground) < 1e-3,
             f"door outline does not start and end at ground z={ground}",
         )
-        want(
-            abs(max(p[2] for p in points) - frame["apex_point"][2]) < 1e-3,
-            "door outline does not reach the head node",
-        )
+        if cut is None:
+            want(
+                abs(max(p[2] for p in points) - frame["apex_point"][2]) < 1e-3,
+                "door outline does not reach the head node",
+            )
+        else:
+            # A traced outline follows the rod surface, so it stops a rod short
+            # of the centreline it runs under.
+            want(
+                max(p[2] for p in points) < frame["apex_point"][2] + 1e-3,
+                "cut door outline rises above the head node",
+            )
         want(
             door["door"]["fits"],
             f"the {door['door']['template']} silhouette does not fit "

@@ -33,6 +33,9 @@ class Variant:
     # Which person-silhouette the doorway is sized to, from entrance.TEMPLATES.
     # Empty means this variant has no door worked out and none is serialised.
     door: str = ""
+    # Take the doorway's two jamb pieces out, opening the lancet to the full
+    # bay. Both are end pieces, so nothing is severed -- see doorway.jamb_cut.
+    door_cut: bool = False
 
     @property
     def radius(self) -> float:
@@ -85,6 +88,7 @@ def load_all(path=None) -> dict:
             ),
             alias=str(body.get("alias", "")),
             door=str(body.get("door", defaults.get("door", ""))),
+            door_cut=bool(body.get("door_cut", defaults.get("door_cut", False))),
         )
     if not variants:
         raise ValueError(f"no [variants.*] tables found in {path}")
