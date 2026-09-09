@@ -46,6 +46,8 @@ TIED_COLOUR = (0.95, 0.15, 0.25, 1.0)
 UNTIED_COLOUR = (0.55, 0.55, 0.60, 1.0)
 BASE_COLOUR = (0.25, 0.25, 0.30, 1.0)
 SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
+DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
+JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
 
 HUMAN_HEIGHT = 1.75  # m, for scale reference
 
@@ -57,6 +59,11 @@ def parse_args(argv):
         argv = []
     p = argparse.ArgumentParser(prog="build_scene")
     p.add_argument("--model", required=True, help="path to model.json")
+    p.add_argument(
+        "--no-doorway",
+        action="store_true",
+        help="skip the doorway highlight even if the model carries one",
+    )
     p.add_argument("--out", default=None, help="write a .blend here")
     p.add_argument("--render", default=None, help="render a preview PNG here")
     p.add_argument("--no-human", action="store_true", help="omit the scale figure")
@@ -194,18 +201,24 @@ def add_ground(diameter_m, collection):
     return move_to(plane, collection)
 
 
-def add_human(radius_m, collection):
-    """A crude 1.75 m figure. Only its height matters."""
+def add_human(radius_m, collection, at=None):
+    """A crude 1.75 m figure. Only its height matters.
+
+    ``at`` places it somewhere specific -- in the doorway, when there is one,
+    which is the one place in the dome where the answer "does a person fit"
+    is not obvious by eye.
+    """
+    x, y = at if at is not None else (radius_m * 0.55, 0.0)
     body_h = HUMAN_HEIGHT * 0.72
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=0.17, depth=body_h, location=(radius_m * 0.55, 0.0, body_h / 2.0)
+        radius=0.17, depth=body_h, location=(x, y, body_h / 2.0)
     )
     body = bpy.context.active_object
     body.name = "HumanScale_Body"
 
     bpy.ops.mesh.primitive_uv_sphere_add(
         radius=0.115,
-        location=(radius_m * 0.55, 0.0, body_h + 0.155),
+        location=(x, y, body_h + 0.155),
     )
     head = bpy.context.active_object
     head.name = "HumanScale_Head"
@@ -217,12 +230,113 @@ def add_human(radius_m, collection):
     return body, head
 
 
-def add_camera_and_light(scene, radius_m, height_m):
+def make_transparent(mat, alpha):
+    """Make a material see-through on whichever EEVEE this Blender ships.
+
+    4.2 replaced `blend_method` with `surface_render_method`, and 5.x still
+    accepts the old name silently without doing anything -- which is how the
+    door panel came out looking like a solid tent.
+    """
+    if hasattr(mat, "surface_render_method"):
+        mat.surface_render_method = "BLENDED"
+    elif hasattr(mat, "blend_method"):
+        mat.blend_method = "BLEND"
+    bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.node_tree else None
+    if bsdf is not None:
+        if "Alpha" in bsdf.inputs:
+            bsdf.inputs["Alpha"].default_value = alpha
+        # Flat and unlit. A glazed panel picks up the sun and reads as a solid
+        # tent flap, which is the opposite of "this is a hole".
+        if "Roughness" in bsdf.inputs:
+            bsdf.inputs["Roughness"].default_value = 1.0
+        if "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        elif "Specular" in bsdf.inputs:
+            bsdf.inputs["Specular"].default_value = 0.0
+    colour = mat.diffuse_color
+    mat.diffuse_color = (colour[0], colour[1], colour[2], alpha)
+    return mat
+
+
+def add_doorway(door, rod_radius_m, collection, lift):
+    """Draw the chosen opening: its outline, its frame, and the hole itself.
+
+    The outline comes straight from the model as rod centrelines, so nothing
+    here decides where the door is -- see stardome/doorway.py. The filled
+    panel is what makes it read at a glance: a doorway drawn as a line among
+    fifteen other lines is invisible, and the whole point of standing this up
+    in Blender is to see whether a person walks through it.
+    """
+    points = [(x * MM, y * MM, z * MM + lift) for x, y, z in door["outline"]["points"]]
+
+    curve = bpy.data.curves.new("DoorwayOutline", "CURVE")
+    curve.dimensions = "3D"
+    # Thicker than the rods it lies on, so the frame reads as a highlight
+    # rather than as one more line among fifteen.
+    curve.bevel_depth = rod_radius_m * 1.25
+    curve.bevel_resolution = 6
+    curve.use_fill_caps = True
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for i, (x, y, z) in enumerate(points):
+        spline.points[i].co = (x, y, z, 1.0)
+    spline.use_cyclic_u = True
+
+    outline_mat = make_material("Doorway_Outline", DOOR_COLOUR)
+    obj = bpy.data.objects.new("Doorway_Outline", curve)
+    obj.data.materials.append(outline_mat)
+    collection.objects.link(obj)
+
+    # The opening as a surface, fanned from its centroid because the arch is
+    # curved and a single n-gon across it would not be planar.
+    centre = (
+        sum(p[0] for p in points) / len(points),
+        sum(p[1] for p in points) / len(points),
+        sum(p[2] for p in points) / len(points),
+    )
+    mesh = bpy.data.meshes.new("DoorwayPanel")
+    verts = [centre] + points
+    faces = [
+        (0, i + 1, (i + 1) % len(points) + 1) for i in range(len(points))
+    ]
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+
+    panel_mat = make_transparent(
+        make_material("Doorway_Panel", DOOR_COLOUR), 0.16
+    )
+
+    panel = bpy.data.objects.new("Doorway_Panel", mesh)
+    panel.data.materials.append(panel_mat)
+    if hasattr(panel, "visible_shadow"):
+        panel.visible_shadow = False
+    collection.objects.link(panel)
+
+    return obj, panel
+
+
+def door_azimuth_deg(door):
+    """Which way the door faces, for aiming the camera and the figure."""
+    return door["bay"]["apex_azimuth_deg"]
+
+
+def add_camera_and_light(scene, radius_m, height_m, facing_deg=None):
     cam_data = bpy.data.cameras.new("Camera")
     cam_data.lens = 35.0
     cam = bpy.data.objects.new("Camera", cam_data)
     scene.collection.objects.link(cam)
-    cam.location = (radius_m * 2.1, -radius_m * 2.3, height_m * 1.15)
+    if facing_deg is None:
+        cam.location = (radius_m * 2.1, -radius_m * 2.3, height_m * 1.15)
+    else:
+        # Stand off along the door's own azimuth, so the opening is not hidden
+        # behind the far side of the dome.
+        a = math.radians(facing_deg)
+        distance = radius_m * 3.1
+        cam.location = (
+            math.cos(a) * distance,
+            math.sin(a) * distance,
+            height_m * 0.95,
+        )
     direction = Vector((0.0, 0.0, height_m * 0.42)) - cam.location
     cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
@@ -276,8 +390,15 @@ def build(args):
     untied_mat = make_material("Node_Untied", UNTIED_COLOUR)
     base_mat = make_material("Node_Base", BASE_COLOUR)
 
+    door = data.get("doorway")
+    jambs = set(door["frame"]["jamb_rods"]) if door else set()
+    jamb_mat = make_material("Rod_Jamb", JAMB_COLOUR)
+
     for rod in data["rods"]:
-        rod_object(rod, rod_radius_m, materials[rod["family"]], rods_coll, lift)
+        # The two rods that frame the door get their own colour: they are what
+        # a cover panel is hemmed against and what a frame bolts to.
+        mat = jamb_mat if rod["name"] in jambs else materials[rod["family"]]
+        rod_object(rod, rod_radius_m, mat, rods_coll, lift)
 
     # Big enough to find at a glance, small enough to still be honest about
     # where the crossing actually is: 25 mm at a 10 mm rod, about the footprint
@@ -317,12 +438,24 @@ def build(args):
             lift,
         )
 
+    facing = None
+    if door and not args.no_doorway:
+        door_coll = new_collection("Doorway", root)
+        add_doorway(door, rod_radius_m, door_coll, lift)
+        facing = door_azimuth_deg(door)
+
     if not args.no_ground:
         add_ground(radius_m * 2.0, site_coll)
     if not args.no_human:
-        add_human(radius_m, site_coll)
+        # Standing in the doorway when there is one: that is where the
+        # clearance question actually is.
+        at = None
+        if facing is not None:
+            a = math.radians(facing)
+            at = (math.cos(a) * radius_m, math.sin(a) * radius_m)
+        add_human(radius_m, site_coll, at)
 
-    add_camera_and_light(scene, radius_m, height_m)
+    add_camera_and_light(scene, radius_m, height_m, facing)
 
     # The unlashed markers are noise for most work; keep them out of the way
     # but present, so toggling them on needs no rebuild.

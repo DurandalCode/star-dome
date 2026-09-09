@@ -38,6 +38,8 @@ FAMILY_COLOUR = {
     "L": (0.20, 0.75, 0.35, 1.0),
 }
 SKIRT_COLOUR = (0.80, 0.80, 0.78, 1.0)
+DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)
+JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)
 GROUND_COLOUR = (0.26, 0.29, 0.24, 1.0)
 HUMAN_COLOUR = (0.92, 0.78, 0.62, 1.0)
 LABEL_COLOUR = (0.95, 0.95, 0.95, 1.0)
@@ -54,6 +56,12 @@ def parse_args(argv):
     p.add_argument("--render", default=None, help="render a preview PNG here")
     p.add_argument("--gap", type=float, default=2.0, help="metres between domes")
     p.add_argument("--no-labels", action="store_true")
+    p.add_argument(
+        "--named-only",
+        action="store_true",
+        help="only the sizes with a short name (S, M, L, XL), skipping the "
+             "research variants at either end of the range",
+    )
     return p.parse_args(argv)
 
 
@@ -70,6 +78,12 @@ def load_models(args):
             print(f"[site] skipping {os.path.basename(path)}: no rod polylines")
             continue
         models.append(data)
+    if args.named_only:
+        named = [d for d in models if d["meta"].get("alias")]
+        if named:
+            models = named
+        else:
+            print("[site] --named-only: no model carries an alias, keeping all")
     models.sort(key=lambda d: d["meta"]["dome_diameter"])
     return models
 
@@ -99,7 +113,29 @@ def move_to(obj, collection):
     return obj
 
 
-def add_rod(rod, radius_m, material_, collection, origin_x, lift):
+def spin_for_door(data):
+    """Turn each dome so its door faces the camera, which sits at -Y.
+
+    Without this the doors land at whatever azimuth the geometry gives them
+    and half the row shows its blank side, which defeats the comparison the
+    scene exists to make. Spinning a dome about its own axis changes nothing
+    about it -- the structure is five-fold symmetric.
+    """
+    door = data.get("doorway")
+    if not door:
+        return 0.0
+    return 270.0 - door["bay"]["apex_azimuth_deg"]
+
+
+def _place(x_mm, y_mm, origin_x, spin_deg):
+    """Model mm -> scene metres, spun about the dome's own axis and offset."""
+    a = math.radians(spin_deg)
+    x = x_mm * math.cos(a) - y_mm * math.sin(a)
+    y = x_mm * math.sin(a) + y_mm * math.cos(a)
+    return x * MM + origin_x, y * MM
+
+
+def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0):
     curve = bpy.data.curves.new(f"C_{rod['name']}", "CURVE")
     curve.dimensions = "3D"
     curve.bevel_depth = radius_m
@@ -109,21 +145,24 @@ def add_rod(rod, radius_m, material_, collection, origin_x, lift):
     points = rod["points"]
     spline.points.add(len(points) - 1)
     for i, (x, y, z) in enumerate(points):
-        spline.points[i].co = (x * MM + origin_x, y * MM, z * MM + lift, 1.0)
+        px, py = _place(x, y, origin_x, spin_deg)
+        spline.points[i].co = (px, py, z * MM + lift, 1.0)
     obj = bpy.data.objects.new(f"Rod_{rod['name']}", curve)
     obj.data.materials.append(material_)
     collection.objects.link(obj)
     return obj
 
 
-def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x, lift):
+def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
+              lift, spin_deg=0.0):
     for post in skirt["posts"]:
         z_lo = post["z_bottom"] * MM + lift
         z_hi = post["z_top"] * MM + lift
+        px, py = _place(post["x"], post["y"], origin_x, spin_deg)
         bpy.ops.mesh.primitive_cylinder_add(
             radius=rod_radius_m,
             depth=z_hi - z_lo,
-            location=(post["x"] * MM + origin_x, post["y"] * MM, (z_lo + z_hi) / 2.0),
+            location=(px, py, (z_lo + z_hi) / 2.0),
             vertices=12,
         )
         obj = bpy.context.active_object
@@ -142,6 +181,74 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x, li
     ring.name = "Skirt_GroundRing"
     ring.data.materials.append(material_)
     move_to(ring, collection)
+
+
+def make_transparent(mat, alpha):
+    """Make a material see-through on whichever EEVEE this Blender ships.
+
+    4.2 replaced `blend_method` with `surface_render_method`, and 5.x still
+    accepts the old name silently without doing anything -- which is how the
+    door panel came out looking like a solid tent.
+    """
+    if hasattr(mat, "surface_render_method"):
+        mat.surface_render_method = "BLENDED"
+    elif hasattr(mat, "blend_method"):
+        mat.blend_method = "BLEND"
+    bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.node_tree else None
+    if bsdf is not None:
+        if "Alpha" in bsdf.inputs:
+            bsdf.inputs["Alpha"].default_value = alpha
+        # Flat and unlit. A glazed panel picks up the sun and reads as a solid
+        # tent flap, which is the opposite of "this is a hole".
+        if "Roughness" in bsdf.inputs:
+            bsdf.inputs["Roughness"].default_value = 1.0
+        if "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        elif "Specular" in bsdf.inputs:
+            bsdf.inputs["Specular"].default_value = 0.0
+    colour = mat.diffuse_color
+    mat.diffuse_color = (colour[0], colour[1], colour[2], alpha)
+    return mat
+
+
+def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0):
+    """The opening, outlined and filled, exactly as the model reports it."""
+    points = [
+        (*_place(x, y, origin_x, spin_deg), z * MM + lift)
+        for x, y, z in door["outline"]["points"]
+    ]
+
+    curve = bpy.data.curves.new("DoorwayOutline", "CURVE")
+    curve.dimensions = "3D"
+    # Thicker than the rods it lies on, so the frame reads as a highlight
+    # rather than as one more orange line among fifteen.
+    curve.bevel_depth = rod_radius_m * 1.25
+    curve.bevel_resolution = 4
+    curve.use_fill_caps = True
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for i, (x, y, z) in enumerate(points):
+        spline.points[i].co = (x, y, z, 1.0)
+    spline.use_cyclic_u = True
+    obj = bpy.data.objects.new("Doorway_Outline", curve)
+    obj.data.materials.append(material("Doorway_Outline", DOOR_COLOUR))
+    collection.objects.link(obj)
+
+    centre = tuple(sum(q[i] for q in points) / len(points) for i in range(3))
+    mesh = bpy.data.meshes.new("DoorwayPanel")
+    mesh.from_pydata(
+        [centre] + points,
+        [],
+        [(0, i + 1, (i + 1) % len(points) + 1) for i in range(len(points))],
+    )
+    mesh.update()
+    panel_mat = make_transparent(material("Doorway_Panel", DOOR_COLOUR), 0.16)
+    panel = bpy.data.objects.new("Doorway_Panel", mesh)
+    panel.data.materials.append(panel_mat)
+    if hasattr(panel, "visible_shadow"):
+        panel.visible_shadow = False
+    collection.objects.link(panel)
+    return obj, panel
 
 
 def add_human(origin_x, offset_y, material_, collection, name):
@@ -188,6 +295,7 @@ def build(args, models):
     skirt_mat = material("Skirt", SKIRT_COLOUR)
     human_mat = material("Human", HUMAN_COLOUR)
     label_mat = material("Label", LABEL_COLOUR)
+    jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
 
     x = 0.0
     placed = []
@@ -202,24 +310,36 @@ def build(args, models):
             x += args.gap + radius_m
         coll = new_collection(meta["variant"], root)
 
+        door = data.get("doorway")
+        spin = spin_for_door(data)
+        jambs = set(door["frame"]["jamb_rods"]) if door else set()
+
         for rod in data["rods"]:
-            add_rod(rod, rod_radius_m, mats[rod["family"]], coll, x, lift)
+            mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
+            add_rod(rod, rod_radius_m, mat, coll, x, lift, spin)
         if data.get("skirt"):
-            add_skirt(data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift)
-        add_human(x + radius_m * 0.45, 0.0, human_mat, coll, meta["variant"])
+            add_skirt(
+                data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift, spin
+            )
+        if door:
+            add_doorway(door, rod_radius_m, coll, x, lift, spin)
+            # In the doorway, not beside it: the row exists to be read at a
+            # glance, and the one thing worth reading is whether the person
+            # gets in.
+            add_human(x, -radius_m, human_mat, coll, meta["variant"])
+        else:
+            add_human(x + radius_m * 0.45, 0.0, human_mat, coll, meta["variant"])
 
         if not args.no_labels:
             skirt_mm = meta.get("skirt_height", 0.0)
             tall = meta.get("overall_height", meta["dome_height_measured"]) * MM
             # One line. Rotated upright, extra lines run downwards and end up
             # under the ground plane, where nobody reads them.
-            text = (
-                f"{meta['variant']}  {meta['dome_diameter'] * MM:.0f} m wide, "
-                f"{tall:.2f} m tall"
-            )
+            name = meta.get("alias") or meta["variant"]
+            text = f"{name}  {meta['dome_diameter'] * MM:.0f} x {tall:.1f} m"
             if skirt_mm:
-                text += f"  (incl. {skirt_mm * MM:.1f} m skirt)"
-            add_label(text, x, -radius_m - 1.2, label_mat, coll)
+                text += f" (+{skirt_mm * MM:.1f} skirt)"
+            add_label(text, x, -radius_m - 1.6, label_mat, coll)
 
         placed.append((meta["variant"], x, radius_m, meta))
         max_radius = max(max_radius, radius_m)
@@ -229,7 +349,7 @@ def build(args, models):
     bpy.ops.mesh.primitive_plane_add(size=1.0, location=(span / 2.0, 0.0, 0.0))
     ground = bpy.context.active_object
     ground.name = "Ground"
-    ground.scale = (span * 3.0, span * 1.5, 1.0)
+    ground.scale = (span * 4.0, span * 3.0, 1.0)
     ground.data.materials.append(material("Ground", GROUND_COLOUR))
     move_to(ground, root)
 
@@ -250,7 +370,7 @@ def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0
     scene.collection.objects.link(cam)
 
     half_angle = math.atan(18.0 / lens)
-    needed = (span * 0.62) / math.tan(half_angle)
+    needed = (span * 0.78) / math.tan(half_angle)
     height = max(tallest * 1.6, needed * 0.20)
     cam.location = (span * 0.5, -needed, height)
     target = Vector((span * 0.5, 0.0, tallest * 0.40))

@@ -77,7 +77,8 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 - [ ] Add basic fabric-cover representation.
 - [x] Build an entrance-clearance inspection workflow. `stardome/entrance.py`, `make entrances`, see [`entrance.md`](entrance.md). Computed, not eyeballed: the dome is unrolled to azimuth x height and the largest empty rectangle solved exactly.
 - [ ] Build a simple covered-corridor generator / placement workflow.
-- [x] Create a composition scene with multiple instances. `blender/build_site.py`, `make site`: all six variants in one scene at 1:1, small to large, each with a 1.75 m figure and a label.
+- [x] Create a composition scene with multiple instances. `blender/build_site.py`, `make site` for all six variants and `make sizes` for the four named ones -- each turned so its doorway faces the camera, with a 1.75 m figure standing in that doorway.
+- [x] Choose and draw the doorway itself. `stardome/doorway.py`, `make doorways`, see [`doorway.md`](doorway.md). Not just "a door fits somewhere" but which bay, framed by which rods and which node, exported as a closed 3D outline the scene builders draw.
 
 **Exit criterion:** entrances and corridors can be positioned against the actual rod layout and inspected from human eye level.
 
@@ -99,6 +100,17 @@ opening at all. A 1800 x 700 mm door needs 760 mm of skirt on D6, 1320 mm on D4
 and 1600 mm on D3 -- which for D3 means a 3.07 m structure over a 3 m footprint.
 D6 wants a skirt; D3 wants a crawl entrance or a different size. See
 [`entrance.md`](entrance.md).
+
+**And then the doorway result softens it again.** Those figures fit a
+*rectangle*, and neither a person nor the opening is one. Each of the five
+tall bays is a lancet -- two G bows meeting at a lashed four-rod node, feet on
+two base points -- so fitting a person-shaped silhouette into a person-shaped
+hole needs less skirt than the rectangle said: 1240 mm on D4 rather than 1320,
+700 on D6 rather than 760, 190 on D8, none on D10. The opening costs nothing --
+no rod cut, no joint invented, and there are five of them. That is what fixed
+the four sizes: **S = D4 + 1350, M = D6 + 800, L = D8 + 300, XL = D10 bare**,
+each skirt being the answer to its door rather than a preference. See
+[`doorway.md`](doorway.md).
 
 ## Milestone 3 — First printable crossing connector
 

@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances interiors clamps blender site venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -20,6 +20,8 @@ help:
 	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make connectors show which connector parts each variant needs"
 	@echo "make weave      four-rod node fan geometry and stacking order"
+	@echo "make doorways   the chosen door: which bay, framed by what"
+	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
@@ -66,6 +68,9 @@ DOOR ?= 1800 700
 entrances:
 	@$(PYTHON) -m stardome entrance --all --door $(DOOR)
 
+doorways:
+	@$(PYTHON) -m stardome doorway --all
+
 interiors:
 	@$(PYTHON) -m stardome interior --all
 
@@ -107,6 +112,16 @@ scad:
 # Every variant in one scene, small to large, each with a 1.75 m figure. The
 # comparison is the point: a dome twice as wide is nowhere near twice the
 # usable volume, and only standing them together shows it.
+# The four sizes anyone is asked to build, each turned so its doorway faces
+# the camera, each with a figure standing in that doorway. The question the
+# scene answers is not "how big is it" but "does a person get in".
+sizes:
+	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
+	$(BLENDER) --background --factory-startup --python blender/build_site.py -- \
+		--named-only \
+		--out exports/blender/sizes.blend \
+		--render exports/blender/sizes.png
+
 site:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
 	$(BLENDER) --background --factory-startup --python blender/build_site.py -- \
