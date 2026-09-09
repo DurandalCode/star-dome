@@ -281,3 +281,76 @@ def test_entrance_and_doorway_agree_on_the_free_height(bare):
     assert bay["clear_height_mm"] == pytest.approx(
         env["free_height_max_mm"], abs=0.1
     )
+
+
+def test_the_jambs_are_end_pieces_so_cutting_them_severs_nothing(bare):
+    """The reason cutting the door open is worth considering at all.
+
+    Every bow is divided by its crossings into pieces that each end at a
+    lashed node. The doorway's own jambs are the pieces at the ends of their
+    bows, so removing them shortens two bows -- each then starts at the head
+    node instead of at a base point -- rather than breaking any bow in two.
+    """
+    cuts = doorway.jamb_cut(bare)
+    cost = doorway.cut_pieces(bare, cuts)
+
+    assert set(cuts) == set(doorway.tall_bays(bare) and
+                            doorway.frame(bare, doorway.tall_bays(bare)[0]
+                                          ["apex_azimuth_deg"])["jamb_rods"])
+    assert cost["severs_nothing"]
+    assert cost["severed_bows"] == []
+    assert len(cost["end_pieces"]) == 2
+
+
+def test_cutting_the_jambs_costs_the_same_fraction_at_every_size(bare):
+    """Two fifths of a bow out of fifteen bows: 2.67% of the rod, always.
+
+    Each G bow is exactly five equal pieces, because its crossings fall on
+    fifths -- so this is a property of the topology, not of the diameter.
+    """
+    cost = doorway.cut_pieces(bare, doorway.jamb_cut(bare))
+    assert cost["rod_removed_fraction"] == pytest.approx(2.0 / 75.0, abs=1e-3)
+
+
+def test_cutting_the_jambs_never_makes_the_opening_smaller(bare):
+    plain = doorway.tall_bays(bare)[0]["clear_height_mm"]
+    opened = doorway.with_cut(bare, doorway.jamb_cut(bare))
+
+    assert opened["clear_height_mm"] >= plain
+    assert set(doorway.admits(bare)) <= set(opened["admits"])
+
+
+def test_cutting_the_jambs_turns_L_from_a_duck_into_a_walk_in():
+    """The result that makes the cut worth doing.
+
+    Bare L admits a stoop and nothing more. With the two jamb pieces out it
+    takes someone carrying something, through an opening 1.68 m wide at
+    shoulder height -- and no bow has been severed to get it.
+    """
+    lg = model.build(config.load("L"))
+    assert doorway.admits(lg) == ["crawl", "stoop"]
+
+    opened = doorway.with_cut(lg, doorway.jamb_cut(lg))
+    assert "carry" in opened["admits"]
+    assert opened["widths_mm"]["1800"] > 1500.0
+    assert opened["cost"]["severs_nothing"]
+
+
+def test_a_middle_piece_is_reported_as_severing_its_bow():
+    """The distinction the cost model exists to make.
+
+    Going further than the jambs means taking pieces out of the middle of a
+    bow, and a bow with its middle gone is two bows.
+    """
+    m = model.build(config.load("M"))
+    cost = doorway.cut_pieces(m, {"L1": [(37.8, 60.0)]})
+    assert not cost["severs_nothing"]
+    assert cost["severed_bows"] == ["L1"]
+    assert cost["end_pieces"] == []
+
+
+def test_an_envelope_with_a_piece_removed_is_never_lower_than_without(bare):
+    """Removing rod can only open the dome up, never close it."""
+    plain = entrance.door_envelope(bare)["envelope_mm"]
+    cut = entrance.door_envelope(bare, removed=doorway.jamb_cut(bare))["envelope_mm"]
+    assert all(c >= p - 1e-6 for p, c in zip(plain, cut))

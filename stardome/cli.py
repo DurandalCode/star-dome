@@ -139,6 +139,32 @@ def cmd_doorway(args) -> int:
         template = args.template or variant.door or doorway.DEFAULT_TEMPLATE
         data = model.build(variant, weave_mode=args.weave_mode)
         print(doorway.format_analysis(data, template, clearance_mm=args.clearance))
+        if args.cut:
+            cuts = doorway.jamb_cut(data)
+            r = doorway.with_cut(data, cuts, template, args.clearance)
+            cost = r["cost"]
+            spans = ", ".join(
+                f"{rod} {lo:.0f}-{hi:.0f} deg"
+                for rod, s in r["cuts"].items()
+                for lo, hi in s
+            )
+            print(f"  cut the jambs out ({spans}):")
+            print(
+                f"    clear {r['clear_height_mm']:.0f} mm, "
+                + ", ".join(
+                    f"{h} mm high: {w:.0f} wide" for h, w in r["widths_mm"].items()
+                )
+            )
+            print(f"    admits: {', '.join(r['admits']) or 'nothing'}")
+            print(
+                f"    costs {cost['rod_removed_mm'] / 1000:.1f} m of rod "
+                f"({cost['rod_removed_fraction'] * 100:.1f}%), "
+                + (
+                    "severs nothing -- both are end pieces"
+                    if cost["severs_nothing"]
+                    else f"SEVERS {', '.join(cost['severed_bows'])}"
+                )
+            )
         if args.skirt_for:
             wanted = args.skirt_for
             needed = doorway.skirt_for_template(
@@ -242,6 +268,11 @@ def build_parser() -> argparse.ArgumentParser:
                 "--template",
                 default=None,
                 help="person silhouette to fit; default is the variant's own",
+            )
+            p.add_argument(
+                "--cut",
+                action="store_true",
+                help="also report the doorway with its two jamb pieces cut out",
             )
             p.add_argument(
                 "--skirt-for",

@@ -352,6 +352,21 @@ def skirt_for_template(
     return float("nan")
 
 
+def admits_env(
+    data: dict,
+    env: dict,
+    clearance_mm: float = 0.0,
+    skirt_mm: float | None = None,
+) -> list:
+    """Which silhouettes get through a given envelope, smallest first."""
+    passing = [
+        name
+        for name in entrance.TEMPLATES
+        if fit(data, name, env, clearance_mm, skirt_mm)["fits"]
+    ]
+    return sorted(passing, key=lambda k: max(h for h, _ in entrance.TEMPLATES[k]))
+
+
 def admits(
     data: dict,
     env: dict | None = None,
@@ -360,15 +375,7 @@ def admits(
 ) -> list:
     """Which of the standard silhouettes get through, smallest first."""
     env = env or entrance.door_envelope(data, clearance_mm=clearance_mm)
-    passing = [
-        name
-        for name in entrance.TEMPLATES
-        if fit(data, name, env, clearance_mm, skirt_mm)["fits"]
-    ]
-    return sorted(
-        passing,
-        key=lambda k: max(h for h, _ in entrance.TEMPLATES[k]),
-    )
+    return admits_env(data, env, clearance_mm, skirt_mm)
 
 
 def place(
@@ -403,6 +410,91 @@ def place(
             "a second one opposite gives a through-draught without changing "
             "anything structurally."
         ),
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# Cutting the door open
+#
+# Every bow is divided by its crossings into pieces, and each piece ends at a
+# lashed node -- so a cut is made at a joint, not in the middle of a span. That
+# makes enlarging the doorway by removing pieces a real option rather than
+# vandalism, but the pieces are not equal:
+#
+#   an END piece   the bow gets shorter and still runs unbroken from one
+#                  base point to a node. Nothing is severed.
+#   a MIDDLE piece the bow becomes two disconnected bows. That is a different
+#                  structure, not a modified one.
+#
+# The doorway's own jambs are end pieces. That is the whole reason this is
+# worth measuring: the obvious cut is also the cheap one.
+# ---------------------------------------------------------------------------
+
+
+def jamb_cut(data: dict, frame_info: dict | None = None) -> dict:
+    """The two end pieces that form the doorway's jambs.
+
+    Removing these opens the lancet out to the full bay below its head node.
+    Both are end pieces, so neither bow is severed: each simply starts at the
+    head node instead of at a base point, a fifth shorter.
+    """
+    bay = tall_bays(data)[0]
+    info = frame_info or frame(data, bay["apex_azimuth_deg"])
+    bows = {b.name: b for b in geometry.build_bows()}
+    apex = tuple(info["apex_point"])
+
+    spans = {}
+    for rod, foot in zip(info["jamb_rods"], info["foot_points"]):
+        bow = bows[rod]
+        t_foot = bow.t_of(tuple(foot))
+        t_apex = bow.t_of(apex)
+        # t_of wraps, and a base point can read as 360 rather than 0; snap it.
+        t_foot = 0.0 if min(t_foot, 360.0 - t_foot) < 1e-3 else t_foot
+        spans[rod] = [(min(t_foot, t_apex), max(t_foot, t_apex))]
+    return spans
+
+
+def cut_pieces(data: dict, cuts: dict) -> dict:
+    """What a set of cuts costs: rod removed, and what it severs."""
+    radius = data["meta"]["dome_radius"]
+    ends = []
+    severed = []
+    removed = 0.0
+    for rod, spans in cuts.items():
+        for lo, hi in spans:
+            removed += (hi - lo) / 180.0 * math.pi * radius
+            if lo <= 1e-6 or hi >= 180.0 - 1e-6:
+                ends.append(rod)
+            else:
+                severed.append(rod)
+    return {
+        "rod_removed_mm": round(removed, 1),
+        "rod_removed_fraction": round(removed / data["meta"]["total_rod_length"], 4),
+        "end_pieces": sorted(ends),
+        "severed_bows": sorted(set(severed)),
+        "severs_nothing": not severed,
+    }
+
+
+def with_cut(
+    data: dict,
+    cuts: dict,
+    template_name: str = DEFAULT_TEMPLATE,
+    clearance_mm: float = 0.0,
+) -> dict:
+    """What the doorway becomes once those pieces are gone."""
+    env = entrance.door_envelope(data, clearance_mm=clearance_mm, removed=cuts)
+    return {
+        "cuts": {rod: [list(s) for s in spans] for rod, spans in cuts.items()},
+        "cost": cut_pieces(data, cuts),
+        "clear_height_mm": round(max(env["envelope_mm"]), 1),
+        "widths_mm": {
+            str(h): entrance.widest_at_height(data, float(h), env)["widest_mm"]
+            for h in (1200, 1400, 1800, 2000, 2200)
+        },
+        "admits": admits_env(data, env, clearance_mm),
+        "door": fit(data, template_name, env, clearance_mm),
     }
 
 
