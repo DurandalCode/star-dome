@@ -49,9 +49,9 @@ This roadmap is intentionally prototype-first. The project should prove geometry
 
 - [ ] Choose reference fiberglass rod diameter(s), initially 8 and/or 10 mm.
 - [ ] Measure real rod tolerance and surface behavior.
-- [ ] Design a crossing clip/clamp in FreeCAD.
-- [ ] Avoid sharp contact edges and point loading on fiberglass.
-- [ ] Make clearance, rod diameter, wall thickness, and fastener dimensions parametric.
+- [x] Design a crossing clip/clamp in FreeCAD. V1 two-piece bolted clamp, see `docs/crossing-clamp-v1.md`.
+- [x] Avoid sharp contact edges and point loading on fiberglass. Flared mouths, 180 deg saddles; rod-on-rod contact at the crossing is still to be validated.
+- [x] Make clearance, rod diameter, wall thickness, and fastener dimensions parametric. 8/10/12 mm variants generate from one parameter set.
 - [ ] Print and test repeated assembly/disassembly.
 - [ ] Record failure modes and revise.
 

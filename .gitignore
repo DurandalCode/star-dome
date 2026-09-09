@@ -15,6 +15,7 @@ exports/*
 
 # FreeCAD backups
 *.FCStd1
+*.FCBak
 
 # Render outputs
 renders/
