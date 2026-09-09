@@ -425,8 +425,11 @@ def build(values, fan_gaps=None):
 
     # The angle itself, drawn: mostly in the ground, and the reason the empty
     # sector exists.
-    # Drawn passing right through and out the far side, which is the point.
-    protrude = arm_len * 0.5
+    # Drawn centred on the hub, so equal lengths stand out either side and the
+    # slot is visibly a through hole rather than a socket the angle happens to
+    # bottom out in. On site most of that length is in the ground; this is a
+    # reference solid, not a placement.
+    protrude = values["stakeLength"] / 2.0
     stake = angle_profile(
         values["stakeLegWidth"],
         values["stakeThickness"],
