@@ -1,0 +1,125 @@
+{
+ "variant": "D8",
+ "units": "mm",
+ "dome_diameter": 8000.0,
+ "dome_radius": 4000.0,
+ "rod_diameter": 10.0,
+ "rod_count": 15,
+ "base_node_count": 10,
+ "crossing_point_count": 40,
+ "crossing_pair_count": 90,
+ "crossing_type_count": 12,
+ "rod_length_nominal": 12566.370614,
+ "rod_length_class_count": 1,
+ "total_rod_length": 188495.55921,
+ "base_ring_length": 25132.741229,
+ "dome_height_nominal": 3928.987786,
+ "base_edge_arc": 2513.274123,
+ "base_edge_chord": 2472.135955,
+ "crossing_types": [
+  {
+   "name": "T00",
+   "count": 5,
+   "families": "UU",
+   "z": 3892.995958,
+   "angle_deg": 70.528779,
+   "tied": 0
+  },
+  {
+   "name": "T01",
+   "count": 10,
+   "families": "GU",
+   "z": 3402.603233,
+   "angle_deg": 37.377368,
+   "tied": 1
+  },
+  {
+   "name": "T02",
+   "count": 5,
+   "families": "UU",
+   "z": 3402.603233,
+   "angle_deg": 41.810315,
+   "tied": 1
+  },
+  {
+   "name": "T03",
+   "count": 5,
+   "families": "GG",
+   "z": 3402.603233,
+   "angle_deg": 63.434949,
+   "tied": 1
+  },
+  {
+   "name": "T04",
+   "count": 10,
+   "families": "GU",
+   "z": 3402.603233,
+   "angle_deg": 79.187683,
+   "tied": 1
+  },
+  {
+   "name": "T05",
+   "count": 10,
+   "families": "UL",
+   "z": 2406.00382,
+   "angle_deg": 70.528779,
+   "tied": 0
+  },
+  {
+   "name": "T06",
+   "count": 10,
+   "families": "GL",
+   "z": 2102.924448,
+   "angle_deg": 37.377368,
+   "tied": 1
+  },
+  {
+   "name": "T07",
+   "count": 5,
+   "families": "LL",
+   "z": 2102.924448,
+   "angle_deg": 41.810315,
+   "tied": 1
+  },
+  {
+   "name": "T08",
+   "count": 5,
+   "families": "GG",
+   "z": 2102.924448,
+   "angle_deg": 63.434949,
+   "tied": 1
+  },
+  {
+   "name": "T09",
+   "count": 10,
+   "families": "GL",
+   "z": 2102.924448,
+   "angle_deg": 79.187683,
+   "tied": 1
+  },
+  {
+   "name": "T10",
+   "count": 10,
+   "families": "UL",
+   "z": 1486.992138,
+   "angle_deg": 70.528779,
+   "tied": 0
+  },
+  {
+   "name": "T11",
+   "count": 5,
+   "families": "LL",
+   "z": 919.011682,
+   "angle_deg": 70.528779,
+   "tied": 0
+  }
+ ],
+ "node_heights": [
+  3892.995958,
+  3402.603233,
+  2406.00382,
+  2102.924448,
+  1486.992138,
+  919.011682
+ ]
+}
