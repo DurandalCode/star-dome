@@ -250,6 +250,205 @@ def migration(data: dict) -> dict:
     return {"rods": rows, "worst_slope": round(worst, 6)}
 
 
+def _incidences(data: dict, order: tuple) -> tuple:
+    """Radial offset variables, one per (rod, crossing point).
+
+    Offsets at the lashed nodes are dictated by the stacking order and held
+    fixed; everything else is free. Offsets are measured from the nominal
+    sphere, in millimetres.
+    """
+    rod_diameter = data["meta"]["rod_diameter"]
+    bows = {b.name: b for b in geometry.build_bows()}
+    level_of = {fan_index: level for level, fan_index in enumerate(order)}
+
+    fixed = {}
+    for node in [n for n in data["nodes"] if n["rod_count"] == 4]:
+        for fan_index, (_a, name, _f, _o) in enumerate(node_fan(node, bows)):
+            fixed[(name, node["name"])] = (level_of[fan_index] + 1 - 2.5) * rod_diameter
+
+    offsets = {}
+    params = {}
+    for c in data["crossings"]:
+        for rod, t in ((c["rod_a"], c["t_a_deg"]), (c["rod_b"], c["t_b_deg"])):
+            key = (rod, c["node"])
+            params[key] = t
+            offsets.setdefault(key, fixed.get(key, 0.0))
+    return offsets, params, fixed
+
+
+def global_profile(data: dict, order: tuple = STACK_ORDER,
+                   iterations: int = 20000, step: float = 0.5) -> dict:
+    """Solve for a radial route per rod that no crossing violates.
+
+    The stacking order fixes each rod's offset at the lashed nodes it passes.
+    Between them the rod is free, and it has to get past the unlashed
+    crossings without the two rods sharing space: their axes must be at least
+    one rod diameter apart.
+
+    Interpolating linearly between the fixed points does *not* achieve that --
+    it leaves 15 of the 30 unlashed crossings interpenetrating under fan
+    order. This relaxes the free offsets until every crossing clears, and
+    reports what the answer costs.
+
+    Deterministic: ties are broken by rod name, so the same model always gives
+    the same route.
+    """
+    rod_diameter = data["meta"]["rod_diameter"]
+    radius = data["meta"]["dome_radius"]
+    offsets, params, fixed = _incidences(data, order)
+
+    pairs = [
+        ((c["rod_a"], c["node"]), (c["rod_b"], c["node"]))
+        for c in data["crossings"]
+    ]
+
+    used = iterations
+    for it in range(iterations):
+        worst = 0.0
+        for ka, kb in pairs:
+            ra, rb = offsets[ka], offsets[kb]
+            gap = abs(ra - rb)
+            if gap >= rod_diameter - 1e-9:
+                continue
+            deficit = rod_diameter - gap
+            worst = max(worst, deficit)
+            if abs(ra - rb) < 1e-9:
+                direction = 1.0 if ka[0] > kb[0] else -1.0
+            else:
+                direction = 1.0 if ra > rb else -1.0
+            free_a = ka not in fixed
+            free_b = kb not in fixed
+            if free_a and free_b:
+                offsets[ka] = ra + direction * step * deficit / 2.0
+                offsets[kb] = rb - direction * step * deficit / 2.0
+            elif free_a:
+                offsets[ka] = ra + direction * step * deficit
+            elif free_b:
+                offsets[kb] = rb - direction * step * deficit
+        if worst < 1e-9:
+            used = it + 1
+            break
+
+    routes: dict = {}
+    for (rod, node), value in offsets.items():
+        routes.setdefault(rod, []).append(
+            {
+                "node": node,
+                "t_deg": round(params[(rod, node)], 6),
+                "offset_mm": round(value, 6),
+                "lashed": (rod, node) in fixed,
+            }
+        )
+    for stops in routes.values():
+        stops.sort(key=lambda s: s["t_deg"])
+
+    violations = []
+    tightest = (float("inf"), None)
+    for c in data["crossings"]:
+        ka = (c["rod_a"], c["node"])
+        kb = (c["rod_b"], c["node"])
+        sep = abs(offsets[ka] - offsets[kb])
+        if sep < tightest[0]:
+            tightest = (sep, c["node"])
+        if sep < rod_diameter - 1e-6:
+            violations.append(
+                {
+                    "node": c["node"],
+                    "rods": [c["rod_a"], c["rod_b"]],
+                    "separation_mm": round(sep, 6),
+                    "tied": bool(c["tied"]),
+                }
+            )
+
+    slope = 0.0
+    slope_rod = None
+    for rod, stops in routes.items():
+        for i in range(len(stops) - 1):
+            arc = radius * math.radians(stops[i + 1]["t_deg"] - stops[i]["t_deg"])
+            if arc > 1e-9:
+                s = abs(stops[i + 1]["offset_mm"] - stops[i]["offset_mm"]) / arc
+                if s > slope:
+                    slope, slope_rod = s, rod
+
+    band = max(abs(v) for v in offsets.values())
+    return {
+        "order": list(order),
+        "feasible": not violations,
+        "violations": violations,
+        "crossings_checked": len(pairs),
+        "tightest_separation_mm": round(tightest[0], 6),
+        "tightest_at": tightest[1],
+        "band_mm": round(band, 6),
+        "stack_half_height_mm": round(1.5 * rod_diameter, 6),
+        "worst_slope": round(slope, 6),
+        "worst_slope_rod": slope_rod,
+        "worst_slope_deg": round(math.degrees(math.atan(slope)), 4),
+        "iterations": used,
+        "routes": routes,
+    }
+
+
+def linear_profile_violations(data: dict, order: tuple = STACK_ORDER) -> list:
+    """What the obvious guess gives: interpolate straight between lashed nodes.
+
+    Kept because it is the evidence for why ``global_profile`` has to do real
+    work. Under fan order this leaves 15 of the 30 unlashed crossings
+    interpenetrating, the worst by almost 9 mm on a 10 mm rod.
+    """
+    rod_diameter = data["meta"]["rod_diameter"]
+    _offsets, params, fixed = _incidences(data, order)
+
+    anchors: dict = {}
+    for (rod, node), value in fixed.items():
+        anchors.setdefault(rod, []).append((params[(rod, node)], value))
+    for pts in anchors.values():
+        pts.sort()
+
+    def at(rod, t):
+        pts = anchors[rod]
+        if t <= pts[0][0]:
+            return pts[0][1]
+        if t >= pts[-1][0]:
+            return pts[-1][1]
+        for i in range(len(pts) - 1):
+            t0, r0 = pts[i]
+            t1, r1 = pts[i + 1]
+            if t0 <= t <= t1:
+                return r0 + (t - t0) / (t1 - t0) * (r1 - r0)
+        raise AssertionError("parameter outside the rod")
+
+    out = []
+    for c in data["crossings"]:
+        sep = abs(at(c["rod_a"], c["t_a_deg"]) - at(c["rod_b"], c["t_b_deg"]))
+        if sep < rod_diameter - 1e-9:
+            out.append(
+                {
+                    "node": c["node"],
+                    "rods": [c["rod_a"], c["rod_b"]],
+                    "separation_mm": round(sep, 6),
+                    "tied": bool(c["tied"]),
+                }
+            )
+    return out
+
+
+def format_global(data: dict, order: tuple = STACK_ORDER) -> str:
+    g = global_profile(data, order)
+    lines = [
+        f"--- {data['meta']['variant']} global weave, stack "
+        f"{'-'.join(str(i + 1) for i in g['order'])}",
+        f"  feasible: {'YES' if g['feasible'] else 'NO'}   "
+        f"({g['crossings_checked']} crossings, {len(g['violations'])} violations)",
+        f"  tightest separation {g['tightest_separation_mm']:.4f} mm at "
+        f"{g['tightest_at']}  (need {data['meta']['rod_diameter']:g} mm)",
+        f"  radial band +/-{g['band_mm']:.2f} mm; the stack alone needs "
+        f"+/-{g['stack_half_height_mm']:.2f} mm",
+        f"  worst radial slope {g['worst_slope'] * 100:.2f}% "
+        f"({g['worst_slope_deg']:.2f} deg) on {g['worst_slope_rod']}",
+    ]
+    return "\n".join(lines)
+
+
 def format_analysis(data: dict) -> str:
     """Human-readable summary, for the CLI."""
     a = analyse(data)

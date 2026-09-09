@@ -90,6 +90,7 @@ def cmd_weave(args) -> int:
         variant = config.load(name, args.config)
         data = model.build(variant, weave_mode=args.weave_mode)
         print(weave.format_analysis(data))
+        print(weave.format_global(data))
     return 0
 
 

@@ -110,14 +110,67 @@ Not a constraint.
 `stardome.weave.migration` reports it per rod;
 `tests/test_weave.py::test_radial_migration_is_negligible` keeps it under 2%.
 
-## 4. What is still open
+## 4. Does the weave close globally?
 
-- **The part itself.** The schedule now carries the fan as a specified part
-  with `generator: null`. Nothing builds it yet.
-- **Global weave consistency.** The local geometry at each node is settled.
-  Whether one consistent over/under assignment exists across all 90 contacts
-  at once — including the 30 unlashed crossings a rod passes on its way
-  between nodes — is a separate computation that has not been done.
+Fixing the stack at the ten lashed nodes says nothing about the thirty
+unlashed crossings a rod passes on its way between them. Those rods must also
+not share space: their axes need at least one rod diameter of separation.
+
+```bash
+python3 -m stardome weave D6
+```
+
+### The obvious guess fails
+
+Route each rod straight between the offsets its lashed nodes dictate, and
+**15 of the 30 unlashed crossings interpenetrate**. The worst leaves 1.12 mm
+between the axes of two 10 mm rods — an 8.9 mm overlap. Every stacking order
+fails this way; fan order is simply the worst of them, at 15 collisions
+against 5 for the best.
+
+That result is kept as `weave.linear_profile_violations` and a test, because
+it is the reason the solver below has to exist. It is not an argument against
+fan order: linear interpolation was an arbitrary guess at the route, not a
+constraint of the design.
+
+### A consistent weave does exist
+
+`weave.global_profile` holds the lashed-node offsets fixed, lets the rod float
+between them, and relaxes until every crossing clears. It converges, for every
+stacking order, and the answer is better than it had to be:
+
+| variant | rod | radial band | worst slope | tightest separation |
+|---|---|---|---|---|
+| D4 | 8 mm | ±12 mm | 2.06% (1.18°) | 8.0000 mm |
+| D6 | 10 mm | ±15 mm | 1.72% (0.98°) | 10.0000 mm |
+| D8 | 10 mm | ±15 mm | 1.29% (0.74°) | 10.0000 mm |
+| D12 | 12 mm | ±18 mm | 1.03% (0.59°) | 12.0000 mm |
+
+Two things matter here:
+
+- **The band is exactly the stack's own half-height**, 1.5 rod diameters. The
+  weave asks for no radial room beyond what four stacked rods already occupy.
+  There is no hidden thickness to design around.
+- **The route is gentle.** A rod leaves its great circle by about one degree.
+  It also means the weave gets *easier* as the dome grows — the arc between
+  nodes grows faster than the rod does — so **D4 is the tight case**, not D12.
+
+### What this means for the part
+
+The rod does not arrive at a lashed node parallel to the sphere: it comes in
+at up to about 1.2° of radial tilt, and generally at a different tilt on each
+side. A channel bored exactly tangent will pre-stress the rod. Flared mouths
+already help; whether the fan needs an explicit tilt allowance is a question
+for the printed prototype.
+
+## 5. What is still open
+
+- **The part itself.** The schedule carries the fan as a specified part with
+  `generator: null`. Nothing builds it yet.
+- **Near-crossing interference.** The check is axis separation *at* the
+  crossing point. Two rods meeting at the fan's shallowest angle, 37.4°, stay
+  close for some distance either side of it; whether finite-diameter rods
+  clear each other over that whole region is not modelled.
 - **Whether the reference really has four rods per node.** This is a
   reconstruction from the rod marking diagram, not a quoted fact. Verify
   against photographs or a physical mock-up before committing to tooling.

@@ -124,8 +124,8 @@ solve the ones it ties. Closing that is the real content of this milestone.
 
 - [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
 - [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
+- [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
 - [ ] Design the four-rod fan connector.
-- [ ] Check whether one global over/under assignment is consistent across all 90 contacts at once.
 
 **The four-rod node turned out to be the easy case.** All four rods at a lashed
 node are coplanar — a great circle's tangent lies in the sphere's tangent plane
@@ -142,6 +142,17 @@ angles into rod-on-rod contact, needs two distinct saddle angles rather than
 three, is palindromic, and states as one sentence in the field. Its cost is
 that G and L rods change level between nodes, which measures out as a 1.6%
 slope — not a constraint. Stack height is three rod diameters.
+
+**The weave closes.** Routing rods straight between their lashed-node offsets
+leaves 15 of the 30 unlashed crossings interpenetrating, so the naive answer is
+wrong — but a consistent route does exist, for every stacking order, and it
+stays inside the radial band the four-rod stack already occupies (±1.5 rod
+diameters). A rod leaves its great circle by about one degree. The weave gets
+easier as the dome grows, so **D4 is the tight case, not D12**.
+
+One consequence for the part: a rod arrives at a node with up to ~1.2° of
+radial tilt, generally different on each side, so a channel bored exactly
+tangent will pre-stress it.
 
 **Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
 

@@ -98,3 +98,71 @@ def test_every_rod_has_a_level_at_every_node_it_passes(built):
     for rod in built["rods"]:
         expected = 4 if rod["family"] == "G" else 2
         assert counts[rod["name"]] == expected
+
+
+def test_linear_interpolation_between_nodes_does_not_work(built):
+    """The obvious guess fails, which is why global_profile exists.
+
+    Routing each rod straight between the offsets its lashed nodes dictate
+    leaves half the unlashed crossings with the two rods sharing space.
+    """
+    violations = weave.linear_profile_violations(built)
+    assert len(violations) == 15
+    assert all(not v["tied"] for v in violations)
+    worst = min(v["separation_mm"] for v in violations)
+    assert worst < 0.2 * built["meta"]["rod_diameter"]
+
+
+def test_a_globally_consistent_weave_exists(built):
+    g = weave.global_profile(built)
+    assert g["feasible"]
+    assert g["violations"] == []
+    assert g["crossings_checked"] == 90
+    assert g["tightest_separation_mm"] >= built["meta"]["rod_diameter"] - 1e-6
+
+
+def test_the_weave_needs_no_room_beyond_the_stack(built):
+    """The rods stay inside the band the four-rod stack already requires."""
+    g = weave.global_profile(built)
+    assert g["band_mm"] <= g["stack_half_height_mm"] + 1e-6
+
+
+def test_the_route_is_gentle(built):
+    """A rod leaving its great circle by about a degree is not a constraint.
+
+    The measured range is 0.59 deg at D12 up to 1.18 deg at D4 -- the weave
+    gets easier as the dome grows, because the arc between nodes grows faster
+    than the rod. D4 is the tight case. The threshold here is a regression
+    guard, not a limit anyone is near.
+    """
+    g = weave.global_profile(built)
+    assert g["worst_slope"] < 0.03
+    assert g["worst_slope_deg"] < 2.0
+
+
+def test_lashed_offsets_are_untouched_by_the_solver(built):
+    g = weave.global_profile(built)
+    d = built["meta"]["rod_diameter"]
+    allowed = {round((lvl - 2.5) * d, 6) for lvl in (1, 2, 3, 4)}
+    lashed = [s for stops in g["routes"].values() for s in stops if s["lashed"]]
+    assert len(lashed) == 40
+    assert all(round(s["offset_mm"], 6) in allowed for s in lashed)
+
+
+def test_the_solver_is_deterministic(built):
+    a = weave.global_profile(built)
+    b = weave.global_profile(built)
+    assert a["routes"] == b["routes"]
+    assert a["tightest_separation_mm"] == b["tightest_separation_mm"]
+
+
+def test_every_stacking_order_admits_a_consistent_weave(built):
+    """Feasibility does not depend on the order chosen -- only its cost does."""
+    import itertools
+
+    seen = set()
+    for perm in itertools.permutations(range(4)):
+        if perm[::-1] in seen:
+            continue
+        seen.add(perm)
+        assert weave.global_profile(built, perm)["feasible"], perm
