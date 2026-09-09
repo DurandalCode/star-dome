@@ -493,7 +493,13 @@ def build(args):
     base_mat = make_material("Node_Base", BASE_COLOUR)
 
     door = data.get("doorway")
-    jambs = set(door["frame"]["jamb_rods"]) if door else set()
+    # A portal has no lancet, so no pair of jambs to pick out: the
+    # traced outline and the ghosts of the cut pieces carry it instead.
+    jambs = (
+        set(door["frame"]["jamb_rods"])
+        if door and door.get("frame")
+        else set()
+    )
     jamb_mat = make_material("Rod_Jamb", JAMB_COLOUR)
 
     ghost_mat = make_transparent(make_material("Rod_Cut", GHOST_COLOUR), 0.50)

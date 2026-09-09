@@ -77,7 +77,8 @@ rod_diameter = 8
 alias = "S"
 skirt_height = 1350
 door = "carry"
-note = "S -- smallest size with a walk-in door; needs the tallest skirt to get one"
+door_cut = "portal"
+note = "S -- smallest size with a walk-in door; the skirt is for standing room"
 
 [variants.D6]
 diameter = 6000
@@ -100,7 +101,8 @@ diameter = 10000
 rod_diameter = 12
 alias = "XL"
 door = "carry"
-note = "XL -- takes a walk-in door with no skirt at all; expect D8's reinforcement work"
+door_cut = "portal"
+note = "XL -- walk-in door with no skirt at all; expect D8's reinforcement work"
 
 [variants.D12]
 diameter = 12000

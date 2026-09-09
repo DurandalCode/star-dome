@@ -41,10 +41,10 @@ SDV_NAME = 0; SDV_DIAMETER = 1; SDV_ROD_DIAMETER = 2; SDV_NOTE = 3;
 
 SD_VARIANTS = [
     ["D3",   3000,  8, "small dome on a 1 m skirt; 1473 mm of dome is not standing height on its own"],
-    ["D4",   4000,  8, "S -- smallest size with a walk-in door; needs the tallest skirt to get one"],
+    ["D4",   4000,  8, "S -- smallest size with a walk-in door; the skirt is for standing room"],
     ["D6",   6000, 10, "M -- reference prototype, bare. Portal door in a low bay: you walk in"],
     ["D8",   8000, 10, "L -- large dome, bare. Portal door, and the 2.2 m character gets in"],
-    ["D10", 10000, 12, "XL -- takes a walk-in door with no skirt at all; expect D8's reinforcement work"],
+    ["D10", 10000, 12, "XL -- walk-in door with no skirt at all; expect D8's reinforcement work"],
     ["D12", 12000, 12, "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"]
 ];
 
