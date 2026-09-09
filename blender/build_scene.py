@@ -583,18 +583,26 @@ def shot_cameras(scene, radius_m, height_m, facing_deg):
 
     # Two orthographic drawings, which are not photographs and read better for
     # dimensions than any perspective view.
-    for name, loc, at, up_axis in (
-        ("plan", (0.0, 0.0, height_m * 4.0), (0.0, 0.0, 0.0), "Y"),
+    #
+    # ortho_scale governs the *wider* axis of the frame, and the frame is
+    # 16:10. A plan has to fit the diameter in both directions, so its scale is
+    # set from the short axis and multiplied back up; an elevation is wider
+    # than it is tall and the diameter governs directly.
+    aspect = 1600.0 / 1000.0
+    diameter_m = radius_m * 2.0
+    for name, loc, at, scale in (
+        ("plan", (0.0, 0.0, height_m * 4.0), (0.0, 0.0, 0.0),
+         diameter_m * 1.2 * aspect),
         (
             "elevation",
             (out[0] * radius_m * 8.0, out[1] * radius_m * 8.0, height_m * 0.5),
             (0.0, 0.0, height_m * 0.5),
-            "Y",
+            diameter_m * 1.3,
         ),
     ):
         data = bpy.data.cameras.new(f"Cam_{name}")
         data.type = "ORTHO"
-        data.ortho_scale = radius_m * 2.6
+        data.ortho_scale = scale
         cam = bpy.data.objects.new(f"Cam_{name}", data)
         scene.collection.objects.link(cam)
         cam.location = loc
