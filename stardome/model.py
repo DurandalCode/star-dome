@@ -423,6 +423,7 @@ def build(
         "weave_mode": weave_mode,
         "weave_gap": _r(variant.weave_gap),
         "rod_segments": variant.rod_segments,
+        "section_length": _r(variant.section_length),
         "rod_count": len(rods),
         "base_node_count": len(base_nodes),
         "crossing_point_count": len(nodes),
