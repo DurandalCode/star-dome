@@ -75,11 +75,20 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 - [x] Keep individual arcs/crossings identifiable where practical. Objects carry their model IDs and are split into per-role collections.
 - [x] Add reusable human scale figures. A 1.75 m figure, placed inside the dome.
 - [ ] Add basic fabric-cover representation.
-- [ ] Build an entrance-clearance inspection workflow.
+- [x] Build an entrance-clearance inspection workflow. `stardome/entrance.py`, `make entrances`, see [`entrance.md`](entrance.md). Computed, not eyeballed: the dome is unrolled to azimuth x height and the largest empty rectangle solved exactly.
 - [ ] Build a simple covered-corridor generator / placement workflow.
 - [x] Create a composition scene with multiple instances. `blender/build_site.py`, `make site`: all six variants in one scene at 1:1, small to large, each with a 1.75 m figure and a label.
 
 **Exit criterion:** entrances and corridors can be positioned against the actual rod layout and inspected from human eye level.
+
+**The entrance result changes the size question.** The tallest unobstructed spot
+at the base ring is 0.2549 x diameter, the same fraction for every variant
+because the topology is fixed. So a walk-in door does not exist below D10:
+D6's best opening is 497 mm wide at 1200 mm high, and D3 and D4 have no 1200 mm
+opening at all. A 1800 x 700 mm door needs 760 mm of skirt on D6, 1320 mm on D4
+and 1600 mm on D3 -- which for D3 means a 3.07 m structure over a 3 m footprint.
+D6 wants a skirt; D3 wants a crawl entrance or a different size. See
+[`entrance.md`](entrance.md).
 
 ## Milestone 3 — First printable crossing connector
 
