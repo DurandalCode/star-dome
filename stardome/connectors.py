@@ -27,6 +27,19 @@ TWO_ROD_CLAMP_CAPACITY = 2
 
 ANGLE_DP = 4
 
+# What still has to be *made*, against what merely has to be chosen.
+#
+# A driven steel angle takes the ground anchorage at every point that touches
+# the earth: it resists uplift and, through the soil, the horizontal thrust.
+# That is hardware -- a size and a length to specify, not a shape to design --
+# and it removes a whole column from the list of things this project has to
+# draw. What it does not do is gather three bow ends arriving at three
+# different inclinations and hold them to each other; that is still a part, or
+# a lashing, and calling the stake an answer to it would be wishful.
+GENERATED = "generated"      # a script produces the geometry today
+HARDWARE = "hardware"        # bought or cut to length; specify, do not design
+UNDESIGNED = "undesigned"    # nothing exists and something must
+
 
 def _part_id(kind: str, rod_diameter: float, angle: float) -> str:
     return f"{kind}-{rod_diameter:g}-{angle:.{ANGLE_DP}f}"
@@ -70,6 +83,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     for name, count in at_base.items():
         grouped.setdefault(count, []).append(name)
     for count, names in sorted(grouped.items(), reverse=True):
+        on_ground = not skirt
         parts.append(
             {
                 "id": f"BASE{count}-{rod_diameter:g}",
@@ -80,24 +94,47 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "tied": True,
                 "members": count,
                 "generator": None,
+                "state": UNDESIGNED,
+                "anchored_by_stake": on_ground,
                 "note": (
                     "Three bow ends"
                     + (
                         ", the post head, two ring chords and the brace heads"
                         if count > 3
-                        else " and whatever holds them to the ground"
+                        else ""
                     )
-                    + ". The bows arrive at three different inclinations and "
-                    "the ring pulls sideways, so this takes hoop tension, "
-                    "vertical load and the dome's outward thrust at once."
+                    + ". They arrive at three different inclinations and have "
+                    "to be held to each other"
+                    + (
+                        ", 1.35 m in the air on top of a post, where no stake "
+                        "can reach."
+                        if count > 3
+                        else " and to the stake under them."
+                    )
                 ),
             }
         )
 
     if not skirt:
-        parts[-1]["note"] += (
-            " With no skirt there is no ring here at all, so nothing in this "
-            "model resists the dome spreading at its feet."
+        parts.append(
+            {
+                "id": "STAKE-BASE",
+                "kind": "ground_stake",
+                "rod_diameter": rod_diameter,
+                "count": len(data["base_nodes"]),
+                "nodes": sorted(b["name"] for b in data["base_nodes"]),
+                "tied": False,
+                "members": 1,
+                "generator": None,
+                "state": HARDWARE,
+                "note": (
+                    "A driven steel angle at each base point. This is what "
+                    "resists the dome spreading at its feet -- through soil, "
+                    "the way a tent peg does -- and it is a size and a length "
+                    "to specify rather than a shape to design. It does not "
+                    "gather the three bow ends; that is BASE3."
+                ),
+            }
         )
 
     # --- post feet -----------------------------------------------------------
@@ -127,11 +164,16 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "tied": True,
                     "members": count,
                     "generator": None,
+                    "state": HARDWARE,
+                    "anchored_by_stake": True,
                     "note": (
-                        "Post foot, two ring chords, the brace feet and the "
-                        "ground anchor. Whether the post is pinned or fixed "
-                        "here decides whether racking becomes a bending "
-                        "problem at the feet -- see docs/skirt.md."
+                        "Post foot, two ring chords and the brace feet, all "
+                        "gathered on the driven steel angle that anchors this "
+                        "point anyway. Hardware rather than a part: what has "
+                        "to be decided is the stake and whether the post is "
+                        "pinned or fixed to it, which is what turns racking "
+                        "into a bending problem at the feet. See "
+                        "docs/skirt.md."
                     ),
                 }
             )
@@ -141,6 +183,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             parts.append(
                 {
                     "id": f"HDR-{rod_diameter:g}",
+                    "state": UNDESIGNED,
                     "kind": "header_clamp",
                     "rod_diameter": rod_diameter,
                     "count": len(header["rods"]),
@@ -163,6 +206,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         parts.append(
             {
                 "id": f"TERM-{rod_diameter:g}",
+                    "state": UNDESIGNED,
                 "kind": "cut_termination",
                 "rod_diameter": rod_diameter,
                 "count": ends,
@@ -195,6 +239,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             parts.append(
                 {
                     "id": f"SPLICE-{rod_diameter:g}",
+                    "state": UNDESIGNED,
                     "kind": "rod_splice",
                     "rod_diameter": rod_diameter,
                     "count": total,
@@ -346,6 +391,15 @@ def schedule(data: dict) -> dict:
             "parts_per_dome": covered,
             "generatable_now": buildable,
             "awaiting_a_generator": covered - buildable,
+            "hardware": sum(
+                p["count"] for p in part_list if p.get("state") == HARDWARE
+            ),
+            "undesigned": sum(
+                p["count"] for p in part_list if p.get("state") == UNDESIGNED
+            ),
+            "undesigned_types": sorted(
+                p["id"] for p in part_list if p.get("state") == UNDESIGNED
+            ),
         },
     }
 
@@ -358,7 +412,10 @@ def format_schedule(sched: dict) -> str:
 
     for p in sched["parts"]:
         tied = "lashed" if p["tied"] else "unlashed"
-        state = p["generator"] or "NO GENERATOR YET"
+        state = p["generator"] or {
+            HARDWARE: "hardware -- specify it",
+            UNDESIGNED: "NOTHING EXISTS",
+        }.get(p.get("state"), "NO GENERATOR YET")
         lines.append(f"    {p['id']:<20} {p['count']:>3} x   {tied}   [{state}]")
         if p["kind"] == "four_rod_fan":
             gaps = ", ".join(f"{g:.4f}" for g in p["fan_gaps_deg"])
@@ -397,5 +454,11 @@ def format_schedule(sched: dict) -> str:
         f"({t['generatable_now']} generatable now, "
         f"{t['awaiting_a_generator']} awaiting a generator), "
         f"{t['uncovered_nodes']} node(s) unspecified"
+    )
+    lines.append(
+        f"  of those: {t['generatable_now']} generated, "
+        f"{t['hardware']} hardware to specify, "
+        f"{t['undesigned']} with nothing at all "
+        f"({', '.join(t['undesigned_types'])})"
     )
     return "\n".join(lines)
