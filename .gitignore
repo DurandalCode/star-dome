@@ -22,6 +22,7 @@ connectors/*.FCStd
 
 # Render outputs
 renders/
+exports/shots/
 *.exr
 
 # macOS
