@@ -37,6 +37,7 @@ exports/        generated output; mostly ignored by Git
 
 - Agent instructions: [`AGENTS.md`](AGENTS.md)
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
+- Dome geometry: [`dome/README.md`](dome/README.md)
 - Crossing clamp V1: [`docs/crossing-clamp-v1.md`](docs/crossing-clamp-v1.md)
 
 ## Initial variants
