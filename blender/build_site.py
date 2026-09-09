@@ -41,10 +41,13 @@ SKIRT_COLOUR = (0.80, 0.80, 0.78, 1.0)
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)
 GROUND_COLOUR = (0.26, 0.29, 0.24, 1.0)
-HUMAN_COLOUR = (0.92, 0.78, 0.62, 1.0)
 LABEL_COLOUR = (0.95, 0.95, 0.95, 1.0)
 
-HUMAN_HEIGHT = 1.75
+# 1.8 m is a person; 2.2 m is a costumed character on stilts or in a frame.
+# The pair is the point of the row: the same two figures at every size.
+HUMAN_HEIGHTS = ((1.80, "Person", (0.92, 0.78, 0.62, 1.0)),
+                 (2.20, "Tall", (0.55, 0.68, 0.45, 1.0)))
+HUMAN_SPREAD = 0.42
 
 
 def parse_args(argv):
@@ -251,21 +254,31 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0):
     return obj, panel
 
 
-def add_human(origin_x, offset_y, material_, collection, name):
-    body_h = HUMAN_HEIGHT * 0.72
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=0.17, depth=body_h, location=(origin_x, offset_y, body_h / 2.0), vertices=16
-    )
-    body = bpy.context.active_object
-    body.name = f"{name}_Body"
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=0.115, location=(origin_x, offset_y, body_h + 0.155), segments=16, ring_count=8
-    )
-    head = bpy.context.active_object
-    head.name = f"{name}_Head"
-    for obj in (body, head):
-        obj.data.materials.append(material_)
-        move_to(obj, collection)
+def add_humans(origin_x, offset_y, mats, collection, name):
+    """Both figures side by side. Proportions scale with height, so the tall
+    one reads as tall rather than as one standing nearer the camera."""
+    for (height, label, _), dx in zip(HUMAN_HEIGHTS, (-HUMAN_SPREAD, HUMAN_SPREAD)):
+        body_h = height * 0.72
+        scale = height / 1.75
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=0.17 * scale,
+            depth=body_h,
+            location=(origin_x + dx, offset_y, body_h / 2.0),
+            vertices=16,
+        )
+        body = bpy.context.active_object
+        body.name = f"{name}_{label}_Body"
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=0.115 * scale,
+            location=(origin_x + dx, offset_y, body_h + 0.155 * scale),
+            segments=16,
+            ring_count=8,
+        )
+        head = bpy.context.active_object
+        head.name = f"{name}_{label}_Head"
+        for obj in (body, head):
+            obj.data.materials.append(mats[label])
+            move_to(obj, collection)
 
 
 def add_label(text, origin_x, y, material_, collection):
@@ -293,7 +306,10 @@ def build(args, models):
     root = new_collection("Site", scene.collection)
     mats = {f: material(f"Rod_{f}", c) for f, c in FAMILY_COLOUR.items()}
     skirt_mat = material("Skirt", SKIRT_COLOUR)
-    human_mat = material("Human", HUMAN_COLOUR)
+    human_mats = {
+        label: material(f"Figure_{label}", colour)
+        for _, label, colour in HUMAN_HEIGHTS
+    }
     label_mat = material("Label", LABEL_COLOUR)
     jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
 
@@ -326,9 +342,9 @@ def build(args, models):
             # In the doorway, not beside it: the row exists to be read at a
             # glance, and the one thing worth reading is whether the person
             # gets in.
-            add_human(x, -radius_m, human_mat, coll, meta["variant"])
+            add_humans(x, -radius_m, human_mats, coll, meta["variant"])
         else:
-            add_human(x + radius_m * 0.45, 0.0, human_mat, coll, meta["variant"])
+            add_humans(x + radius_m * 0.45, 0.0, human_mats, coll, meta["variant"])
 
         if not args.no_labels:
             skirt_mm = meta.get("skirt_height", 0.0)

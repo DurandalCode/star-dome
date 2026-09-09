@@ -53,12 +53,16 @@ weave_gap = 1.0
 # Either name loads the same dome. D3 and D12 have no alias: they are the
 # ends of the range kept for study, not sizes anyone is asked to build.
 #
-# `skirt_height` on an aliased size is not a preference. It is the shortest
-# skirt that lets the `door` silhouette walk in, rounded up for about 100 mm
-# of headroom to spare -- see docs/doorway.md. Change the door and the skirt
-# has to be recomputed:
+# M and L are deliberately bare: no skirt, and therefore no walk-in door.
+# `door` on those two records what the dome actually admits rather than what
+# anyone would like it to. S keeps its skirt because a 4 m dome with none
+# admits nothing at all, not even a crawl.
 #
-#     python3 -m stardome doorway <name> --skirt-for carry
+# Where a skirt is present its height is not a preference -- it is the
+# shortest that lets the `door` silhouette through, rounded up for about
+# 100 mm to spare. See docs/doorway.md. To re-solve one:
+#
+#     python3 -m stardome doorway <name> --skirt 0 --skirt-for carry
 # ---------------------------------------------------------------------------
 
 [variants.D3]
@@ -79,17 +83,15 @@ note = "S -- smallest size with a walk-in door; needs the tallest skirt to get o
 diameter = 6000
 rod_diameter = 10
 alias = "M"
-skirt_height = 800
-door = "carry"
-note = "M -- reference prototype; best all-round trade in the family"
+door = "crawl"
+note = "M -- reference prototype. Bare by choice, so you get in on all fours"
 
 [variants.D8]
 diameter = 8000
 rod_diameter = 10
 alias = "L"
-skirt_height = 300
-door = "carry"
-note = "L -- large dome; the skirt is barely a sill. Expect reinforcement work"
+door = "stoop"
+note = "L -- large dome, bare by choice: you duck in. Expect reinforcement work"
 
 [variants.D10]
 diameter = 10000

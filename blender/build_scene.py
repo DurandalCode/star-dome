@@ -49,7 +49,14 @@ SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
 
-HUMAN_HEIGHT = 1.75  # m, for scale reference
+# Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
+# stilts or in a frame, and whether that gets through the door is a question a
+# person-sized figure never asks. See entrance.TEMPLATES["tall"].
+HUMAN_HEIGHTS = ((1.80, "Person", (0.90, 0.75, 0.60, 1.0)),
+                 (2.20, "Tall", (0.55, 0.68, 0.45, 1.0)))
+# Sideways spacing in the doorway, m. Enough to read as two figures, small
+# enough that both stay inside the opening on the narrow variants.
+HUMAN_SPREAD = 0.42
 
 
 def parse_args(argv):
@@ -201,33 +208,63 @@ def add_ground(diameter_m, collection):
     return move_to(plane, collection)
 
 
-def add_human(radius_m, collection, at=None):
-    """A crude 1.75 m figure. Only its height matters.
+def add_figure(height, label, colour, x, y, collection):
+    """A crude figure of a given height. Only the height matters.
 
-    ``at`` places it somewhere specific -- in the doorway, when there is one,
-    which is the one place in the dome where the answer "does a person fit"
-    is not obvious by eye.
+    Proportions scale with it, so the tall one reads as tall rather than as a
+    person standing closer to the camera.
     """
-    x, y = at if at is not None else (radius_m * 0.55, 0.0)
-    body_h = HUMAN_HEIGHT * 0.72
+    body_h = height * 0.72
+    scale = height / 1.75
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=0.17, depth=body_h, location=(x, y, body_h / 2.0)
+        radius=0.17 * scale, depth=body_h, location=(x, y, body_h / 2.0)
     )
     body = bpy.context.active_object
-    body.name = "HumanScale_Body"
+    body.name = f"{label}_Body"
 
     bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=0.115,
-        location=(x, y, body_h + 0.155),
+        radius=0.115 * scale,
+        location=(x, y, body_h + 0.155 * scale),
     )
     head = bpy.context.active_object
-    head.name = "HumanScale_Head"
+    head.name = f"{label}_Head"
 
-    mat = make_material("HumanScale", (0.90, 0.75, 0.60, 1.0))
+    mat = make_material(f"Figure_{label}", colour)
     for obj in (body, head):
         obj.data.materials.append(mat)
         move_to(obj, collection)
     return body, head
+
+
+def add_humans(radius_m, collection, facing_deg=None):
+    """Both figures, side by side, standing in the doorway when there is one.
+
+    The doorway is the one place in the dome where "does this fit" is not
+    obvious by eye, and it is the only place where the two heights say
+    different things.
+    """
+    if facing_deg is None:
+        centre = (radius_m * 0.55, 0.0)
+        along = (0.0, 1.0)
+    else:
+        a = math.radians(facing_deg)
+        centre = (math.cos(a) * radius_m, math.sin(a) * radius_m)
+        along = (-math.sin(a), math.cos(a))  # the door's own tangent
+
+    made = []
+    offsets = (-HUMAN_SPREAD, HUMAN_SPREAD)
+    for (height, label, colour), offset in zip(HUMAN_HEIGHTS, offsets):
+        made.append(
+            add_figure(
+                height,
+                label,
+                colour,
+                centre[0] + along[0] * offset,
+                centre[1] + along[1] * offset,
+                collection,
+            )
+        )
+    return made
 
 
 def make_transparent(mat, alpha):
@@ -447,13 +484,7 @@ def build(args):
     if not args.no_ground:
         add_ground(radius_m * 2.0, site_coll)
     if not args.no_human:
-        # Standing in the doorway when there is one: that is where the
-        # clearance question actually is.
-        at = None
-        if facing is not None:
-            a = math.radians(facing)
-            at = (math.cos(a) * radius_m, math.sin(a) * radius_m)
-        add_human(radius_m, site_coll, at)
+        add_humans(radius_m, site_coll, facing)
 
     add_camera_and_light(scene, radius_m, height_m, facing)
 
