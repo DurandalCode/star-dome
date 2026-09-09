@@ -29,9 +29,22 @@ def _part(sched, kind):
     return hits[0]
 
 
-def test_the_dome_needs_two_connector_geometries(sched):
-    assert sched["totals"]["distinct_part_types"] == 2
-    kinds = sorted(p["kind"] for p in sched["parts"])
+CROSSING_KINDS = ("four_rod_fan", "two_rod_clamp")
+
+
+def _crossing_parts(sched):
+    return [p for p in sched["parts"] if p["kind"] in CROSSING_KINDS]
+
+
+def test_the_lattice_needs_two_connector_geometries(sched):
+    """Two parts serve all forty rod-to-rod crossings.
+
+    That was once the whole schedule. It is now the easy half of it: the
+    joints where the dome meets the ground, the skirt and itself lengthwise
+    outnumber the crossings and have no design at all.
+    """
+    assert len(_crossing_parts(sched)) == 2
+    kinds = sorted(p["kind"] for p in _crossing_parts(sched))
     assert kinds == ["four_rod_fan", "two_rod_clamp"]
 
 
@@ -55,7 +68,7 @@ def test_one_four_rod_fan_serves_every_lashed_node(sched):
     assert sum(part["fan_gaps_deg"]) == pytest.approx(180.0, abs=1e-6)
 
 
-def test_every_part_has_a_generator(sched):
+def test_every_crossing_part_has_a_generator(sched):
     """The whole connector set is buildable from the model.
 
     This test previously asserted the opposite -- that the fan had no
@@ -66,13 +79,20 @@ def test_every_part_has_a_generator(sched):
     assert _part(sched, "two_rod_clamp")["generator"] == "crossing_clamp_v1"
     totals = sched["totals"]
     assert totals["generatable_now"] == 40
-    assert totals["awaiting_a_generator"] == 0
+    # And everything that is not a crossing is waiting for one.
+    assert totals["awaiting_a_generator"] == sum(
+        p["count"] for p in sched["parts"] if p["kind"] not in CROSSING_KINDS
+    )
+    assert totals["awaiting_a_generator"] > 0
 
 
 def test_every_crossing_point_is_accounted_for(sched):
+    """The forty crossings are covered. The rest of the schedule is not a
+    crossing and is counted separately."""
     totals = sched["totals"]
     assert totals["crossing_points"] == 40
-    assert totals["parts_per_dome"] == 40
+    assert sum(p["count"] for p in _crossing_parts(sched)) == 40
+    assert totals["parts_per_dome"] > 40
     assert totals["uncovered_nodes"] == 0
     assert sched["unsupported"] == []
 
@@ -97,3 +117,68 @@ def test_schedule_scales_only_in_rod_diameter():
     assert len(diameters) > 1
     # Stack height is three rod diameters, so it tracks the rod, not the dome.
     assert len(heights) == len(diameters)
+
+
+def test_the_base_point_is_the_busiest_joint_in_the_structure():
+    """Eight members at one point on a skirted dome, and nothing designed.
+
+    Three bow ends arrive at three different inclinations, the post head from
+    below, two ring chords pulling sideways and two brace heads pulling
+    diagonally. That is twice the four-rod fan, which does have a part.
+    """
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("S")))
+    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
+    assert hubs
+    assert max(h["members"] for h in hubs) == 8
+    assert sum(h["count"] for h in hubs) == 10
+    assert all(h["generator"] is None for h in hubs)
+
+    fan = _part(sched, "four_rod_fan")
+    assert max(h["members"] for h in hubs) > fan["count"] // 2  # 8 > 5
+
+
+def test_a_bare_dome_has_nothing_holding_its_feet_together():
+    """Without a skirt the base point is three rod ends and the ground.
+
+    No ring, so nothing in this model resists the dome spreading at its feet,
+    and the schedule has to say so rather than quietly showing a smaller part.
+    """
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("M")))
+    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
+    assert len(hubs) == 1
+    assert hubs[0]["members"] == 3
+    assert hubs[0]["count"] == 10
+    assert "nothing in this model resists" in hubs[0]["note"]
+
+
+def test_splices_are_the_largest_part_count_on_any_real_size(sched):
+    """A bow is far longer than a transportable section, so it is spliced.
+
+    On the smaller domes a bow still fits in three sections and there are
+    fewer of these than crossings; from D6 up they outnumber everything else
+    in the schedule, and nothing generates them.
+    """
+    splice = _part(sched, "rod_splice")
+    assert splice["generator"] is None
+    others = max(
+        p["count"] for p in sched["parts"] if p["kind"] != "rod_splice"
+    )
+    if sched["meta"]["variant"] in ("D3", "D4"):
+        assert splice["count"] <= others
+    else:
+        assert splice["count"] > others
+
+
+def test_the_portal_cut_leaves_terminations_that_are_not_crossings():
+    """A bow that starts at a crossing needs a different clamp from one that
+    passes through it, and there are two of them per cut door."""
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("M")))
+    term = _part(sched, "cut_termination")
+    assert term["count"] == 2
+    assert term["generator"] is None

@@ -32,6 +32,189 @@ def _part_id(kind: str, rod_diameter: float, angle: float) -> str:
     return f"{kind}-{rod_diameter:g}-{angle:.{ANGLE_DP}f}"
 
 
+def _joint_parts(data: dict, rod_diameter: float) -> list:
+    """Every joint that is not a rod-to-rod crossing.
+
+    The crossing schedule above answers "how many clamp types does the lattice
+    need". It says nothing about the places where the dome meets the ground,
+    the skirt, or itself lengthwise -- and those are most of the joints, and
+    include the busiest one in the whole structure.
+    """
+    import math
+
+    meta = data["meta"]
+    skirt = data.get("skirt")
+    door = data.get("doorway")
+    parts = []
+
+    # --- base points ---------------------------------------------------------
+    #
+    # Three rod ends meet here in any case. With a skirt they are joined by the
+    # post head, two ring chords and two brace heads: eight members at one
+    # point, which is more than the four-rod fan and has no design at all.
+    at_base = {b["name"]: 3 for b in data["base_nodes"]}
+    if skirt:
+        for post in skirt["posts"]:
+            at_base[post["base_node"]] += 1
+        for seg in skirt["top_ring"]:
+            at_base[seg["from"]] += 1
+            at_base[seg["to"]] += 1
+        by_point = {
+            (round(post["x"]), round(post["y"])): post for post in skirt["posts"]
+        }
+        for brace in skirt["braces"]:
+            head = by_point[(round(brace["b"][0]), round(brace["b"][1]))]
+            at_base[head["base_node"]] += 1
+
+    grouped: dict = {}
+    for name, count in at_base.items():
+        grouped.setdefault(count, []).append(name)
+    for count, names in sorted(grouped.items(), reverse=True):
+        parts.append(
+            {
+                "id": f"BASE{count}-{rod_diameter:g}",
+                "kind": "base_hub",
+                "rod_diameter": rod_diameter,
+                "count": len(names),
+                "nodes": sorted(names),
+                "tied": True,
+                "members": count,
+                "generator": None,
+                "note": (
+                    "Three bow ends"
+                    + (
+                        ", the post head, two ring chords and the brace heads"
+                        if count > 3
+                        else " and whatever holds them to the ground"
+                    )
+                    + ". The bows arrive at three different inclinations and "
+                    "the ring pulls sideways, so this takes hoop tension, "
+                    "vertical load and the dome's outward thrust at once."
+                ),
+            }
+        )
+
+    if not skirt:
+        parts[-1]["note"] += (
+            " With no skirt there is no ring here at all, so nothing in this "
+            "model resists the dome spreading at its feet."
+        )
+
+    # --- post feet -----------------------------------------------------------
+    if skirt:
+        at_foot = {post["name"]: 1 for post in skirt["posts"]}  # the post itself
+        for seg in skirt["bottom_ring"]:
+            at_foot[seg["from"]] += 1
+            at_foot[seg["to"]] += 1
+        by_point = {
+            (round(post["x"]), round(post["y"])): post for post in skirt["posts"]
+        }
+        for brace in skirt["braces"]:
+            foot = by_point[(round(brace["a"][0]), round(brace["a"][1]))]
+            at_foot[foot["name"]] += 1
+
+        grouped = {}
+        for name, count in at_foot.items():
+            grouped.setdefault(count, []).append(name)
+        for count, names in sorted(grouped.items(), reverse=True):
+            parts.append(
+                {
+                    "id": f"FOOT{count}-{rod_diameter:g}",
+                    "kind": "post_foot",
+                    "rod_diameter": rod_diameter,
+                    "count": len(names),
+                    "nodes": sorted(names),
+                    "tied": True,
+                    "members": count,
+                    "generator": None,
+                    "note": (
+                        "Post foot, two ring chords, the brace feet and the "
+                        "ground anchor. Whether the post is pinned or fixed "
+                        "here decides whether racking becomes a bending "
+                        "problem at the feet -- see docs/skirt.md."
+                    ),
+                }
+            )
+
+        header = skirt.get("header")
+        if header:
+            parts.append(
+                {
+                    "id": f"HDR-{rod_diameter:g}",
+                    "kind": "header_clamp",
+                    "rod_diameter": rod_diameter,
+                    "count": len(header["rods"]),
+                    "nodes": list(header["rods"]),
+                    "tied": True,
+                    "members": 2,
+                    "generator": None,
+                    "note": (
+                        "Clamps the header to a bow part-way up its length, "
+                        "where there is no crossing to hang it on. It carries "
+                        "the top ring's hoop force round the doorway, so it "
+                        "is a tension joint on a curved member."
+                    ),
+                }
+            )
+
+    # --- rod terminations left by a cut --------------------------------------
+    if door and door.get("cut"):
+        ends = sum(len(spans) for spans in door["cut"]["spans"].values())
+        parts.append(
+            {
+                "id": f"TERM-{rod_diameter:g}",
+                "kind": "cut_termination",
+                "rod_diameter": rod_diameter,
+                "count": ends,
+                "nodes": sorted(door["cut"]["spans"]),
+                "tied": True,
+                "members": 2,
+                "generator": None,
+                "note": (
+                    "A bow now starts at a crossing instead of passing "
+                    "through it. The clamp there holds a rod end against a "
+                    "rod, not two rods against each other, and it is the end "
+                    "of a member that used to be continuous."
+                ),
+            }
+        )
+
+    # --- splices along each bow ----------------------------------------------
+    section = meta.get("section_length") or 0.0
+    if section > 0:
+        cut_spans = {}
+        if door and door.get("cut"):
+            cut_spans = door["cut"]["spans"]
+        total = 0
+        for rod in data["rods"]:
+            length = rod["length_drawn"]
+            for lo, hi in cut_spans.get(rod["name"], ()):
+                length -= (hi - lo) / 180.0 * math.pi * meta["dome_radius"]
+            total += max(0, math.ceil(length / section) - 1)
+        if total:
+            parts.append(
+                {
+                    "id": f"SPLICE-{rod_diameter:g}",
+                    "kind": "rod_splice",
+                    "rod_diameter": rod_diameter,
+                    "count": total,
+                    "nodes": [],
+                    "tied": False,
+                    "members": 2,
+                    "generator": None,
+                    "note": (
+                        f"A bow is {meta['rod_length_nominal']:.0f} mm long and "
+                        f"transports in {section:.0f} mm sections, so it is "
+                        "spliced along its length. The joint has to carry "
+                        "bending, because the bow is bent everywhere, and it "
+                        "must miss the crossings -- see docs/roadmap.md M5."
+                    ),
+                }
+            )
+
+    return parts
+
+
 def schedule(data: dict) -> dict:
     """Derive the connector schedule for a built model."""
     rod_diameter = data["meta"]["rod_diameter"]
@@ -132,6 +315,8 @@ def schedule(data: dict) -> dict:
         }
     unsupported = {k: v for k, v in unsupported.items() if v["rod_count"] != 4 or fan["distinct_fans"] != 1}
 
+    joint_parts = _joint_parts(data, rod_diameter)
+
     # Four-rod fans first: they are the nodes the reference actually lashes.
     part_list = sorted(
         parts.values(),
@@ -139,6 +324,7 @@ def schedule(data: dict) -> dict:
     )
     unsupported_list = sorted(unsupported.values(), key=lambda e: -e["rod_count"])
 
+    part_list = part_list + joint_parts
     covered = sum(p["count"] for p in part_list)
     uncovered = sum(e["count"] for e in unsupported_list)
     buildable = sum(p["count"] for p in part_list if p.get("generator"))
@@ -185,11 +371,13 @@ def format_schedule(sched: dict) -> str:
                 f"      stack {'-'.join(str(i + 1) for i in p['stack_order'])}: "
                 f"contacts {contacts} deg, height {p['stack_height']:g} mm"
             )
-        else:
+        elif p["kind"] == "two_rod_clamp":
             lines.append(
                 f"      two rods at {p['crossing_angle']:.4f} deg, "
                 f"classes {'/'.join(p['crossing_types'])}"
             )
+        else:
+            lines.append(f"      {p['members']} members;  {p['note']}")
     if not sched["parts"]:
         lines.append("  no parts")
 
