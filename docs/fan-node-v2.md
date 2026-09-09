@@ -108,14 +108,36 @@ And this is better than spacing the rods, not merely tighter:
   loaded in compression by a crossed-cylinder patch in PETG or ASA, was the
   weakest claim in the spaced version. It is gone.
 
-`rodsTouchAtCentre = 0` falls back to spacing the rods with `webThickness` of
-plate between them everywhere, at 3 mm of stack height per mm of web:
+### One dial: `rodGap`
 
-| web | pitch | stack | assembly | volume |
-|---|---|---|---|---|
-| **touching** | **10.00** | **30.0** | **53.7** | **94.3 cm³** |
-| 2.0 mm | 12.40 | 37.2 | 60.9 | 109.4 cm³ |
-| 3.0 mm | 13.40 | 40.2 | 63.9 | 115.7 cm³ |
+The pitch is `rodDiameter + rodGap`, so a single number says how far apart
+adjacent rods sit at the crossing. Every millimetre thickens the rib by a
+millimetre at every radius — including the centre, which closes the hole once
+the gap passes 0.4 mm — and costs 3 mm of stack height.
+
+| rodGap | pitch | stack | assembly | rib at centre | rib at r=10 |
+|---|---|---|---|---|---|
+| **0 (default)** | **10.0** | **30.0** | **53.7** | **hole** | **1.95 mm** |
+| 1.5 mm | 11.5 | 34.5 | 58.2 | 1.05 mm | 3.45 mm |
+| 2.0 mm | 12.0 | 36.0 | 59.7 | 1.55 mm | 3.95 mm |
+| 2.5 mm | 12.5 | 37.5 | 61.2 | 2.05 mm | 4.45 mm |
+
+The rib grows exactly linearly with the gap, so the table interpolates.
+
+Zero is the default: touching is the point, and the hole at the centre is
+where the rods bear on each other.
+
+### Colour and transparency
+
+`apply_view` colours the saved document — plates translucent at 55% so the rods
+read through them, and one colour per rod because which rod sits at which level
+is the whole content of the node. It is a no-op without a GUI, since
+`freecadcmd` gives objects no `ViewObject`: a headless rebuild produces correct
+geometry and no view settings. Run it inside FreeCAD, or through the MCP bridge
+against a GUI instance, and save.
+
+That also means **`make clamps` discards the colours**, because it regenerates
+headless. They are cosmetic; the geometry is not affected.
 
 ## The pitch is derived, and the web is measured
 

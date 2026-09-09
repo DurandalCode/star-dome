@@ -19,7 +19,7 @@ dome requires it.
 Open the pitch by a web thickness and every pair has room between it. Then the
 part becomes a stack of plates, each carrying a channel on both faces:
 
-    pitch = 2 * channelRadius + webThickness
+    pitch = rodDiameter + rodGap
 
 Every rod ends up in a real channel, wrapped 180 deg from below by one plate
 and 180 deg from above by the next. No rod touches another rod, which also
@@ -78,8 +78,7 @@ INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
-    ("rodsTouchAtCentre",      1.0,  "-",   "1 = pitch is exactly rodDiameter, so adjacent rods bear on each other at the crossing and the plate is a cross with a hole at the middle. 0 = pitch leaves webThickness of plate between them everywhere."),
-    ("webThickness",           2.0,  "mm",  "only used when rodsTouchAtCentre is 0: material between two stacked rods, which then sets the pitch. Each mm here costs 3 mm of stack height."),
+    ("rodGap",                 0.0,  "mm",  "gap between adjacent rods at the crossing; the stack pitch is rodDiameter + this. 0 means they bear on each other and the plate has a hole at the node centre. Every mm here thickens the rib by a mm at every radius and costs 3 mm of stack height."),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body; channel length is DERIVED"),
     ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
@@ -350,7 +349,7 @@ def build(values, fan_gaps=None):
 
     # Opening the pitch is the whole point of V2: it is what makes room for a
     # plate between every pair of rods. The pitch is DERIVED so that
-    # webThickness is the material that actually remains at the thinnest point,
+    # the pitch is rodDiameter + rodGap, so the rib that remains between two
     # which is at the node centre, above the lower channel and below the upper
     # one:
     #
@@ -369,27 +368,30 @@ def build(values, fan_gaps=None):
         if roof
         else channel_r
     )
-    # Two ways to set the pitch.
+    # One dial: how far apart adjacent rods sit at the crossing.
     #
-    # Touching (the default): the pitch is exactly one rod diameter, so
-    # adjacent rods bear on each other at the crossing, as the reference
-    # intends and as the two-rod clamp already does. The two channels then
-    # overlap in a small lens around the node centre and the plate has a hole
-    # there -- but only there. Away from the centre the rods diverge in plan,
-    # the vertical gap between their surfaces opens up, and the plate is solid
-    # again: a cross whose arms carry the channels. Material appears about
-    # 4.5 mm out and reaches ~1.8 mm at radius 10, ~6 mm at radius 15.
+    # At rodGap = 0 they bear on each other, as the reference intends and as
+    # the two-rod clamp already does. The two channels then overlap in a lens
+    # around the node centre and the plate has a hole there -- but only there.
+    # Away from the centre the rods diverge in plan, the vertical gap between
+    # their surfaces opens up, and the plate is solid again: a cross whose arms
+    # carry the channels.
     #
-    # This is better than spacing them, not just tighter. The clamping load
-    # passes rod-to-rod as the design intends, so the plate locates rather
-    # than carries, and there is no thin web to creep under sustained preload.
+    # Opening the gap thickens that rib by the same amount at every radius,
+    # including the centre, and costs 3 mm of stack height per mm. The rib is
+    # not the load path -- that stays rod-to-rod through the crossing -- but it
+    # is what stops a rod climbing sideways out of its channel, and at zero gap
+    # it starts at 0.25 mm and only reaches 2 mm at radius 10.
     #
-    # Spaced: the pitch leaves webThickness of plate between the rods
-    # everywhere, at 3 mm of stack height per mm of web.
-    if values["rodsTouchAtCentre"] >= 0.5:
-        pitch = rod_d
-    else:
-        pitch = values["webThickness"] + channel_r + upper_reach
+    # A gabled channel reaches higher than channel_r, so it needs the extra
+    # room; see upper_reach.
+    pitch = rod_d + values["rodGap"]
+    if roof:
+        # A gable reaches higher than the channel radius, so it needs the room.
+        # Applying this guard unconditionally, as the first attempt did, pushed
+        # the pitch to 10.4 even at zero gap and quietly parted the rods by
+        # 0.4 mm -- which is exactly what "touching" was meant to rule out.
+        pitch = max(pitch, channel_r + upper_reach)
     levels = [(k - 1.5) * pitch for k in range(4)]
 
     # The outer faces do need the tilt clearance: that is where the flare is
@@ -526,7 +528,7 @@ def build(values, fan_gaps=None):
         "fan_azimuths_deg": azimuths,
         "rod_levels_mm": levels,
         "stack_pitch_mm": pitch,
-        "web_thickness_mm": values["webThickness"],
+        "rod_gap_mm": values["rodGap"],
         "stack_height_mm": levels[3] - levels[0],
         "assembly_height_mm": z_top - z_bottom,
         "channel_radius_mm": channel_r,
@@ -726,7 +728,7 @@ def verify(geo, dims, values):
             "rib_thickness_at_r": profile,
         }
     report["web_profile"] = webs
-    report["rods_touch_at_centre"] = values["rodsTouchAtCentre"] >= 0.5
+    report["rod_gap_mm"] = round(values["rodGap"], 3)
 
     # The cap prints flipped so its channel faces up; every other plate prints
     # with its upward channel up.
@@ -737,7 +739,7 @@ def verify(geo, dims, values):
 
     report["key_dims"] = {
         "stack_pitch_mm": round(dims["stack_pitch_mm"], 3),
-        "web_thickness_mm": round(dims["web_thickness_mm"], 3),
+        "rod_gap_mm": round(dims["rod_gap_mm"], 3),
         "stack_height_mm": round(dims["stack_height_mm"], 3),
         "assembly_height_mm": round(dims["assembly_height_mm"], 3),
         "footprint_diameter_mm": round(dims["body_radius_mm"] * 2, 3),
@@ -759,6 +761,60 @@ def derived_rows(dims, values):
         else:
             rows.append((key, str(value), "", "derived"))
     return rows
+
+
+# Colours for the saved view. The plates are made translucent so the rods can
+# be seen threading through them, and each rod gets its own colour because the
+# whole point of the node is which rod sits at which level.
+PLATE_COLOUR = (0.35, 0.52, 0.78)
+PLATE_TRANSPARENCY = 55
+ROD_COLOURS = [
+    (0.95, 0.35, 0.25),   # rod 1, innermost
+    (0.98, 0.72, 0.15),
+    (0.35, 0.80, 0.45),
+    (0.55, 0.45, 0.90),   # rod 4, outermost
+]
+BOLT_COLOUR = (0.55, 0.55, 0.58)
+
+
+def apply_view(doc):
+    """Colour and transparency for the saved document.
+
+    A no-op without a GUI: freecadcmd gives objects no ViewObject, so a
+    headless rebuild produces correct geometry and no view settings. Run this
+    inside FreeCAD itself -- or through the MCP bridge against a GUI instance --
+    and save, to keep the colours in the file.
+    """
+    touched = 0
+    for obj in doc.Objects:
+        view = getattr(obj, "ViewObject", None)
+        if view is None:
+            continue
+        name = obj.Name
+        if name.startswith("Plate_"):
+            colour, transparency = PLATE_COLOUR, PLATE_TRANSPARENCY
+        elif name.startswith("Rod"):
+            try:
+                index = int(name[3:]) - 1
+            except ValueError:
+                index = 0
+            colour, transparency = ROD_COLOURS[index % len(ROD_COLOURS)], 0
+        elif name.startswith("Bolt"):
+            colour, transparency = BOLT_COLOUR, 0
+        else:
+            continue
+        for attr in ("ShapeColor", "DiffuseColor"):
+            if hasattr(view, attr):
+                try:
+                    setattr(view, attr, colour)
+                except Exception:
+                    pass
+        if hasattr(view, "Transparency"):
+            view.Transparency = transparency
+        if hasattr(view, "Visibility"):
+            view.Visibility = True
+        touched += 1
+    return touched
 
 
 def populate(doc, geo):
@@ -788,6 +844,7 @@ def populate(doc, geo):
         members.append(o)
     grp.addObjects(members)
     doc.recompute()
+    apply_view(doc)
 
 
 def write_parameters(doc, sheet, values, derived):
