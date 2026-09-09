@@ -403,11 +403,18 @@ places to challenge first if the model ever disagrees with a physical build.
    but the reference does not tie them. Whether a real build wants clamps there
    is an open question for the prototype.
 
-5. **Four rods meet at every tied node.** This follows from the reconstruction
-   and is not stated in the reference. It is a significant input to connector
-   design — a crossing clamp has to handle 4 rods at three distinct angles, not
-   2 — and should be checked against photographs and a physical mock-up before
-   any connector work starts.
+5. **Four rods meet at every tied node.** ~~Not stated in the reference.~~
+   **Confirmed** against the reference's own construction diagram
+   (`stardome-structure.png`): panel 1 rings 5 junctions of the blue pentagram,
+   each with two blue bows crossing; panel 2 adds the green bows and the same
+   5 rings carry two blue plus two green. Four rods, in the pattern this model
+   predicts.
+
+   The reference *builds* those junctions with pairwise cable ties, several of
+   them clustered over a short span, rather than as one four-rod bundle — see
+   the bamboo model photo. A single rigid four-rod part is therefore a
+   departure from the reference's practice, not a copy of it. See
+   [`../docs/tied-node.md`](../docs/tied-node.md).
 
 6. **Base edge `s`.** The reference's formulas treat `s` as `c/10`, i.e. an arc
    length, because its base ring is two bent rods. A cover panel or a ground
