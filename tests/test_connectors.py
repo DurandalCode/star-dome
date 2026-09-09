@@ -12,7 +12,8 @@ import pytest
 
 from stardome import config, connectors, model
 
-VARIANTS = ["D4", "D6", "D8", "D12"]
+# Every named variant, so adding one to the config puts it under test.
+VARIANTS = sorted(config.load_all())
 
 TETRAHEDRAL = round(math.degrees(math.acos(1 / 3)), 4)
 

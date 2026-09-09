@@ -45,6 +45,7 @@ FAMILY_COLOUR = {
 TIED_COLOUR = (0.95, 0.15, 0.25, 1.0)
 UNTIED_COLOUR = (0.55, 0.55, 0.60, 1.0)
 BASE_COLOUR = (0.25, 0.25, 0.30, 1.0)
+SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
 
 HUMAN_HEIGHT = 1.75  # m, for scale reference
 
@@ -105,7 +106,7 @@ def new_collection(name, parent):
     return coll
 
 
-def rod_object(rod, radius_m, material, collection):
+def rod_object(rod, radius_m, material, collection, lift=0.0):
     """One bow as a poly curve with a round bevel at the real rod radius."""
     curve = bpy.data.curves.new(f"RodCurve_{rod['name']}", "CURVE")
     curve.dimensions = "3D"
@@ -117,7 +118,7 @@ def rod_object(rod, radius_m, material, collection):
     points = rod["points"]
     spline.points.add(len(points) - 1)
     for i, (x, y, z) in enumerate(points):
-        spline.points[i].co = (x * MM, y * MM, z * MM, 1.0)
+        spline.points[i].co = (x * MM, y * MM, z * MM + lift, 1.0)
 
     obj = bpy.data.objects.new(f"Rod_{rod['name']}", curve)
     obj["family"] = rod["family"]
@@ -135,17 +136,53 @@ def move_to(obj, collection):
     return obj
 
 
-def marker(name, xyz_mm, radius_m, material, collection):
+def marker(name, xyz_mm, radius_m, material, collection, lift=0.0):
     bpy.ops.mesh.primitive_uv_sphere_add(
         radius=radius_m,
         segments=16,
         ring_count=8,
-        location=(xyz_mm[0] * MM, xyz_mm[1] * MM, xyz_mm[2] * MM),
+        location=(xyz_mm[0] * MM, xyz_mm[1] * MM, xyz_mm[2] * MM + lift),
     )
     sphere = bpy.context.active_object
     sphere.name = name
     sphere.data.materials.append(material)
     return move_to(sphere, collection)
+
+
+def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift):
+    """Vertical posts under each base point, plus the ground ring.
+
+    The model keeps the dome's base ring at z = 0 and hangs the skirt below it
+    into negative z, so the whole assembly is lifted by the skirt height here
+    to stand it on the ground plane.
+    """
+    made = []
+    for post in skirt["posts"]:
+        z_lo = post["z_bottom"] * MM + lift
+        z_hi = post["z_top"] * MM + lift
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=rod_radius_m,
+            depth=z_hi - z_lo,
+            location=(post["x"] * MM, post["y"] * MM, (z_lo + z_hi) / 2.0),
+            vertices=16,
+        )
+        obj = bpy.context.active_object
+        obj.name = f"Skirt_{post['name']}"
+        obj.data.materials.append(material)
+        made.append(move_to(obj, collection))
+
+    bpy.ops.mesh.primitive_torus_add(
+        major_radius=radius_m,
+        minor_radius=rod_radius_m,
+        location=(0.0, 0.0, skirt["ground_z"] * MM + lift),
+        major_segments=96,
+        minor_segments=10,
+    )
+    ring = bpy.context.active_object
+    ring.name = "Skirt_GroundRing"
+    ring.data.materials.append(material)
+    made.append(move_to(ring, collection))
+    return made
 
 
 def add_ground(diameter_m, collection):
@@ -217,8 +254,11 @@ def build(args):
         )
 
     radius_m = meta["dome_radius"] * MM
-    height_m = meta["dome_height_measured"] * MM
     rod_radius_m = meta["rod_diameter"] * MM / 2.0
+    # The model puts the dome's base ring at z = 0 and any skirt below it, so
+    # lift the lot to stand the finished structure on the ground plane.
+    lift = meta.get("skirt_height", 0.0) * MM
+    height_m = meta.get("overall_height", meta["dome_height_measured"]) * MM
 
     scene = bpy.context.scene
     clear_scene()
@@ -237,7 +277,7 @@ def build(args):
     base_mat = make_material("Node_Base", BASE_COLOUR)
 
     for rod in data["rods"]:
-        rod_object(rod, rod_radius_m, materials[rod["family"]], rods_coll)
+        rod_object(rod, rod_radius_m, materials[rod["family"]], rods_coll, lift)
 
     # Big enough to find at a glance, small enough to still be honest about
     # where the crossing actually is: 25 mm at a 10 mm rod, about the footprint
@@ -253,6 +293,7 @@ def build(args):
             node_radius,
             tied_mat if tied else untied_mat,
             tied_coll if tied else untied_coll,
+            lift,
         )
 
     for node in data["base_nodes"]:
@@ -262,6 +303,18 @@ def build(args):
             node_radius,
             base_mat,
             base_coll,
+            lift,
+        )
+
+    if data.get("skirt"):
+        skirt_coll = new_collection("Skirt", root)
+        add_skirt(
+            data["skirt"],
+            radius_m,
+            rod_radius_m,
+            make_material("Skirt", SKIRT_COLOUR),
+            skirt_coll,
+            lift,
         )
 
     if not args.no_ground:
@@ -303,11 +356,15 @@ def main():
     data = build(args)
     meta = data["meta"]
 
+    skirt = meta.get("skirt_height", 0.0)
+    tall = meta.get("overall_height", meta["dome_height_measured"])
     print(
         f"[star-dome] {meta['variant']}: {len(data['rods'])} rods, "
         f"{len(data['nodes'])} crossing points, "
         f"{meta['dome_diameter'] * MM:.2f} m across, "
-        f"{meta['dome_height_measured'] * MM:.2f} m tall"
+        f"{tall * MM:.2f} m tall"
+        + (f" (dome {meta['dome_height_measured'] * MM:.2f} m "
+           f"+ {skirt * MM:.2f} m skirt)" if skirt else "")
     )
 
     if args.out:

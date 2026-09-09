@@ -47,6 +47,9 @@ def cmd_report(args) -> int:
         print(f"--- {name} -- {meta['variant_note']}")
         print(f"  diameter          {meta['dome_diameter']:.1f} mm")
         print(f"  structural height {meta['dome_height_nominal']:.1f} mm")
+        if meta.get("skirt_height"):
+            print(f"  skirt             {meta['skirt_height']:.1f} mm")
+            print(f"  overall height    {meta['overall_height']:.1f} mm")
         print(f"  bend radius       {meta['dome_radius']:.1f} mm  (every bow)")
         print(f"  rods              {meta['rod_count']} x {meta['rod_length_nominal']:.1f} mm"
               f"  = {meta['total_rod_length']:.1f} mm total")

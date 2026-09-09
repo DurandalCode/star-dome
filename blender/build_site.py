@@ -1,0 +1,319 @@
+"""Build one Blender scene with several domes side by side, at 1:1.
+
+A consumer, like build_scene.py: every coordinate comes from the models, and
+nothing here recomputes geometry. This is the composition scene Milestone 2
+asks for -- the whole family standing on one ground plane, each with a human
+figure, so the sizes can be compared against something real rather than
+against each other on a screen.
+
+    python3 -m stardome build --all --polylines --weave-mode layered
+    blender --background --factory-startup --python blender/build_site.py -- \
+        --models exports/model/star_dome_d3.json exports/model/star_dome_d4.json \
+        --out exports/blender/site.blend --render exports/blender/site.png
+
+With no --models it takes every star_dome_*.json in exports/model, ordered by
+diameter.
+
+Domes are laid out in a row along X, ordered small to large, spaced by their
+radii plus --gap. The row is the point: a dome twice the diameter is nowhere
+near twice the useful volume, and standing them together is the only way that
+reads.
+"""
+
+import argparse
+import glob
+import json
+import math
+import os
+import sys
+
+import bpy
+from mathutils import Vector
+
+MM = 0.001
+
+FAMILY_COLOUR = {
+    "G": (0.15, 0.55, 0.95, 1.0),
+    "U": (0.95, 0.45, 0.10, 1.0),
+    "L": (0.20, 0.75, 0.35, 1.0),
+}
+SKIRT_COLOUR = (0.80, 0.80, 0.78, 1.0)
+GROUND_COLOUR = (0.26, 0.29, 0.24, 1.0)
+HUMAN_COLOUR = (0.92, 0.78, 0.62, 1.0)
+LABEL_COLOUR = (0.95, 0.95, 0.95, 1.0)
+
+HUMAN_HEIGHT = 1.75
+
+
+def parse_args(argv):
+    argv = argv[argv.index("--") + 1:] if "--" in argv else []
+    p = argparse.ArgumentParser(prog="build_site")
+    p.add_argument("--models", nargs="*", default=None, help="model.json paths")
+    p.add_argument("--dir", default="exports/model", help="where to look for models")
+    p.add_argument("--out", default=None, help="write a .blend here")
+    p.add_argument("--render", default=None, help="render a preview PNG here")
+    p.add_argument("--gap", type=float, default=2.0, help="metres between domes")
+    p.add_argument("--no-labels", action="store_true")
+    return p.parse_args(argv)
+
+
+def load_models(args):
+    paths = args.models
+    if not paths:
+        paths = sorted(glob.glob(os.path.join(args.dir, "star_dome_*.json")))
+        paths = [p for p in paths if "_connectors" not in p]
+    models = []
+    for path in paths:
+        with open(path) as fh:
+            data = json.load(fh)
+        if not data.get("rods") or "points" not in data["rods"][0]:
+            print(f"[site] skipping {os.path.basename(path)}: no rod polylines")
+            continue
+        models.append(data)
+    models.sort(key=lambda d: d["meta"]["dome_diameter"])
+    return models
+
+
+def material(name, rgba):
+    mat = bpy.data.materials.new(name)
+    if mat.node_tree is None:
+        mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.node_tree else None
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = rgba
+        bsdf.inputs["Roughness"].default_value = 0.45
+    mat.diffuse_color = rgba
+    return mat
+
+
+def new_collection(name, parent):
+    coll = bpy.data.collections.new(name)
+    parent.children.link(coll)
+    return coll
+
+
+def move_to(obj, collection):
+    for coll in list(obj.users_collection):
+        coll.objects.unlink(obj)
+    collection.objects.link(obj)
+    return obj
+
+
+def add_rod(rod, radius_m, material_, collection, origin_x, lift):
+    curve = bpy.data.curves.new(f"C_{rod['name']}", "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = radius_m
+    curve.bevel_resolution = 4
+    curve.use_fill_caps = True
+    spline = curve.splines.new("POLY")
+    points = rod["points"]
+    spline.points.add(len(points) - 1)
+    for i, (x, y, z) in enumerate(points):
+        spline.points[i].co = (x * MM + origin_x, y * MM, z * MM + lift, 1.0)
+    obj = bpy.data.objects.new(f"Rod_{rod['name']}", curve)
+    obj.data.materials.append(material_)
+    collection.objects.link(obj)
+    return obj
+
+
+def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x, lift):
+    for post in skirt["posts"]:
+        z_lo = post["z_bottom"] * MM + lift
+        z_hi = post["z_top"] * MM + lift
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=rod_radius_m,
+            depth=z_hi - z_lo,
+            location=(post["x"] * MM + origin_x, post["y"] * MM, (z_lo + z_hi) / 2.0),
+            vertices=12,
+        )
+        obj = bpy.context.active_object
+        obj.name = f"Skirt_{post['name']}"
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+    bpy.ops.mesh.primitive_torus_add(
+        major_radius=radius_m,
+        minor_radius=rod_radius_m,
+        location=(origin_x, 0.0, skirt["ground_z"] * MM + lift),
+        major_segments=72,
+        minor_segments=8,
+    )
+    ring = bpy.context.active_object
+    ring.name = "Skirt_GroundRing"
+    ring.data.materials.append(material_)
+    move_to(ring, collection)
+
+
+def add_human(origin_x, offset_y, material_, collection, name):
+    body_h = HUMAN_HEIGHT * 0.72
+    bpy.ops.mesh.primitive_cylinder_add(
+        radius=0.17, depth=body_h, location=(origin_x, offset_y, body_h / 2.0), vertices=16
+    )
+    body = bpy.context.active_object
+    body.name = f"{name}_Body"
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        radius=0.115, location=(origin_x, offset_y, body_h + 0.155), segments=16, ring_count=8
+    )
+    head = bpy.context.active_object
+    head.name = f"{name}_Head"
+    for obj in (body, head):
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+
+def add_label(text, origin_x, y, material_, collection):
+    bpy.ops.object.text_add(location=(origin_x, y, 0.05))
+    obj = bpy.context.active_object
+    obj.data.body = text
+    obj.data.align_x = "CENTER"
+    obj.data.size = 0.62
+    obj.data.extrude = 0.01
+    # Standing up, not lying on the ground: a label flat on the floor reads as
+    # a smear from any camera that can see the whole row.
+    obj.rotation_euler = (math.radians(90.0), 0.0, 0.0)
+    obj.name = f"Label_{text.split()[0]}"
+    obj.data.materials.append(material_)
+    return move_to(obj, collection)
+
+
+def build(args, models):
+    scene = bpy.context.scene
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=False)
+    scene.unit_settings.system = "METRIC"
+    scene.unit_settings.length_unit = "METERS"
+
+    root = new_collection("Site", scene.collection)
+    mats = {f: material(f"Rod_{f}", c) for f, c in FAMILY_COLOUR.items()}
+    skirt_mat = material("Skirt", SKIRT_COLOUR)
+    human_mat = material("Human", HUMAN_COLOUR)
+    label_mat = material("Label", LABEL_COLOUR)
+
+    x = 0.0
+    placed = []
+    max_radius = 0.0
+    for data in models:
+        meta = data["meta"]
+        radius_m = meta["dome_radius"] * MM
+        rod_radius_m = meta["rod_diameter"] * MM / 2.0
+        lift = meta.get("skirt_height", 0.0) * MM
+
+        if placed:
+            x += args.gap + radius_m
+        coll = new_collection(meta["variant"], root)
+
+        for rod in data["rods"]:
+            add_rod(rod, rod_radius_m, mats[rod["family"]], coll, x, lift)
+        if data.get("skirt"):
+            add_skirt(data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift)
+        add_human(x + radius_m * 0.45, 0.0, human_mat, coll, meta["variant"])
+
+        if not args.no_labels:
+            skirt_mm = meta.get("skirt_height", 0.0)
+            tall = meta.get("overall_height", meta["dome_height_measured"]) * MM
+            # One line. Rotated upright, extra lines run downwards and end up
+            # under the ground plane, where nobody reads them.
+            text = (
+                f"{meta['variant']}  {meta['dome_diameter'] * MM:.0f} m wide, "
+                f"{tall:.2f} m tall"
+            )
+            if skirt_mm:
+                text += f"  (incl. {skirt_mm * MM:.1f} m skirt)"
+            add_label(text, x, -radius_m - 1.2, label_mat, coll)
+
+        placed.append((meta["variant"], x, radius_m, meta))
+        max_radius = max(max_radius, radius_m)
+        x += radius_m
+
+    span = x
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(span / 2.0, 0.0, 0.0))
+    ground = bpy.context.active_object
+    ground.name = "Ground"
+    ground.scale = (span * 3.0, span * 1.5, 1.0)
+    ground.data.materials.append(material("Ground", GROUND_COLOUR))
+    move_to(ground, root)
+
+    return placed, span, max_radius
+
+
+def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0):
+    """Frame the whole row from its length rather than by guesswork.
+
+    The horizontal half-angle of a 35 mm-format camera is atan(18/lens); the
+    distance needed to fit `span` follows from that, with a margin. Guessing
+    it, as the first attempt did, cut the end domes off the frame.
+    """
+    lens = 40.0
+    cam_data = bpy.data.cameras.new("Camera")
+    cam_data.lens = lens
+    cam = bpy.data.objects.new("Camera", cam_data)
+    scene.collection.objects.link(cam)
+
+    half_angle = math.atan(18.0 / lens)
+    needed = (span * 0.62) / math.tan(half_angle)
+    height = max(tallest * 1.6, needed * 0.20)
+    cam.location = (span * 0.5, -needed, height)
+    target = Vector((span * 0.5, 0.0, tallest * 0.40))
+    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+    scene.camera = cam
+
+    sun_data = bpy.data.lights.new("Sun", type="SUN")
+    sun_data.energy = 3.5
+    sun = bpy.data.objects.new("Sun", sun_data)
+    scene.collection.objects.link(sun)
+    sun.location = (span * 0.4, -span * 0.3, tallest * 3.0)
+    sun.rotation_euler = (math.radians(52), 0.0, math.radians(30))
+
+
+def render(scene, path, width=2000, height=900):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    for engine in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "BLENDER_WORKBENCH"):
+        try:
+            scene.render.engine = engine
+            break
+        except TypeError:
+            continue
+    scene.render.resolution_x = width
+    scene.render.resolution_y = height
+    scene.render.filepath = os.path.abspath(path)
+    scene.render.image_settings.file_format = "PNG"
+    bpy.ops.render.render(write_still=True)
+    return scene.render.filepath
+
+
+def main():
+    args = parse_args(sys.argv)
+    models = load_models(args)
+    if not models:
+        raise SystemExit(
+            "no models with polylines found.\n"
+            "run:  python3 -m stardome build --all --polylines --weave-mode layered"
+        )
+
+    placed, span, max_radius = build(args, models)
+    tallest = max(
+        m.get("overall_height", m["dome_height_measured"]) * MM for _, _, _, m in placed
+    )
+    add_camera_and_light(bpy.context.scene, span, max_radius, tallest)
+
+    print(f"[site] {len(placed)} domes over {span:.1f} m, tallest {tallest:.2f} m")
+    for name, x, radius_m, meta in placed:
+        tall = meta.get("overall_height", meta["dome_height_measured"]) * MM
+        skirt = meta.get("skirt_height", 0.0) * MM
+        print(
+            f"[site]   {name:<4} {meta['dome_diameter'] * MM:>5.1f} m across, "
+            f"{tall:>5.2f} m tall"
+            + (f" (incl. {skirt:.1f} m skirt)" if skirt else "")
+            + f", centre at x={x:.1f} m"
+        )
+
+    if args.out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.out))
+        print(f"[site] saved {args.out}")
+    if args.render:
+        print(f"[site] rendered {render(bpy.context.scene, args.render)}")
+
+
+if __name__ == "__main__":
+    main()

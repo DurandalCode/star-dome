@@ -12,7 +12,8 @@ import pytest
 
 from stardome import config, geometry, model, weave
 
-VARIANTS = ["D4", "D6", "D8", "D12"]
+# Every named variant, so adding one to the config puts it under test.
+VARIANTS = sorted(config.load_all())
 
 EXPECTED_GAPS = [37.377368, 41.810315, 37.377368, 63.434949]
 
@@ -84,9 +85,15 @@ def test_stack_height_is_three_rod_diameters(built):
 
 
 def test_radial_migration_is_negligible(built):
-    """The cost of fan order: rods change level between nodes. Quantified, it is small."""
+    """The cost of fan order: rods change level between nodes.
+
+    Measured across the family: 0.95% at D12 up to 2.55% at D3 -- the smaller
+    the dome, the shorter the arc between nodes and the steeper the ramp, so
+    D3 is the tight case. 2.55% is 1.46 deg on a rod already bent to a 1500 mm
+    radius. The threshold is a regression guard, not a limit anyone is near.
+    """
     mig = weave.migration(built)
-    assert mig["worst_slope"] < 0.02
+    assert mig["worst_slope"] < 0.035
     # Family U never leaves the middle of the fan.
     u_rods = [r for r in mig["rods"] if r["family"] == "U"]
     assert u_rods and all(r["level_span"] <= 1 for r in u_rods)
@@ -130,13 +137,13 @@ def test_the_weave_needs_no_room_beyond_the_stack(built):
 def test_the_route_is_gentle(built):
     """A rod leaving its great circle by about a degree is not a constraint.
 
-    The measured range is 0.59 deg at D12 up to 1.18 deg at D4 -- the weave
+    The measured range is 0.59 deg at D12 up to 1.57 deg at D3 -- the weave
     gets easier as the dome grows, because the arc between nodes grows faster
-    than the rod. D4 is the tight case. The threshold here is a regression
+    than the rod. D3 is the tight case. The threshold here is a regression
     guard, not a limit anyone is near.
     """
     g = weave.global_profile(built)
-    assert g["worst_slope"] < 0.03
+    assert g["worst_slope"] < 0.035
     assert g["worst_slope_deg"] < 2.0
 
 

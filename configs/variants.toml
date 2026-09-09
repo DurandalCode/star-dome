@@ -31,12 +31,21 @@
 [defaults]
 # Straight segments used to sample one 180 deg bow into a polyline.
 rod_segments = 48
+# Vertical skirt the dome stands on, mm. Zero for every dome big enough to
+# stand up in on its own. See docs/skirt.md.
+skirt_height = 0
 # Nominal transport section length for the sectional rod concept, mm.
 # Joints are placed away from structural crossings; see docs/roadmap.md M5.
 section_length = 2400
 # Shell spacing for the "layered" drawing convention, as a multiple of rod
 # diameter. A drawing convention only -- NOT a build instruction.
 weave_gap = 1.0
+
+[variants.D3]
+diameter = 3000
+rod_diameter = 8
+skirt_height = 1000
+note = "small dome on a 1 m skirt; 1473 mm of dome is not standing height on its own"
 
 [variants.D4]
 diameter = 4000
@@ -52,6 +61,11 @@ note = "reference prototype"
 diameter = 8000
 rod_diameter = 10
 note = "large dome; expect reinforcement work"
+
+[variants.D10]
+diameter = 10000
+rod_diameter = 12
+note = "large dome; expect the same reinforcement work as D8"
 
 [variants.D12]
 diameter = 12000

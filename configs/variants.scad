@@ -25,9 +25,11 @@
 // Every bow is bent to a radius equal to the dome radius, so the required
 // bend radius scales directly with the variant:
 //
+//   D3  ->  1500 mm
 //   D4  ->  2000 mm
 //   D6  ->  3000 mm
 //   D8  ->  4000 mm
+//   D10 ->  5000 mm
 //   D12 ->  6000 mm
 //
 // Confirm each against the real rod stock before treating a variant as
@@ -38,9 +40,11 @@
 SDV_NAME = 0; SDV_DIAMETER = 1; SDV_ROD_DIAMETER = 2; SDV_NOTE = 3;
 
 SD_VARIANTS = [
+    ["D3",   3000,  8, "small dome on a 1 m skirt; 1473 mm of dome is not standing height on its own"],
     ["D4",   4000,  8, "small experimental dome"],
     ["D6",   6000, 10, "reference prototype"],
     ["D8",   8000, 10, "large dome; expect reinforcement work"],
+    ["D10", 10000, 12, "large dome; expect the same reinforcement work as D8"],
     ["D12", 12000, 12, "XL research variant; explicitly unvalidated"]
 ];
 

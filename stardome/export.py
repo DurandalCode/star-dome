@@ -157,6 +157,7 @@ def summary(data: dict) -> str:
         "crossing_pair_count", "crossing_type_count", "rod_length_nominal",
         "rod_length_class_count", "total_rod_length", "base_ring_length",
         "dome_height_nominal", "base_edge_arc", "base_edge_chord",
+        "skirt_height", "overall_height",
     ]
     out = {k: meta[k] for k in keys}
     out["crossing_types"] = [

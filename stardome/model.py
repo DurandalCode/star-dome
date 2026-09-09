@@ -171,6 +171,43 @@ def build(
             }
         )
 
+    # The skirt. The dome frame keeps its base ring at z = 0, so the skirt
+    # hangs below it and the ground is at negative z. That deliberately leaves
+    # every crossing, node and tangent in the frame the geometry was derived
+    # in, where the sphere is centred on the origin -- offsetting the dome
+    # instead would quietly break the node-frame maths in weave.py, which
+    # takes the radius vector to be the position vector.
+    skirt = None
+    if variant.skirt_height > 0:
+        posts = []
+        for i, p in enumerate(base_pts):
+            posts.append(
+                {
+                    "name": f"s{i}",
+                    "base_node": f"b{i}",
+                    "x": _r(p[0]),
+                    "y": _r(p[1]),
+                    "z_bottom": _r(-variant.skirt_height),
+                    "z_top": _r(p[2]),
+                    "length": _r(variant.skirt_height),
+                    "rods": topology.rods_at_base_point(bows, i),
+                }
+            )
+        skirt = {
+            "height": _r(variant.skirt_height),
+            "ground_z": _r(-variant.skirt_height),
+            "post_count": len(posts),
+            "posts": posts,
+            "post_total_length": _r(variant.skirt_height * len(posts)),
+            "ground_ring_length": _r(2.0 * math.pi * radius),
+            "note": (
+                "Vertical posts and a ground ring, nothing more. An unbraced "
+                "ring of verticals racks under any sideways load; diagonal "
+                "bracing or a tension belt is required before this is built. "
+                "See docs/skirt.md."
+            ),
+        }
+
     length_classes = sorted({r["length_drawn"] for r in rods})
     max_drawn_radius = max(radius + o for o in offsets.values())
     tilt_u = geometry.family_tilts()["U"]
@@ -204,6 +241,9 @@ def build(
         "max_diameter_incl_rod": _r(2.0 * max_drawn_radius + variant.rod_diameter),
         "base_edge_arc": _r(2.0 * math.pi * radius / geometry.BASE_POINT_COUNT),
         "base_edge_chord": _r(2.0 * radius * math.sin(math.radians(18.0))),
+        "skirt_height": _r(variant.skirt_height),
+        "ground_z": _r(-variant.skirt_height),
+        "overall_height": _r(variant.overall_height),
         "coordinate_basis": (
             "nominal centreline on the sphere (same as weaveMode=flat); "
             "weave offsets are reported per crossing as radial_gap"
@@ -217,7 +257,7 @@ def build(
         ),
     }
 
-    return {
+    out = {
         "meta": meta,
         "rods": rods,
         "base_nodes": base_nodes,
@@ -227,3 +267,6 @@ def build(
         "schema": SCHEMA,
         "source": f"stardome/{__version__}",
     }
+    if skirt is not None:
+        out["skirt"] = skirt
+    return out
