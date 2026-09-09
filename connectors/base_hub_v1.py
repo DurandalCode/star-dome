@@ -88,6 +88,7 @@ INPUTS = [
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
     ("rodGap",                 0.0,  "mm",  "gap between adjacent rods; stack pitch is rodDiameter + this"),
     ("rodEngagement",         60.0,  "mm",  "how far a bow end is held inside its channel; sets arm length"),
+    ("refRodLength",         300.0,  "mm",  "how far the reference rods are drawn past the hub. Drawing only, except that a longer rod makes the interference check strictly stricter -- there is no part out there for it to hit"),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body"),
     ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
@@ -276,8 +277,11 @@ def build(values, fan_gaps=None):
     shank_r = (values["fastenerDiameter"] + values["boltHoleClearance"]) / 2.0
     head_r = (values["fastenerHeadDiameter"] + values["headClearance"]) / 2.0
 
+    # Drawn well past the arm so the three directions read at a glance. The
+    # channels stay at the working length; only the rods are long.
+    ref_len = max(length, values["refRodLength"])
     rods = [
-        rod_solid(rod_d / 2.0, length, azimuths[k], levels[k], reach_back)
+        rod_solid(rod_d / 2.0, ref_len, azimuths[k], levels[k], reach_back)
         for k in range(3)
     ]
     channels = [
@@ -362,6 +366,7 @@ def build(values, fan_gaps=None):
         "pitch_mm": pitch,
         "hub_radius_mm": hub_r,
         "arm_length_mm": arm_len,
+        "ref_rod_length_mm": ref_len,
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
         "z_bottom_mm": z_bottom,
@@ -458,6 +463,8 @@ def derived_rows(dims, values):
          "bottom of the base plate to top of the cap"),
         ("armLength", round(dims["arm_length_mm"], 3), "mm",
          "hub centre to the end of an arm"),
+        ("refRodDrawn", round(dims["ref_rod_length_mm"], 1), "mm",
+         "length of each reference rod; drawing only"),
         ("plateCount", dims["plate_count"], "-", "prints per hub"),
     ]
 
