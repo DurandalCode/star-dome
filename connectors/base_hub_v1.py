@@ -55,6 +55,20 @@ Four prints per hub, ten hubs per dome. The ten base points are two mirror
 sets of five, differing only in which side the G bow leaves on -- a planar
 part turned over serves the other five, so it is still one geometry.
 
+FIELD SEQUENCE
+
+    drop the hub over the driven angle -> bolt the four plates up ->
+    push each bow end into its channel -> pin it
+
+Note the order. The four-rod node has to be opened, a rod laid, a plate
+closed, the next rod laid, and so on, because it CLAMPS its rods. This one
+does not: the channels are a slide fit, so the stack is assembled once, on the
+ground or at home, and the bow ends go in afterwards. That is a much better
+thing to be doing in a field with cold hands.
+
+The price of a slide fit is that the channel locates the rod and holds it
+against nothing, so each arm carries a cross pin through arm and rod together.
+
 Helpers are copied from fan_node_v2.py rather than shared, as that file says:
 all three connector scripts are exec'd standalone inside FreeCAD, so sharing
 needs a path loader in each, and that refactor is worth doing once the family
@@ -85,7 +99,9 @@ NEGLIGIBLE_FACE_MM2 = 5.0
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
-    ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
+    ("rodClearance",           1.4,  "mm",  "diametral clearance on each rod channel. A slide fit, not a clamp fit: the stack is bolted up first and the bow ends pushed in afterwards, which is a far better field sequence than laying a rod, closing a plate, laying the next. The rod is then LOCATED by the channel and HELD by the pin -- see rodPinDiameter"),
+    ("rodPinDiameter",         4.0,  "mm",  "cross pin through arm and rod, once the rod is in. Without it a slide fit locates the rod and holds it against nothing"),
+    ("rodPinAt",              40.0,  "mm",  "how far along the arm the pin sits"),
     ("rodGap",                 0.0,  "mm",  "gap between adjacent rods; stack pitch is rodDiameter + this"),
     ("rodEngagement",         60.0,  "mm",  "how far a bow end is held inside its channel; sets arm length"),
     ("refRodLength",         300.0,  "mm",  "how far the reference rods are drawn past the hub. Drawing only, except that a longer rod makes the interference check strictly stricter -- there is no part out there for it to hit"),
@@ -238,8 +254,14 @@ def arm(length, width, height, z, azimuth_deg):
 
 
 def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
-                azimuths, stake_azimuth, stake_reach):
-    """Hub disc, one arm per rod, and a tail out to the stake slot."""
+                azimuths, stake_azimuth, stake_reach, bolt_points=()):
+    """Hub disc, one arm per rod, a tail to the stake slot, and a boss per bolt.
+
+    The bosses are not decoration. The bolts sit 35 mm out on azimuths 55 deg
+    either side of the stake, and the hub disc reaches 22 mm while the tail is
+    only 15 deg wide -- so without them the bolt holes were cut through open
+    air and the stack had nothing holding it together at all.
+    """
     height = z_hi - z_lo
     body = Part.makeCylinder(
         hub_radius, height, App.Vector(0, 0, z_lo), App.Vector(0, 0, 1)
@@ -250,6 +272,17 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
     body = body.fuse(
         arm(stake_reach, boss_radius * 2.0, height, z_lo, stake_azimuth)
     )
+    for point in bolt_points:
+        boss = Part.makeCylinder(
+            boss_radius, height, App.Vector(point.x, point.y, z_lo),
+            App.Vector(0, 0, 1),
+        )
+        # A web back to the hub, so the boss is carried rather than perched.
+        reach = math.hypot(point.x, point.y)
+        az = math.degrees(math.atan2(point.y, point.x))
+        body = body.fuse(boss).fuse(
+            arm(reach, boss_radius, height, z_lo, az)
+        )
     return body.removeSplitter()
 
 
@@ -384,6 +417,27 @@ def build(values, fan_gaps=None):
         for k in range(3)
     ]
 
+    # A cross pin per arm, through the arm's width and the rod with it. With a
+    # slide fit the channel no longer grips anything, and a bow end that is
+    # merely located can walk out of its own accord.
+    pins = []
+    for k in range(3):
+        along = direction(azimuths[k]).multiply(values["rodPinAt"])
+        across = direction(azimuths[k] + 90.0)
+        span = arm_w + 8.0
+        pins.append(
+            Part.makeCylinder(
+                values["rodPinDiameter"] / 2.0,
+                span,
+                App.Vector(
+                    along.x - across.x * span / 2.0,
+                    along.y - across.y * span / 2.0,
+                    levels[k],
+                ),
+                across,
+            )
+        )
+
     bolt_height = (z_top + 2.0) - (z_bottom - 2.0)
     bolts = [
         Part.makeCylinder(
@@ -436,13 +490,15 @@ def build(values, fan_gaps=None):
         z_hi = z_top if i == 3 else levels[i]
         blank = plate_blank(
             hub_r, arm_len, arm_w, boss_r, z_lo, z_hi,
-            azimuths, stake_azimuth, stake_reach,
+            azimuths, stake_azimuth, stake_reach, bolt_points,
         )
         solid = blank
         for ch in channels:
             solid = solid.cut(ch)
         for bolt in bolts:
             solid = solid.cut(bolt)
+        for pin in pins:
+            solid = solid.cut(pin)
         solid = solid.cut(slot)
         solid = solid.cut(cross)
         solid = solid.removeSplitter()
@@ -488,6 +544,19 @@ def build(values, fan_gaps=None):
         "rods": rods,
         "channels": channels,
         "keepouts": keepouts,
+        # A ring of material that must exist round each bolt in every plate.
+        "bolt_probes": [
+            Part.makeCylinder(
+                boss_r, z_top - z_bottom,
+                App.Vector(p.x, p.y, z_bottom), App.Vector(0, 0, 1),
+            ).cut(
+                Part.makeCylinder(
+                    shank_r + 0.01, z_top - z_bottom + 2.0,
+                    App.Vector(p.x, p.y, z_bottom - 1.0), App.Vector(0, 0, 1),
+                )
+            )
+            for p in bolt_points
+        ],
         "slot": slot,
         "stake": stake,
     }
@@ -595,6 +664,18 @@ def verify(geo, dims, values):
             if v > 0.5:
                 problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
 
+    # Every bolt has to pass through material, in every plate. Cutting a hole
+    # through open air leaves the stack with nothing holding it together, and
+    # it looks exactly the same in a render.
+    for name, plate in zip(PLATE_NAMES, plates):
+        for i, probe in enumerate(geo.get("bolt_probes", [])):
+            v = _vol(plate.common(probe))
+            if v < 1.0:
+                problems.append(
+                    f"{name} has no material round bolt {i + 1}: the hole is "
+                    "cut through air"
+                )
+
     # A slot that runs right through can take the wall out from under a rod.
     # Check inside the part only: two lines in one plane always cross
     # eventually, and where they cross out in the air there is nothing to
@@ -664,6 +745,8 @@ def derived_rows(dims, values):
          f"x{dims['stake_thickness_mm']:g}", "-",
          "the angle to buy"),
         ("plateCount", dims["plate_count"], "-", "prints per hub"),
+        ("rodFit", f"slide, {values['rodClearance']:g} mm", "-",
+         "bolt the stack up first, then push the bow ends in and pin them"),
     ]
 
 
