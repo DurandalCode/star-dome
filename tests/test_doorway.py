@@ -310,7 +310,7 @@ def test_the_cut_reaches_the_rods_that_draw_it():
     }
     assert carried == spans
 
-    untouched = model.build(config.load("XL"))
+    untouched = model.build(config.load("XL", door_cut="none"))
     assert untouched["doorway"]["cut"] is None
     assert not any("cut_spans_deg" in rod for rod in untouched["rods"])
 
@@ -383,7 +383,12 @@ def test_the_envelope_and_the_head_node_disagree_by_one_rod(bare):
 
 
 def test_five_doors_fit_and_they_are_the_five_tall_bays():
-    data = model.build(config.load("XL"))
+    """Uncut, the five tall bays are the five places a door goes.
+
+    Cutting one open adds a sixth, which is the point of cutting -- so this
+    has to ask an untouched dome.
+    """
+    data = model.build(config.load("XL", door_cut="none"))
     door = data["doorway"]["door"]
     assert door["place_count"] == 5
 

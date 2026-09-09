@@ -365,7 +365,13 @@ def build(args, models):
 
         door = data.get("doorway")
         spin = spin_for_door(data)
-        jambs = set(door["frame"]["jamb_rods"]) if door else set()
+        # A portal has no lancet, so no pair of jambs to pick out: the
+    # traced outline and the ghosts of the cut pieces carry it instead.
+    jambs = (
+        set(door["frame"]["jamb_rods"])
+        if door and door.get("frame")
+        else set()
+    )
 
         for rod in data["rods"]:
             mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
