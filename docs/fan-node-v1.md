@@ -45,11 +45,61 @@ Field sequence, which matches how the reference assembles the dome anyway:
 | channel | 10.4 mm diameter, 103.2 mm long |
 | tilt slack | 1.35 mm, for the ~1.2° radial tilt the weave requires |
 | post to nearest rod | 4.0 mm |
-| volume | 73.8 cm³ base + 66.9 cm³ cap |
+| volume | 35.5 cm³ base + 24.7 cm³ cap |
 
 Verified in FreeCAD: both solids valid and single, zero interference with all
 four rods and both bolts, base and cap do not intersect, and no material
 overhangs a rod so every one can be dropped in.
+
+## Printability
+
+Both halves print **without supports**, the base on its underside and the cap
+upside down so its saddle faces up:
+
+| | worst overhang | flat unsupported ceiling |
+|---|---|---|
+| base | 50.06° from horizontal | 0 mm² |
+| cap, printed upside down | 49.99° | 0 mm² |
+
+45° is the usual FDM limit, so both clear it. The worst face in each is the
+deliberate taper off a fastener recess — the nut pocket in the base, the head
+counterbore in the cap. Neither has a single square millimetre of flat ceiling.
+
+Neither half has a horizontal round hole: every rod channel is an open groove
+in a face that points at the sky in its print orientation, and the bolt holes
+are vertical. That is what makes the result this clean, and it is a property of
+the architecture rather than of tuning.
+
+### Not a solid disc
+
+The first version used a full disc for both halves: 73.8 + 66.9 = 141 cm³. A
+disc is mostly dead material — the part only has to hold the rod at the centre
+and reach the two bolts. Replacing it with a hub, two spars and two bolt
+bosses gives the same footprint for **60 cm³, a 57% saving**, and about 0.6 l
+of filament for the ten nodes a dome needs.
+
+### Two bugs the checks found, and one they did not
+
+- **A flat ceiling worth 32 mm², from a one-micron gap.** The nut pocket ended
+  at `z_base_bottom + nutRecessDepth - 0.001` while its taper began at
+  `+ nutRecessDepth`. The micron between them left the pocket's top face
+  exposed as a flat ring with nothing under it. The pocket now runs from below
+  the bed up to exactly where the cone starts.
+- **Every upward face read as an overhang.** The cap is printed upside down,
+  and the first check mirrored the shape to analyse it. Mirroring reverses face
+  orientation, so `face.Orientation` lied and the part failed on its own good
+  faces. The check now takes a print direction instead of mirroring, and finds
+  the outward normal by stepping off the surface and asking the solid whether
+  that point is inside — which no fuse, cut or mirror can confuse.
+- **Sampling ignored trimming.** Face normals were sampled over the parameter
+  rectangle, which covers the holes cut out of a trimmed face as well as the
+  material. Samples landing in a hole read a normal for material that is not
+  there, the probe then lands inside the solid, and the sign flips — which is
+  how the base's flat top face came to be reported as a 0° overhang. Samples
+  are now filtered by `isPartOfDomain`.
+
+All three were errors in the verification rather than in the part. That is the
+pattern to expect from checks written alongside the thing they check.
 
 ## The bug the first attempt had
 
@@ -70,18 +120,19 @@ Two fixes, both kept:
 
 ## Known compromises for V1
 
-1. **It is big.** 91 mm across and 141 cm³ for the pair, against 48 × 54 mm and
-   36 cm³ for the two-rod clamp. Ten of them is about 1.4 litres of filament.
-2. **The cap is a plain disc** and mostly dead material — it only needs to span
-   between the two bolts over rod 4. An easy large saving, not yet taken. The
-   base disc has the same problem.
+1. **It is still big.** 91 mm across and 60 cm³ for the pair, against 48 × 54 mm
+   and 36 cm³ for the two-rod clamp. The footprint is set by how far out the
+   bolts have to sit to clear every rod, so it will not shrink much without
+   changing where the load is taken.
+2. **No fillets.** Every outer edge is sharp. The two-rod clamp V1 rounds its
+   edges as a geometric post-process; this does not yet.
 3. **Three crossed-cylinder contacts in series.** The clamping path is
    cap → rod 4 → rod 3 → rod 2 → rod 1 → base. `crossing-clamp-v1.md` already
    flags one such contact on fibreglass as the first thing to check on a
    printed prototype; here there are three, and the middle rods are held by
    friction alone.
-4. **No fillets and no printability pass.** V1 of the two-rod clamp has both;
-   this does not yet.
+4. **Nothing tested in plastic.** Every number here comes from the solid model.
+   No sample has been printed, no bolt torqued, no rod bent into it.
 5. **A departure from the reference.** The original ties these junctions with
    two or three pairwise cable ties over a short span, letting the rods spread.
    A rigid part forces exact concurrency. The tilt slack helps; whether it is

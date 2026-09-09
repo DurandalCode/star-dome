@@ -94,6 +94,14 @@ def build_fan(part):
     return geo, dims, values
 
 
+def fresh_document(part_id):
+    """One FreeCAD document per part, so every part is openable and editable."""
+    name = "StarDome_%s" % part_id.replace("-", "_").replace(".", "p")
+    if name in App.listDocuments():
+        App.closeDocument(name)
+    return App.newDocument(name)
+
+
 def export_pair(first, second, part_id, suffix_a, suffix_b):
     files = []
     facets = {}
@@ -161,7 +169,16 @@ def run():
         generator = part.get("generator")
 
         if generator == "fan_node_v1":
+            fan = load_fan_module()
             geo, dims, values = build_fan(part)
+
+            doc = fresh_document(part["id"])
+            fan["populate"](doc, geo)
+            fan["write_parameters"](doc, None, values, fan["derived_rows"](dims, values))
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+
             files, facets = export_pair(
                 geo["base"], geo["cap"], part["id"], "_Base", "_Cap"
             )
@@ -173,9 +190,10 @@ def run():
                     "rod_diameter": part["rod_diameter"],
                     "count_needed": part["count"],
                     "fan_gaps_deg": part["fan_gaps_deg"],
+                    "fcstd": fcstd,
                     "files": [os.path.basename(f) for f in files],
                     "mesh_facets": facets,
-                    "checks": FAN["verify"](geo, dims, values),
+                    "checks": fan["verify"](geo, dims, values),
                 }
             )
             continue

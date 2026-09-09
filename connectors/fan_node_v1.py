@@ -82,6 +82,10 @@ INPUTS = [
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("postWallFactor",         1.0,  "mm",  "multiplier on minimumWall for the post-to-rod clearance"),
     ("edgeRadius",             2.0,  "mm",  "outer edge radius"),
+    ("hubRadiusFactor",        2.2,  "mm",  "hub radius as a multiple of rodDiameter; sets the saddle length"),
+    ("armWidthFactor",         1.6,  "mm",  "arm width as a multiple of the post diameter"),
+    ("headConeHeight",         2.8,  "mm",  "tapered transition off the head counterbore, so it prints upside down"),
+    ("nutConeHeight",          2.2,  "mm",  "tapered transition off the nut pocket, so it prints on the bed"),
 ]
 
 
@@ -139,6 +143,39 @@ def hex_prism(across_flats, height, base):
     pts.append(pts[0])
     wire = Part.makePolygon(pts)
     return Part.Face(wire).extrude(App.Vector(0, 0, height))
+
+
+def arm(length, width, height, z, azimuth_deg):
+    """A rectangular spar from the hub out to a bolt post."""
+    box = Part.makeBox(length, width, height, App.Vector(0.0, -width / 2.0, z))
+    box.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), azimuth_deg)
+    return box
+
+
+def plate(hub_radius, arm_length, arm_width, post_radius, z_lo, z_hi, azimuth_deg):
+    """Hub plus two spars plus two bolt bosses, instead of a solid disc.
+
+    A full disc is mostly dead material: the part only has to hold the rod at
+    the centre and reach the two bolts. This is the same footprint, half the
+    plastic.
+    """
+    height = z_hi - z_lo
+    body = Part.makeCylinder(
+        hub_radius, height, App.Vector(0, 0, z_lo), App.Vector(0, 0, 1)
+    )
+    for sign in (1.0, -1.0):
+        az = azimuth_deg if sign > 0 else azimuth_deg + 180.0
+        body = body.fuse(arm(arm_length, arm_width, height, z_lo, az))
+        d = direction(az)
+        body = body.fuse(
+            Part.makeCylinder(
+                post_radius,
+                height,
+                App.Vector(d.x * arm_length, d.y * arm_length, z_lo),
+                App.Vector(0, 0, 1),
+            )
+        )
+    return body.removeSplitter()
 
 
 def distance_to_rod_axis(point, azimuth_deg):
@@ -214,21 +251,38 @@ def build(values, fan_gaps=None):
         bolt_cuts.append(
             Part.makeCylinder(shank_r, height, start, App.Vector(0, 0, 1))
         )
-        # captive nut pocket, in the underside of the base
+        # Captive nut pocket in the underside of the base. The base prints
+        # with that face on the bed, so the pocket opens downward and is free;
+        # the step up to the shank hole would be a ceiling, hence the cone.
+        # The pocket runs from below the bed up to exactly where the cone
+        # starts. Leaving even a micron between them exposes the pocket's top
+        # face as a flat ring with nothing under it -- a 32 mm2 ceiling the
+        # printer would have to bridge, for the sake of a rounding gap.
+        nut_top = z_base_bottom + values["nutRecessDepth"]
         bolt_cuts.append(
             hex_prism(
                 values["nutAcrossFlats"],
-                values["nutRecessDepth"],
-                App.Vector(p.x, p.y, z_base_bottom - 0.001),
+                values["nutRecessDepth"] + 1.0,
+                App.Vector(p.x, p.y, z_base_bottom - 1.0),
+            )
+        )
+        nut_circum_r = values["nutAcrossFlats"] / math.sqrt(3.0)
+        bolt_cuts.append(
+            Part.makeCone(
+                nut_circum_r,
+                shank_r,
+                values["nutConeHeight"],
+                App.Vector(p.x, p.y, nut_top),
+                App.Vector(0, 0, 1),
             )
         )
 
+    hub_r = values["hubRadiusFactor"] * rod_d
+    arm_w = values["armWidthFactor"] * post_r * 2.0
+
     # --- base -------------------------------------------------------------
-    base = Part.makeCylinder(
-        body_r,
-        z_base_top - z_base_bottom,
-        App.Vector(0, 0, z_base_bottom),
-        App.Vector(0, 0, 1),
+    base = plate(
+        hub_r, bolt_offset, arm_w, post_r, z_base_bottom, z_base_top, bolt_azimuth
     )
     for p in bolt_points:
         base = base.fuse(
@@ -244,11 +298,8 @@ def build(values, fan_gaps=None):
         base = base.cut(c)
 
     # --- cap --------------------------------------------------------------
-    cap = Part.makeCylinder(
-        body_r,
-        z_cap_top - z_cap_bottom,
-        App.Vector(0, 0, z_cap_bottom),
-        App.Vector(0, 0, 1),
+    cap = plate(
+        hub_r, bolt_offset, arm_w, post_r, z_cap_bottom, z_cap_top, bolt_azimuth
     )
     cap = cap.cut(channel_cut)
     head_r = (values["fastenerHeadDiameter"] + values["headClearance"]) / 2.0
@@ -266,6 +317,21 @@ def build(values, fan_gaps=None):
                 head_r,
                 values["headBoreDepth"] + 1.0,
                 App.Vector(p.x, p.y, z_cap_top - values["headBoreDepth"]),
+                App.Vector(0, 0, 1),
+            )
+        )
+        # The cap prints upside down so its saddle faces up; the counterbore
+        # then opens at the bed and the step down to the shank needs a taper.
+        cap = cap.cut(
+            Part.makeCone(
+                shank_r,
+                head_r,
+                values["headConeHeight"],
+                App.Vector(
+                    p.x,
+                    p.y,
+                    z_cap_top - values["headBoreDepth"] - values["headConeHeight"],
+                ),
                 App.Vector(0, 0, 1),
             )
         )
@@ -309,6 +375,84 @@ def _vol(shape):
         return shape.Volume
     except Exception:
         return 0.0
+
+
+def _outward_normal(shape, face, u, v, eps=0.05):
+    """Outward normal, decided by probing rather than by face.Orientation.
+
+    Orientation is easy to get wrong after fuses, cuts and mirrors, and a
+    flipped sign turns every upward face into an overhang. Stepping off the
+    surface and asking the solid whether that point is inside settles it.
+    """
+    p = face.valueAt(u, v)
+    n = face.normalAt(u, v)
+    probe = App.Vector(p.x + n.x * eps, p.y + n.y * eps, p.z + n.z * eps)
+    if shape.isInside(probe, 1e-7, True):
+        return App.Vector(-n.x, -n.y, -n.z)
+    return n
+
+
+def printability(shape, flipped=False, samples=5):
+    """Overhangs and unsupported ceilings for one print orientation.
+
+    ``flipped=True`` means the part is printed upside down: the bed is at its
+    ZMax and the build direction is -Z. Mirroring the shape instead would
+    reverse face orientations and make every upward face read as an overhang,
+    which is a way to fail this check on a perfectly good part.
+
+    ``worst_overhang_deg`` is measured from horizontal: 90 is a vertical wall,
+    45 the usual FDM limit, 0 a flat ceiling with nothing under it.
+    ``flat_ceiling_area_mm2`` is the area facing away from the bed that a
+    slicer would have to bridge or support.
+    """
+    sign = 1.0 if flipped else -1.0
+    bed_z = shape.BoundBox.ZMax if flipped else shape.BoundBox.ZMin
+    worst = 90.0
+    worst_at = None
+    worst_area = 0.0
+    flat_area = 0.0
+    for face in shape.Faces:
+        u0, u1, v0, v1 = face.ParameterRange
+        normals = []
+        for i in range(samples):
+            for j in range(samples):
+                u = u0 + (u1 - u0) * (i + 0.5) / samples
+                v = v0 + (v1 - v0) * (j + 0.5) / samples
+                # The parameter rectangle covers the whole underlying surface,
+                # including the holes cut out of a trimmed face. Sampling
+                # there reads a normal for material that is not present, and
+                # the probe then lands inside the solid and flips the sign --
+                # which is how a flat top face came to be reported as a 0 deg
+                # overhang.
+                try:
+                    if not face.isPartOfDomain(u, v):
+                        continue
+                    normals.append(_outward_normal(shape, face, u, v))
+                except Exception:
+                    continue
+        if not normals:
+            continue
+        box = face.BoundBox
+        on_bed = abs(box.ZMax - bed_z) < 0.01 and abs(box.ZMin - bed_z) < 0.01
+        if on_bed:
+            continue
+        for n in normals:
+            if n.z * sign <= 1e-3:
+                continue
+            angle = math.degrees(math.acos(min(1.0, abs(n.z))))
+            if angle < worst:
+                worst = angle
+                worst_at = (round(box.ZMin, 2), round(box.ZMax, 2))
+                worst_area = round(face.Area, 2)
+        flat = [n for n in normals if n.z * sign > 0.999]
+        if len(flat) == len(normals):
+            flat_area += face.Area
+    return {
+        "worst_overhang_deg": round(worst, 2),
+        "worst_overhang_z_range": worst_at,
+        "worst_overhang_face_area_mm2": worst_area,
+        "flat_ceiling_area_mm2": round(flat_area, 2),
+    }
 
 
 def verify(geo, dims, values):
@@ -374,6 +518,13 @@ def verify(geo, dims, values):
         "base_overhang_into_rods_mm3": round(overhang, 4),
         "cap_min_z": round(geo["cap"].BoundBox.ZMin, 3),
         "rod4_axis_z": round(dims["rod_levels_mm"][3], 3),
+    }
+
+    # Printing: the base sits on its underside, the cap is flipped so its
+    # saddle faces up, which is why the cap is analysed mirrored.
+    report["printability"] = {
+        "base": printability(geo["base"], flipped=False),
+        "cap_printed_upside_down": printability(geo["cap"], flipped=True),
     }
 
     # Clearances that decide whether it can be printed and bolted.
