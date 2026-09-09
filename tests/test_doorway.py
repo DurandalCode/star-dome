@@ -152,9 +152,13 @@ def test_a_wider_silhouette_never_needs_less_skirt(bare):
     assert needed == sorted(needed)
 
 
-def test_each_named_size_carries_a_skirt_that_actually_works():
-    """S, M, L and XL are builds, not wishes: the skirt in variants.toml has
-    to let the configured silhouette through, with room over its head."""
+def test_each_named_size_admits_the_silhouette_it_claims():
+    """S, M, L and XL are builds, not wishes.
+
+    `door` in variants.toml records what the dome actually admits -- with a
+    skirt where there is one, and on all fours where there is not. It has to
+    be true, with room over the head.
+    """
     for name in ALIASED:
         variant = config.load(name)
         data = model.build(variant)
@@ -162,6 +166,61 @@ def test_each_named_size_carries_a_skirt_that_actually_works():
         assert door["fits"], f"{name} ({variant.alias}) door does not fit"
         assert door["template"] == variant.door
         assert door["spare_mm"] >= 50.0, f"{variant.alias} has no headroom to spare"
+        assert variant.door in data["doorway"]["admits"]
+
+
+def test_what_a_door_admits_only_grows_with_the_dome():
+    """Bare and unhelped, every larger dome takes everything a smaller one
+    takes, and generally more. Nothing about the shape changes with size, so
+    a size that lost a silhouette would mean the maths had."""
+    previous = set()
+    for name in sorted(VARIANTS, key=lambda k: config.load(k).diameter):
+        data = model.build(config.load(name, skirt_height=0.0, door=""))
+        got = set(doorway.admits(data))
+        assert previous <= got, f"{name} lost {previous - got}"
+        previous = got
+
+
+def test_a_bare_six_metre_dome_is_a_crawl_in():
+    """The price of leaving M and L bare, stated so it cannot be forgotten.
+
+    D6's opening is 497 mm wide at 1200 mm and 209 mm at 1400. That is not a
+    door anyone walks through; it is a door you go through on all fours.
+    """
+    m = model.build(config.load("M"))
+    assert m["meta"]["skirt_height"] == 0.0
+    assert m["doorway"]["admits"] == ["crawl"]
+
+    lg = model.build(config.load("L"))
+    assert lg["meta"]["skirt_height"] == 0.0
+    assert lg["doorway"]["admits"] == ["crawl", "stoop"]
+
+
+def test_only_the_biggest_domes_take_a_two_and_a_bit_metre_character():
+    """An event has people on stilts and in frames; 1.8 m is not the test.
+
+    XL takes the 2.2 m silhouette bare, but only just -- tens of millimetres,
+    not hundreds -- so it is worth a test rather than a note.
+    """
+    xl = model.build(config.load("XL"))
+    fitted = doorway.fit(xl, "tall")
+    assert fitted["fits"]
+    assert 0.0 < fitted["spare_mm"] < 150.0
+
+    for name in ("D3", "D4", "D6", "D8"):
+        bare = model.build(config.load(name, skirt_height=0.0, door=""))
+        assert not doorway.fit(bare, "tall", skirt_mm=0.0)["fits"]
+        assert doorway.skirt_for_template(bare, "tall") > 0.0
+
+
+def test_admits_agrees_with_fitting_each_silhouette_one_by_one(bare):
+    listed = set(doorway.admits(bare))
+    checked = {
+        name
+        for name in entrance.TEMPLATES
+        if doorway.fit(bare, name, skirt_mm=0.0)["fits"]
+    }
+    assert listed == checked
 
 
 def test_the_short_names_and_the_d_names_are_the_same_dome():

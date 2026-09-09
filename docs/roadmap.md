@@ -107,10 +107,17 @@ tall bays is a lancet -- two G bows meeting at a lashed four-rod node, feet on
 two base points -- so fitting a person-shaped silhouette into a person-shaped
 hole needs less skirt than the rectangle said: 1240 mm on D4 rather than 1320,
 700 on D6 rather than 760, 190 on D8, none on D10. The opening costs nothing --
-no rod cut, no joint invented, and there are five of them. That is what fixed
-the four sizes: **S = D4 + 1350, M = D6 + 800, L = D8 + 300, XL = D10 bare**,
-each skirt being the answer to its door rather than a preference. See
+no rod cut, no joint invented, and there are five of them. See
 [`doorway.md`](doorway.md).
+
+**The sizes settled at S = D4 + 1350 mm, M = D6 bare, L = D8 bare, XL = D10
+bare.** M and L are bare by choice, and the middle of the range pays for it:
+a bare D6 is 497 mm wide at 1200 mm, so you go in on all fours, and a bare D8
+gives 908 mm at 1400, so you duck. Only at 10 m does the lancet alone clear a
+standing person. `door` in the config records what each dome admits rather
+than what would be nice, and the model lists every silhouette that gets
+through. The one that separates the sizes is a 2.2 m costumed character:
+**XL takes it bare by 31 mm**, and nothing smaller takes it at all.
 
 ## Milestone 3 — First printable crossing connector
 

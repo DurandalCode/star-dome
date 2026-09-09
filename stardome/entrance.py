@@ -195,6 +195,10 @@ TEMPLATES = {
     "walk": [(0.0, 300.0), (1450.0, 300.0), (1800.0, 180.0)],
     "walk_wide": [(0.0, 400.0), (1450.0, 400.0), (1900.0, 220.0)],
     "carry": [(0.0, 450.0), (1450.0, 450.0), (1800.0, 300.0)],
+    # Not a person. An event has costumed characters on stilts, in horned
+    # helmets, in frames -- and whether one of those gets through the door is
+    # a real question that a 1.8 m silhouette never asks.
+    "tall": [(0.0, 350.0), (1800.0, 350.0), (2200.0, 220.0)],
 }
 
 

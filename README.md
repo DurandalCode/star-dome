@@ -63,12 +63,15 @@ single interchange format every other tool reads — see
 Four sizes are a chosen build -- skirt settled, doorway settled -- and carry a
 short name. Either name loads the same dome.
 
-| | dome | skirt | overall | why |
+| | dome | skirt | overall | you get in |
 |---|---|---|---|---|
-| **S** | D4 | 1350 mm | 3.31 m | smallest size that takes a walk-in door |
-| **M** | D6 | 800 mm | 3.75 m | reference prototype; best all-round trade |
-| **L** | D8 | 300 mm | 4.23 m | the skirt is barely a sill |
-| **XL** | D10 | none | 4.91 m | needs no skirt for either headroom or a door |
+| **S** | D4 | 1350 mm | 3.31 m | carrying something |
+| **M** | D6 | none | 2.95 m | on all fours |
+| **L** | D8 | none | 3.93 m | ducking |
+| **XL** | D10 | none | 4.91 m | carrying something — and a 2.2 m character too |
+
+M and L are bare by choice; that is what makes their doors what they are.
+Only S has a skirt, because a 4 m dome without one admits nothing at all.
 
 D3 and D12 stay in `configs/variants.toml` without a short name: they are the
 ends of the range, kept for study rather than to build. See

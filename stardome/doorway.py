@@ -352,6 +352,25 @@ def skirt_for_template(
     return float("nan")
 
 
+def admits(
+    data: dict,
+    env: dict | None = None,
+    clearance_mm: float = 0.0,
+    skirt_mm: float | None = None,
+) -> list:
+    """Which of the standard silhouettes get through, smallest first."""
+    env = env or entrance.door_envelope(data, clearance_mm=clearance_mm)
+    passing = [
+        name
+        for name in entrance.TEMPLATES
+        if fit(data, name, env, clearance_mm, skirt_mm)["fits"]
+    ]
+    return sorted(
+        passing,
+        key=lambda k: max(h for h, _ in entrance.TEMPLATES[k]),
+    )
+
+
 def place(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
@@ -375,6 +394,10 @@ def place(
         "skirt_height_mm": skirt,
         "opening_height_mm": round(bay["clear_height_mm"] + skirt, 1),
         "door": fit(data, template_name, env, clearance_mm),
+        # Everything that gets through, largest last. Naming only the chosen
+        # silhouette hides both failures and headroom: it cannot show that a
+        # dome admits nothing, nor that it would take much more.
+        "admits": admits(data, env, clearance_mm),
         "note": (
             "One of five identical tall bays; any of them can be the door, and "
             "a second one opposite gives a through-draught without changing "
@@ -430,6 +453,7 @@ def format_analysis(
         f"  framed by rods {info['jamb_rods'][0]} and {info['jamb_rods'][1]}, "
         f"meeting at lashed node {info['apex_node']}; "
         f"feet at {info['feet'][0]} and {info['feet'][1]}",
+        "  admits: " + (", ".join(d["admits"]) if d["admits"] else "nothing"),
         f"  {door['template']} template "
         f"({door['width_mm']:.0f} x {door['height_mm']:.0f} mm): "
         + (

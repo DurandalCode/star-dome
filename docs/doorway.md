@@ -61,30 +61,62 @@ deletes it at the exact place the structure has just been opened.
 
 ## The four sizes
 
-Each aliased size carries the shortest skirt that lets a person **carrying
-something** walk in (the `carry` silhouette: 900 mm at the shoulder, 1800 mm
-tall), rounded up for about 100 mm of headroom to spare.
+**M and L are bare by choice**, and that decides their doors. Only S carries a
+skirt, because a 4 m dome without one admits nothing at all.
 
-| | dome | skirt | opening | overall | spare |
+| | dome | skirt | opening | overall | you get in |
 |---|---|---|---|---|---|
-| **S** | D4 | 1350 mm | 2368 mm | 3.31 m | 113 mm |
-| **M** | D6 | 800 mm | 2328 mm | 3.75 m | 106 mm |
-| **L** | D8 | 300 mm | 2338 mm | 4.23 m | 113 mm |
-| **XL** | D10 | none | 2548 mm | 4.91 m | 340 mm |
+| **S** | D4 | 1350 mm | 2368 mm | 3.31 m | carrying something |
+| **M** | D6 | none | 1528 mm | 2.95 m | **on all fours** |
+| **L** | D8 | none | 2038 mm | 3.93 m | **ducking** |
+| **XL** | D10 | none | 2548 mm | 4.91 m | carrying something |
 
-The skirt is not a preference; it is the answer to the door. Change the
-silhouette and it has to be recomputed:
+That is the price of no skirt, and it is steep in the middle of the range.
+A bare D6 is 497 mm wide at 1200 mm and 209 mm at 1400 — not a door anyone
+walks through. A bare D8 gives 908 mm at 1400 mm, which is a proper duck, and
+384 mm at 1800, which is not a walk. Only at 10 m does the lancet alone clear
+a standing person, and then it does it with a third of a metre to spare.
+
+The `door` field in `configs/variants.toml` therefore records **what the dome
+admits**, not what would be nice, and `admits` in the model lists every
+silhouette that gets through:
+
+| | admits |
+|---|---|
+| S | crawl, stoop, walk, carry, walk_wide |
+| M | crawl |
+| L | crawl, stoop |
+| XL | crawl, stoop, walk, carry, walk_wide, **tall** |
+
+Where a skirt is present it is not a preference; it is the answer to the door.
+To re-solve one:
 
 ```bash
-python3 -m stardome doorway D6 --skirt 0 --skirt-for walk_wide
+python3 -m stardome doorway D6 --skirt 0 --skirt-for carry   # -> 700 mm
+python3 -m stardome doorway D8 --skirt 0 --skirt-for carry   # -> 190 mm
 ```
 
-L's 300 mm is barely a skirt at all — a sill, which also keeps the cover off
-the ground. XL needs none: at 10 m the lancet alone clears a walking person
-with a third of a metre to spare.
+D3 is not a size here. It cannot take a walk-in door at any skirt height that
+keeps it a dome rather than a silo — see [`interior.md`](interior.md).
 
-D3 is not a size here. It cannot take this door at any skirt height that keeps
-it a dome rather than a silo — see [`interior.md`](interior.md).
+## Who gets through
+
+`entrance.TEMPLATES` holds person-shaped silhouettes rather than rectangles,
+because neither a person nor a lancet is a rectangle and testing one against
+the other understates every opening.
+
+| | width × height | who |
+|---|---|---|
+| `crawl` | 700 × 900 | on all fours |
+| `stoop` | 600 × 1400 | ducking |
+| `walk` | 600 × 1800 | walking |
+| `walk_wide` | 800 × 1900 | walking, in costume |
+| `carry` | 900 × 1800 | carrying a chest, a table end, a stretcher |
+| `tall` | 700 × 2200 | a character on stilts or in a frame |
+
+The last one is not a person, and it is the one that separates the sizes.
+**XL takes it bare — by 31 mm.** Nothing smaller takes it at all: D8 would
+need 470 mm of skirt, D6 980 mm, D4 1510 mm.
 
 ## What this does not settle
 
@@ -104,10 +136,15 @@ The doorway travels in `model.json` as a closed 3D outline, so the scene
 builders draw it rather than rediscovering it:
 
 ```bash
-make blender v=m           # one dome, camera on the door, figure standing in it
+make blender v=d6          # one dome, camera on the door
 make sizes                 # S, M, L and XL in a row, every door facing front
 ```
 
 Each dome is spun about its own axis so its door faces the camera. That changes
 nothing about it — the structure is five-fold symmetric — and without it half
 the row shows its blank side.
+
+**Two figures stand in every doorway, 1.8 m and 2.2 m.** One is a person; the
+other is the question. On M the 2.2 m one is taller than the whole opening,
+on L it is head and shoulders above it, and on XL it walks in — which is the
+size argument in a single picture.
