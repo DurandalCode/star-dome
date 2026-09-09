@@ -23,6 +23,12 @@ the entire point of doing this in Blender.
 
 Objects are named by their model IDs (``Rod_G1``, ``Node_N07``, ``Base_b0``)
 so a regenerated variant can be matched against an existing scene.
+
+``--shots DIR`` renders a set of named views instead of one frame -- four of
+them from eye level, plus an orthographic plan and elevation::
+
+    blender --background --factory-startup --python blender/build_scene.py -- \
+        --model exports/model/star_dome_d6.json --hide-cuts --shots exports/shots
 """
 
 import argparse
@@ -79,7 +85,8 @@ def parse_args(argv):
         default=None,
         metavar="DIR",
         help="render a set of named views into this directory, first-person "
-             "ones included, instead of the single default frame",
+             "ones included, as well as the single default frame. "
+             "e.g. --shots exports/shots",
     )
     p.add_argument(
         "--hide-cuts",
