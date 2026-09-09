@@ -363,12 +363,13 @@ def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
             move_to(obj, collection)
 
 
-def add_label(text, origin_x, y, material_, collection):
+def add_label(text, origin_x, y, material_, collection, size=0.62):
     bpy.ops.object.text_add(location=(origin_x, y, 0.05))
     obj = bpy.context.active_object
     obj.data.body = text
     obj.data.align_x = "CENTER"
-    obj.data.size = 0.62
+    # Scaled to the dome it names, so a 3 m label does not run into a 4 m one.
+    obj.data.size = size
     obj.data.extrude = 0.01
     # Standing up, not lying on the ground: a label flat on the floor reads as
     # a smear from any camera that can see the whole row.
@@ -481,9 +482,10 @@ def build(args, models):
             # under the ground plane, where nobody reads them.
             name = meta.get("alias") or meta["variant"]
             text = f"{name}  {meta['dome_diameter'] * MM:.0f} x {tall:.1f} m"
-            if skirt_mm:
-                text += f" (+{skirt_mm * MM:.1f} skirt)"
-            add_label(text, x, -radius_m - 1.6 + y0, label_mat, coll)
+            add_label(
+                text, x, -radius_m - 1.6 + y0, label_mat, coll,
+                size=max(0.30, radius_m * 0.16),
+            )
 
         placed.append((meta["variant"], x, radius_m, meta))
         max_radius = max(max_radius, radius_m)
@@ -514,10 +516,14 @@ def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0
     scene.collection.objects.link(cam)
 
     half_angle = math.atan(18.0 / lens)
-    needed = (span * 0.78) / math.tan(half_angle)
-    height = max(tallest * 1.6, needed * 0.20)
+    needed = (span * 0.72) / math.tan(half_angle)
+    # Low and close to the row's own height rather than high and far: a long
+    # row seen from far above is mostly ground.
+    # Nearly level with the row. Higher than this and a long row is mostly
+    # ground; the domes stand side by side so nothing occludes anything.
+    height = tallest * 0.8
     cam.location = (span * 0.5, -needed, height)
-    target = Vector((span * 0.5, 0.0, tallest * 0.40))
+    target = Vector((span * 0.5, 0.0, tallest * 0.45))
     cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
 

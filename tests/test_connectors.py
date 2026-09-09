@@ -139,11 +139,14 @@ def test_the_base_point_is_the_busiest_joint_in_the_structure():
     assert max(h["members"] for h in hubs) > fan["count"] // 2  # 8 > 5
 
 
-def test_a_bare_dome_has_nothing_holding_its_feet_together():
-    """Without a skirt the base point is three rod ends and the ground.
+def test_a_bare_dome_anchors_its_feet_with_a_stake_and_still_needs_a_hub():
+    """Without a skirt the base point is three rod ends over a driven angle.
 
-    No ring, so nothing in this model resists the dome spreading at its feet,
-    and the schedule has to say so rather than quietly showing a smaller part.
+    The stake is what resists the dome spreading -- through soil, the way a
+    tent peg does -- and it is hardware, a size to specify rather than a shape
+    to design. What it does not do is gather three bow ends arriving at three
+    different inclinations, so the hub is still undesigned. Splitting those
+    two is the whole point of the state field.
     """
     from stardome import connectors, model
 
@@ -152,7 +155,32 @@ def test_a_bare_dome_has_nothing_holding_its_feet_together():
     assert len(hubs) == 1
     assert hubs[0]["members"] == 3
     assert hubs[0]["count"] == 10
-    assert "nothing in this model resists" in hubs[0]["note"]
+    assert hubs[0]["state"] == connectors.UNDESIGNED
+    assert hubs[0]["anchored_by_stake"] is True
+
+    stake = _part(sched, "ground_stake")
+    assert stake["count"] == 10
+    assert stake["state"] == connectors.HARDWARE
+
+
+def test_the_skirted_base_point_is_out_of_a_stake_s_reach():
+    """S's busiest joint sits 1.35 m up on top of a post.
+
+    That is the one place the stake argument does not reach, and it is also
+    the joint with the most members in the structure.
+    """
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("S")))
+    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
+    assert max(h["members"] for h in hubs) == 8
+    assert all(h["state"] == connectors.UNDESIGNED for h in hubs)
+    assert all(h["anchored_by_stake"] is False for h in hubs)
+
+    # The post feet below them, by contrast, are hardware.
+    feet = [p for p in sched["parts"] if p["kind"] == "post_foot"]
+    assert feet
+    assert all(f["state"] == connectors.HARDWARE for f in feet)
 
 
 def test_splices_are_the_largest_part_count_on_any_real_size(sched):

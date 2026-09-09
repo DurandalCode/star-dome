@@ -140,7 +140,7 @@ camp:
 site:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
-		--dir $(OUT) \
+		--dir $(OUT) --gap 3.0 \
 		--out exports/blender/site.blend \
 		--render exports/blender/site.png
 
