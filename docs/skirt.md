@@ -41,23 +41,49 @@ at zero would silently break that. Consumers lift the assembly instead:
 points, post length, `ground_z = −height`, and `overall_height = skirt + dome`
 — so a change to it cannot pass unnoticed.
 
-## What is NOT modelled, and it is the important part
+## Bracing
 
-**The skirt as drawn is ten unbraced verticals and a ring. It will rack.**
+An earlier version of this skirt was ten posts and one ring, and it would have
+racked: a ring of pin-ended posts has no resistance to a sideways load at all.
+Push the top ring and the whole thing leans until something else stops it. The
+dome above is stiff in its own surface but cannot brace the skirt, because it
+meets it at exactly the ten points that are free to move together.
 
-A ring of pin-ended posts has no resistance to a sideways load at all: push the
-top ring sideways and the whole skirt leans until something else stops it. The
-dome above is stiff in its own surface but it cannot brace the skirt, because
-it meets it at exactly the ten points that are free to move together.
+The skirt now carries three things that fix it, and the model has all three as
+real members:
 
-So before any 3 m dome gets built, the skirt needs one of:
+| | what | why |
+|---|---|---|
+| **top ring** | 10 chords between the base points | Not only the skirt's. A dome pushes *outward* at its feet, and the ten base points of a bare Star Dome are ten free rod ends with nothing tying them together. Something has to take that thrust in hoop tension whether there is a skirt or not. |
+| **bottom ring** | 10 chords at ground level | Closes the far end of every post, so a bay is a quadrilateral and not two free legs. |
+| **diagonals** | two per bay, crossed | Triangulates the bay. Declared **tension** members, not rod. |
 
-- diagonal bracing in each of the ten bays, or in alternate bays;
-- a tension belt or guy set taking the shear to ground anchors;
-- a fabric skirt cut and tensioned to work as a shear panel;
-- posts fixed rigidly at the ground instead of pinned, which turns the racking
-  problem into a bending problem at the feet, and puts the whole load into the
-  anchors.
+On S that is 1236 mm across a bay and 1350 mm of post, so a diagonal is
+1830 mm at **47.5° above horizontal** — near the middle of the useful range.
+Outside roughly 30–60° a brace is either mostly pulling the posts together or
+mostly trying to lift them, and `verify` fails if it drifts out.
+
+**Why the diagonals are straps.** The one member in this structure that can
+buckle is a 1.8 m diagonal in compression. A strap cannot buckle; it goes
+slack instead, which is why they come in crossed pairs — whichever way the
+skirt is pushed, one is in tension and the other does nothing. It also keeps
+them out of the rod budget, and they are the largest single item in it:
+
+    posts        13.50 m of rod
+    top ring     12.36 m
+    bottom ring  12.36 m
+    ---------------------
+    skirt rod    38.22 m   against 94 m for the dome itself
+    diagonals    32.95 m of strap
+
+**The door bay carries no diagonal**, because a diagonal across a doorway is a
+doorway with a diagonal across it. The rings still close around it and the
+other nine bays hold it square. One open bay is the limit; `verify` says so.
+
+Still not modelled, and still the important part: how the posts meet the
+ground, how the diagonals are anchored and tensioned, and whether the base
+ring can actually carry the hoop tension the dome puts into it. Those are
+statics and hardware, not geometry.
 
 None of these is drawn, chosen, or calculated. The `skirt` block carries this
 warning in its own `note` field so anything reading the model sees it.

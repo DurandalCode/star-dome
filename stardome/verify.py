@@ -235,6 +235,60 @@ def check(data: dict) -> list:
             "overall height is not skirt + dome",
         )
 
+        # --- the skirt is braced -------------------------------------------
+        #
+        # A ring of pin-ended verticals with a ring at each end is a mechanism:
+        # every bay is a parallelogram. These check that it is not left that
+        # way, since the drawing looks the same either way.
+        bays = skirt["bay_count"]
+        want(
+            len(skirt["top_ring"]) == bays and len(skirt["bottom_ring"]) == bays,
+            f"a ring should close with {bays} segments, got "
+            f"{len(skirt['top_ring'])} on top and {len(skirt['bottom_ring'])} below",
+        )
+        for tag in ("top_ring", "bottom_ring"):
+            visited = {seg["bay"] for seg in skirt[tag]}
+            want(
+                visited == set(range(bays)),
+                f"{tag} does not close: it covers bays {sorted(visited)}",
+            )
+        want(
+            abs(skirt["top_ring_length"] - skirt["bottom_ring_length"]) < 1e-3,
+            "the two rings are the same polygon, so they should be the same "
+            f"length: {skirt['top_ring_length']} vs {skirt['bottom_ring_length']}",
+        )
+
+        open_bays = set(skirt["open_bays"])
+        braced = {b["bay"] for b in skirt["braces"]}
+        want(
+            braced == set(range(bays)) - open_bays,
+            f"bays {sorted(set(range(bays)) - open_bays - braced)} carry no "
+            "diagonal and would rack",
+        )
+        for bay in braced:
+            pair = [b for b in skirt["braces"] if b["bay"] == bay]
+            want(
+                len(pair) == 2,
+                f"bay {bay} has {len(pair)} diagonals, expected a crossed pair",
+            )
+        want(
+            all(b["member"] == "tension" for b in skirt["braces"]),
+            "the diagonals must be tension members: a 1.8 m compression strut "
+            "is the one thing in this structure that can buckle",
+        )
+        if skirt["braces"]:
+            angle = skirt["brace_angle_deg"]
+            want(
+                30.0 <= angle <= 60.0,
+                f"diagonals meet the ground at {angle:.1f} deg; outside 30-60 "
+                "a brace is either mostly pulling the posts together or "
+                "mostly lifting them",
+            )
+        want(
+            len(open_bays) <= 1,
+            f"{len(open_bays)} bays left open; one doorway is enough to weaken",
+        )
+
     # --- crossing classes ----------------------------------------------------
     want(
         meta["crossing_type_count"] == 12,

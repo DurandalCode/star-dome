@@ -46,6 +46,7 @@ TIED_COLOUR = (0.95, 0.15, 0.25, 1.0)
 UNTIED_COLOUR = (0.55, 0.55, 0.60, 1.0)
 BASE_COLOUR = (0.25, 0.25, 0.30, 1.0)
 SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
+BRACE_COLOUR = (0.35, 0.62, 0.78, 1.0)   # tension diagonals, not rod
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
 GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
@@ -205,21 +206,50 @@ def marker(name, xyz_mm, radius_m, material, collection, lift=0.0):
     return move_to(sphere, collection)
 
 
-def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift):
-    """Vertical posts under each base point, plus the ground ring.
+def segment(name, a, b, radius_m, material, collection, place, lift=0.0):
+    """One straight member between two model-space points.
+
+    ``place`` maps a model (x, y) to scene metres, so the same drawing works
+    in a single-dome scene and in a row where each dome is offset and spun.
+    """
+    ax, ay = place(a[0], a[1])
+    bx, by = place(b[0], b[1])
+    az = a[2] * MM + lift
+    bz = b[2] * MM + lift
+    mid = ((ax + bx) / 2.0, (ay + by) / 2.0, (az + bz) / 2.0)
+    length = math.dist((ax, ay, az), (bx, by, bz))
+    if length < 1e-9:
+        return None
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius_m, depth=length,
+                                        location=mid, vertices=12)
+    obj = bpy.context.active_object
+    obj.name = name
+    direction = Vector((bx - ax, by - ay, bz - az))
+    obj.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+    obj.data.materials.append(material)
+    return move_to(obj, collection)
+
+
+def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift,
+              brace_material=None, place=None):
+    """Posts, a ring at each end, and the diagonals that stop it racking.
 
     The model keeps the dome's base ring at z = 0 and hangs the skirt below it
     into negative z, so the whole assembly is lifted by the skirt height here
     to stand it on the ground plane.
     """
+    place = place or (lambda x, y: (x * MM, y * MM))
+    brace_material = brace_material or material
     made = []
+
     for post in skirt["posts"]:
         z_lo = post["z_bottom"] * MM + lift
         z_hi = post["z_top"] * MM + lift
+        px, py = place(post["x"], post["y"])
         bpy.ops.mesh.primitive_cylinder_add(
             radius=rod_radius_m,
             depth=z_hi - z_lo,
-            location=(post["x"] * MM, post["y"] * MM, (z_lo + z_hi) / 2.0),
+            location=(px, py, (z_lo + z_hi) / 2.0),
             vertices=16,
         )
         obj = bpy.context.active_object
@@ -227,18 +257,21 @@ def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift):
         obj.data.materials.append(material)
         made.append(move_to(obj, collection))
 
-    bpy.ops.mesh.primitive_torus_add(
-        major_radius=radius_m,
-        minor_radius=rod_radius_m,
-        location=(0.0, 0.0, skirt["ground_z"] * MM + lift),
-        major_segments=96,
-        minor_segments=10,
-    )
-    ring = bpy.context.active_object
-    ring.name = "Skirt_GroundRing"
-    ring.data.materials.append(material)
-    made.append(move_to(ring, collection))
-    return made
+    for tag in ("top_ring", "bottom_ring"):
+        for seg in skirt.get(tag, ()):
+            made.append(
+                segment(f"Skirt_{seg['name']}", seg["a"], seg["b"], rod_radius_m,
+                        material, collection, place, lift)
+            )
+
+    # Thinner than the rod, and its own colour: a strap is not a stick, and
+    # the drawing should not suggest it is.
+    for brace in skirt.get("braces", ()):
+        made.append(
+            segment(f"Skirt_{brace['name']}", brace["a"], brace["b"],
+                    rod_radius_m * 0.45, brace_material, collection, place, lift)
+        )
+    return [m for m in made if m is not None]
 
 
 def add_ground(diameter_m, collection):
@@ -590,6 +623,7 @@ def build(args):
             make_material("Skirt", SKIRT_COLOUR),
             skirt_coll,
             lift,
+            make_material("Skirt_Brace", BRACE_COLOUR),
         )
 
     facing = None

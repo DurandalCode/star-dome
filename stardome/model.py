@@ -25,6 +25,114 @@ def _r(x: float) -> float:
     return round(x, DP)
 
 
+def _skirt(variant, base_pts: list, radius: float) -> dict:
+    """Posts, two rings and the diagonals that stop the thing racking.
+
+    A ring of pin-ended verticals is a mechanism: every bay is a parallelogram
+    and the whole skirt folds over under any sideways load. Three things fix
+    that, and all three are members the earlier drawing did not have.
+
+    **The top ring** is not only the skirt's. A dome pushes *outward* at its
+    feet, and the ten base points of a bare Star Dome are ten free rod ends
+    with nothing tying them to each other. Something has to take that thrust
+    in hoop tension whether there is a skirt underneath or not; putting it at
+    the top of the skirt is just where it happens to live here.
+
+    **The bottom ring** closes the other end of every post so the bay is a
+    quadrilateral rather than two free-standing legs.
+
+    **The diagonals** triangulate each bay. They are declared as *tension*
+    members rather than rod, because the one member in this structure that
+    can buckle is a 1.8 m diagonal in compression, and a strap cannot buckle.
+    Two per bay, so that whichever way the skirt is pushed one of them is in
+    tension and the other simply goes slack.
+
+    Both rings are chords between adjacent posts, not hoops: a hoop would have
+    to be bent to the base radius, and the posts already define a polygon.
+    """
+    height = variant.skirt_height
+    ground_z = -height
+    count = len(base_pts)
+
+    posts = [
+        {
+            "name": f"s{i}",
+            "base_node": f"b{i}",
+            "x": _r(p[0]),
+            "y": _r(p[1]),
+            "z_bottom": _r(ground_z),
+            "z_top": _r(p[2]),
+            "length": _r(height),
+        }
+        for i, p in enumerate(base_pts)
+    ]
+
+    def ring(z: float, tag: str) -> list:
+        out = []
+        for i, p in enumerate(base_pts):
+            q = base_pts[(i + 1) % count]
+            out.append(
+                {
+                    "name": f"{tag}{i}",
+                    "bay": i,
+                    "from": f"b{i}" if z == 0.0 else f"s{i}",
+                    "to": f"b{(i + 1) % count}" if z == 0.0 else f"s{(i + 1) % count}",
+                    "a": [_r(p[0]), _r(p[1]), _r(z)],
+                    "b": [_r(q[0]), _r(q[1]), _r(z)],
+                    "length": _r(math.dist(p[:2], q[:2])),
+                }
+            )
+        return out
+
+    top_ring = ring(0.0, "tr")
+    bottom_ring = ring(ground_z, "br")
+
+    braces = []
+    for i, p in enumerate(base_pts):
+        q = base_pts[(i + 1) % count]
+        span = math.dist(p[:2], q[:2])
+        length = math.hypot(span, height)
+        for sense, (lo, hi) in enumerate(((p, q), (q, p))):
+            braces.append(
+                {
+                    "name": f"d{i}{'ab'[sense]}",
+                    "bay": i,
+                    "a": [_r(lo[0]), _r(lo[1]), _r(ground_z)],
+                    "b": [_r(hi[0]), _r(hi[1]), _r(0.0)],
+                    "length": _r(length),
+                    "angle_deg": _r(math.degrees(math.atan2(height, span))),
+                    "member": "tension",
+                }
+            )
+
+    return {
+        "height": _r(height),
+        "ground_z": _r(ground_z),
+        "post_count": count,
+        "bay_count": count,
+        "posts": posts,
+        "top_ring": top_ring,
+        "bottom_ring": bottom_ring,
+        "braces": braces,
+        "open_bays": [],
+        "post_total_length": _r(height * count),
+        "top_ring_length": _r(sum(seg["length"] for seg in top_ring)),
+        "bottom_ring_length": _r(sum(seg["length"] for seg in bottom_ring)),
+        "brace_total_length": _r(sum(b["length"] for b in braces)),
+        "brace_angle_deg": _r(braces[0]["angle_deg"]) if braces else 0.0,
+        # Kept for consumers that read the old field; it is the hoop, which is
+        # not what gets built -- the ring is chords.
+        "ground_ring_length": _r(2.0 * math.pi * radius),
+        "note": (
+            "Posts, a ring at each end and two tension diagonals per bay. The "
+            "top ring also takes the dome's outward thrust at its feet, which "
+            "nothing else in this model does. The diagonals are declared as "
+            "tension members: the only thing here that can buckle is a "
+            "diagonal in compression, and a strap cannot. See docs/skirt.md."
+        ),
+    }
+
+
 def build(
     variant: Variant,
     weave_mode: str = "flat",
@@ -179,34 +287,7 @@ def build(
     # takes the radius vector to be the position vector.
     skirt = None
     if variant.skirt_height > 0:
-        posts = []
-        for i, p in enumerate(base_pts):
-            posts.append(
-                {
-                    "name": f"s{i}",
-                    "base_node": f"b{i}",
-                    "x": _r(p[0]),
-                    "y": _r(p[1]),
-                    "z_bottom": _r(-variant.skirt_height),
-                    "z_top": _r(p[2]),
-                    "length": _r(variant.skirt_height),
-                    "rods": topology.rods_at_base_point(bows, i),
-                }
-            )
-        skirt = {
-            "height": _r(variant.skirt_height),
-            "ground_z": _r(-variant.skirt_height),
-            "post_count": len(posts),
-            "posts": posts,
-            "post_total_length": _r(variant.skirt_height * len(posts)),
-            "ground_ring_length": _r(2.0 * math.pi * radius),
-            "note": (
-                "Vertical posts and a ground ring, nothing more. An unbraced "
-                "ring of verticals racks under any sideways load; diagonal "
-                "bracing or a tension belt is required before this is built. "
-                "See docs/skirt.md."
-            ),
-        }
+        skirt = _skirt(variant, base_pts, radius)
 
     length_classes = sorted({r["length_drawn"] for r in rods})
     max_drawn_radius = max(radius + o for o in offsets.values())
@@ -280,6 +361,34 @@ def build(
         from . import doorway
 
         out["doorway"] = doorway.place(out, variant.door, cut=variant.door_cut)
+
+        if skirt is not None:
+            # The bay under the door cannot be braced: a diagonal across the
+            # doorway is a doorway with a diagonal across it. The rings still
+            # close round it, so the rest of the skirt holds this bay square.
+            centre = out["doorway"]["bay"]["centre_azimuth_deg"]
+            best = None
+            for i, post in enumerate(skirt["posts"]):
+                nxt = skirt["posts"][(i + 1) % skirt["bay_count"]]
+                mid = math.degrees(
+                    math.atan2(
+                        post["y"] + nxt["y"], post["x"] + nxt["x"]
+                    )
+                ) % 360.0
+                gap = abs((mid - centre + 180.0) % 360.0 - 180.0)
+                if best is None or gap < best[0]:
+                    best = (gap, i)
+            open_bay = best[1]
+            skirt["open_bays"] = [open_bay]
+            skirt["braces"] = [b for b in skirt["braces"] if b["bay"] != open_bay]
+            skirt["brace_total_length"] = _r(
+                sum(b["length"] for b in skirt["braces"])
+            )
+            skirt["note"] += (
+                f" Bay {open_bay} is left open for the door and carries no "
+                "diagonal."
+            )
+
         cut = out["doorway"].get("cut")
         if cut:
             # Carry the removed spans on the rods themselves so a consumer can
