@@ -194,6 +194,24 @@ def run():
                 files.extend((step_path, stl_path))
                 facets[plate_name] = count
 
+            # The rods are reference geometry, not parts to print, but without
+            # them neither the STEP set nor a slicer preview shows what the
+            # node is actually holding. Named ref- so nobody prints one.
+            for rod_index, rod in enumerate(geo["rods"], start=1):
+                step_path, stl_path, count = export_solid(
+                    rod, "%s_ref-Rod%d" % (part["id"], rod_index)
+                )
+                files.extend((step_path, stl_path))
+
+            # One file with the whole node in place: five plates and four rods,
+            # for looking at rather than printing.
+            assembly = Part.makeCompound(list(geo["plates"]) + list(geo["rods"]))
+            step_path, stl_path, count = export_solid(
+                assembly, "%s_ref-Assembly" % part["id"]
+            )
+            files.extend((step_path, stl_path))
+            facets["ref-Assembly"] = count
+
             report["built"].append(
                 {
                     "id": part["id"],
