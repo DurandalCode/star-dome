@@ -766,6 +766,9 @@ def derived_rows(dims, values):
 # Colours for the saved view. The plates are made translucent so the rods can
 # be seen threading through them, and each rod gets its own colour because the
 # whole point of the node is which rod sits at which level.
+# See docs/colours.md. Distinct per-rod colours here rather than family ones:
+# this fan is G-U-U-G, so family colours would give two identical pairs and
+# lose exactly what the drawing is for.
 PLATE_COLOUR = (0.35, 0.52, 0.78)
 PLATE_TRANSPARENCY = 55
 ROD_COLOURS = [
