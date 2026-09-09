@@ -81,6 +81,16 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 
 **Exit criterion:** entrances and corridors can be positioned against the actual rod layout and inspected from human eye level.
 
+**And the interior result changes which variant to build.** The number that
+decides a room is how much of the floor you can stand up in, and a bare dome
+wastes most of it: D4 has 12.6 m2 of floor and 2.4 m2 you can stand in, 19%.
+A skirt is the cheapest fix by a wide margin -- D3 on a 1 m skirt has more than
+twice the standing room of a bare D4, on a smaller footprint and less rod. The
+whole price is wind: the tip index is 0.424 for a bare dome at any size and
+rises to 0.74 at D3 with 1 m of skirt. **D6 + 760 mm of skirt** -- the skirt a
+walk-in door needs anyway -- takes it from 64% to 88% of floor usable and is
+probably what the reference prototype should be. See [`interior.md`](interior.md).
+
 **The entrance result changes the size question.** The tallest unobstructed spot
 at the base ring is 0.2549 x diameter, the same fraction for every variant
 because the topology is fixed. So a walk-in door does not exist below D10:

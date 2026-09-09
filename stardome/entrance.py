@@ -182,6 +182,77 @@ def largest_doorway(data: dict, env: dict | None = None) -> dict:
     return best
 
 
+# A person is not a rectangle, and neither is a doorway that follows the rods.
+# These silhouettes are half-widths at a height: widest at the shoulders,
+# narrower at the head, which is exactly the trapezoid you get under a pair of
+# crossing bows. Testing a rectangle instead understates every opening.
+#
+# Each entry is (height_mm, half_width_mm). The template must fit at every
+# listed height.
+TEMPLATES = {
+    "crawl": [(0.0, 350.0), (700.0, 350.0), (900.0, 250.0)],
+    "stoop": [(0.0, 300.0), (1200.0, 300.0), (1400.0, 200.0)],
+    "walk": [(0.0, 300.0), (1450.0, 300.0), (1800.0, 180.0)],
+    "walk_wide": [(0.0, 400.0), (1450.0, 400.0), (1900.0, 220.0)],
+    "carry": [(0.0, 450.0), (1450.0, 450.0), (1800.0, 300.0)],
+}
+
+
+def template_fits(
+    data: dict,
+    template: list,
+    env: dict | None = None,
+    clearance_mm: float = 0.0,
+) -> dict:
+    """Where a person-shaped opening fits, rather than a rectangle.
+
+    A doorway under two crossing bows is a trapezoid, and so is a person: wide
+    at the shoulders, narrower at the head. Fitting that shape finds openings a
+    rectangle misses -- which is the difference between "no door fits" and
+    "you can walk in here".
+    """
+    env = env or door_envelope(data, clearance_mm=clearance_mm)
+    envelope = env["envelope_mm"]
+    n = len(envelope)
+    radius = env["radius_mm"]
+    arc_per_bin = math.radians(env["bin_width_deg"]) * radius
+
+    def fits_at(centre: int) -> bool:
+        for height, half_width in template:
+            reach = int(math.ceil(half_width / arc_per_bin))
+            for d in range(-reach, reach + 1):
+                if envelope[(centre + d) % n] < height:
+                    return False
+        return True
+
+    centres = [c for c in range(n) if fits_at(c)]
+    # Group the acceptable centres into contiguous arcs, so the answer is
+    # "five places, each this wide" rather than a list of bins.
+    places = []
+    if centres:
+        runs = _runs_at_least(
+            [1.0 if c in set(centres) else 0.0 for c in range(n)], 0.5
+        )
+        for start, count in runs:
+            places.append(
+                {
+                    "centre_azimuth_deg": round(
+                        ((start + count / 2.0) % n) * env["bin_width_deg"], 2
+                    ),
+                    "slide_mm": round(count * arc_per_bin, 1),
+                }
+            )
+    top = max(h for h, _ in template)
+    widest = max(w for _, w in template) * 2.0
+    return {
+        "height_mm": top,
+        "width_mm": widest,
+        "place_count": len(places),
+        "places": places,
+        "fits": bool(places),
+    }
+
+
 def skirt_bay(data: dict, clearance_mm: float = 0.0) -> dict | None:
     """The opening in one bay of the skirt, if there is a skirt.
 
