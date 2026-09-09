@@ -139,7 +139,7 @@ solve the ones it ties. Closing that is the real content of this milestone.
 - [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
 - [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
 - [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
-- [x] Design the four-rod fan connector. **V2** in `connectors/fan_node_v2.py`, see [`fan-node-v2.md`](fan-node-v2.md): a stack of five plates, every rod in a real channel, no rod-on-rod contact. Stack pitch 13.40 mm, the floor for a 3 mm web. All five print without supports. V1 ([`fan-node-v1.md`](fan-node-v1.md)) clamped the rods as a bundle and did not locate the middle two at all; kept as a record. Nothing tested in plastic.
+- [x] Design the four-rod fan connector. **V2** in `connectors/fan_node_v2.py`, see [`fan-node-v2.md`](fan-node-v2.md): a stack of five plates, every rod in a real channel, no rod-on-rod contact. Stack pitch 10.00 mm: the rods bear on each other at the crossing and each plate is a cross with a hole at the middle, so the stack is exactly as tall as V1 while every rod sits in a channel. All five print without supports. V1 ([`fan-node-v1.md`](fan-node-v1.md)) clamped the rods as a bundle and did not locate the middle two at all; kept as a record. Nothing tested in plastic.
 - [ ] Decide between the fan part and a stack of two-rod clamps, on printed samples.
 
 **The four-rod node turned out to be the easy case.** All four rods at a lashed

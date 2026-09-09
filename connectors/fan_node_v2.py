@@ -78,7 +78,8 @@ INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
-    ("webThickness",           3.0,  "mm",  "material between two stacked rods; sets the stack pitch"),
+    ("rodsTouchAtCentre",      1.0,  "-",   "1 = pitch is exactly rodDiameter, so adjacent rods bear on each other at the crossing and the plate is a cross with a hole at the middle. 0 = pitch leaves webThickness of plate between them everywhere."),
+    ("webThickness",           2.0,  "mm",  "only used when rodsTouchAtCentre is 0: material between two stacked rods, which then sets the pitch. Each mm here costs 3 mm of stack height."),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body; channel length is DERIVED"),
     ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
@@ -368,7 +369,27 @@ def build(values, fan_gaps=None):
         if roof
         else channel_r
     )
-    pitch = values["webThickness"] + channel_r + upper_reach
+    # Two ways to set the pitch.
+    #
+    # Touching (the default): the pitch is exactly one rod diameter, so
+    # adjacent rods bear on each other at the crossing, as the reference
+    # intends and as the two-rod clamp already does. The two channels then
+    # overlap in a small lens around the node centre and the plate has a hole
+    # there -- but only there. Away from the centre the rods diverge in plan,
+    # the vertical gap between their surfaces opens up, and the plate is solid
+    # again: a cross whose arms carry the channels. Material appears about
+    # 4.5 mm out and reaches ~1.8 mm at radius 10, ~6 mm at radius 15.
+    #
+    # This is better than spacing them, not just tighter. The clamping load
+    # passes rod-to-rod as the design intends, so the plate locates rather
+    # than carries, and there is no thin web to creep under sustained preload.
+    #
+    # Spaced: the pitch leaves webThickness of plate between the rods
+    # everywhere, at 3 mm of stack height per mm of web.
+    if values["rodsTouchAtCentre"] >= 0.5:
+        pitch = rod_d
+    else:
+        pitch = values["webThickness"] + channel_r + upper_reach
     levels = [(k - 1.5) * pitch for k in range(4)]
 
     # The outer faces do need the tilt clearance: that is where the flare is
@@ -668,23 +689,44 @@ def verify(geo, dims, values):
         }
     report["wrap"] = wrap
 
-    # Measure the web rather than trusting the pitch arithmetic: walk the
-    # node's own axis, where the two channels come closest, and see how much
-    # material is actually left between them.
+    # Measure the web rather than trusting the pitch arithmetic. With the rods
+    # touching there is nothing at the node centre by design, so the useful
+    # number is the PROFILE: how far out material starts, and how thick the
+    # rib is once it does. Walked along the bisector of the plate's two
+    # channels, where the two rods are closest in plan.
     step = 0.05
+    azimuths = dims["fan_azimuths_deg"]
     webs = {}
-    for name, shape, (z_lo, z_hi) in zip(names, plates, dims["plate_spans_mm"]):
-        if name == "Bottom" or name == "Cap":
+    for index, (name, shape, (z_lo, z_hi)) in enumerate(
+        zip(names, plates, dims["plate_spans_mm"])
+    ):
+        if name in ("Bottom", "Cap"):
             continue
-        solid_mm = 0.0
-        z = z_lo
-        while z <= z_hi:
-            if shape.isInside(App.Vector(0.0, 0.0, z), 1e-7, True):
-                solid_mm += step
-            z += step
-        webs[name] = round(solid_mm, 2)
-    report["web_measured_mm"] = webs
-    report["web_requested_mm"] = round(values["webThickness"], 3)
+        lower, upper = azimuths[index - 1], azimuths[index]
+        bisector = math.radians((lower + upper) / 2.0)
+        profile = []
+        starts_at = None
+        # A handful of stations, not a fine walk: this is a probe per point
+        # against the solid, and a 0.5 mm sweep out to the rim cost ninety
+        # thousand of them and killed the FreeCAD process twice.
+        for radius_mm in (3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 15.0, 20.0):
+            x = math.cos(bisector) * radius_mm
+            y = math.sin(bisector) * radius_mm
+            solid_mm = 0.0
+            z = z_lo
+            while z <= z_hi:
+                if shape.isInside(App.Vector(x, y, z), 1e-7, True):
+                    solid_mm += step
+                z += step
+            if starts_at is None and solid_mm >= 1.0:
+                starts_at = radius_mm
+            profile.append((radius_mm, round(solid_mm, 2)))
+        webs[name] = {
+            "rib_starts_at_mm": starts_at,
+            "rib_thickness_at_r": profile,
+        }
+    report["web_profile"] = webs
+    report["rods_touch_at_centre"] = values["rodsTouchAtCentre"] >= 0.5
 
     # The cap prints flipped so its channel faces up; every other plate prints
     # with its upward channel up.

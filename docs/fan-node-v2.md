@@ -61,22 +61,61 @@ is still one object per node.
 |---|---|---|
 | pieces per node | 5 | 2 |
 | rods positively located | 4 | 2 |
-| rod-on-rod contacts | 0 | 3 |
-| stack pitch | 13.40 mm | 10 mm |
-| stack height | 40.2 mm | 30 mm |
-| assembly height | 63.9 mm | 51.4 mm |
+| stack pitch | 10.00 mm | 10 mm |
+| stack height | 30.0 mm | 30 mm |
+| assembly height | 53.7 mm | 51.4 mm |
 | footprint | 76.0 mm | 91.2 mm |
-| bolts | 2 × M5 × 70 | 2 × M5 × 55 |
-| volume per node | 115.7 cm³ | 60.2 cm³ |
+| bolts | 2 × M5 × 60 | 2 × M5 × 55 |
+| volume per node | 94.3 cm³ | 60.2 cm³ |
 
-13.40 mm is the **floor** for a 3 mm web: two channel radii plus the web, with
-nothing else in the way. The stack cannot be made denser without thinning the
-web, which is the piece carrying the clamping load between two rods.
+**The stack is exactly as tall as V1's** — same pitch, same 30 mm — and every
+rod is in a channel. The assembly is 2.3 mm taller and it takes 1.6× the
+plastic, and that is the whole price.
 
-V2 is still 1.9× the plastic of V1 and 12 mm taller. That is the price of
-putting every rod in a channel, and it should be weighed honestly before ten of
-these get printed. The footprint shrinks because V2 needs no solid posts beside
-the rods — only bolt holes.
+## The rods touch at the centre, and the plate is a cross
+
+This was the thing V2 got wrong for two revisions. The reasoning went: rods
+touching means no room for material between them, so the pitch has to open up.
+That is only true **at the crossing point**.
+
+Move away from the centre and the two rods diverge in plan. Their axes stay one
+diameter apart vertically, but the vertical gap between their *surfaces* opens
+up, because the vertical line through a point off the axis cuts a shorter chord
+of each cylinder. So material can live between two touching rods everywhere
+except a small lens around the crossing.
+
+With the pitch set to exactly `rodDiameter`, the two channels of a middle plate
+overlap near the centre and the plate simply has a hole there. Measured on Mid2,
+walking out along the bisector of its two channels:
+
+| radius from node centre | material between the channels |
+|---|---|
+| 3, 4, 5 mm | 0 — the hole |
+| 6 mm | 0.25 mm |
+| 8 mm | 0.95 mm |
+| 10 mm | 1.95 mm |
+| 15 mm and beyond | 10.0 mm — full plate thickness |
+
+The plate is a **cross whose arms carry the channels**, open in the middle. All
+five plates remain single valid solids: the hole does not disconnect anything.
+
+And this is better than spacing the rods, not merely tighter:
+
+- **The clamping load goes rod-to-rod at the crossing**, as the reference
+  intends and as the two-rod clamp already does. The plates locate; they do not
+  carry.
+- **There is no thin web to creep.** A 2 mm rib under sustained bolt preload,
+  loaded in compression by a crossed-cylinder patch in PETG or ASA, was the
+  weakest claim in the spaced version. It is gone.
+
+`rodsTouchAtCentre = 0` falls back to spacing the rods with `webThickness` of
+plate between them everywhere, at 3 mm of stack height per mm of web:
+
+| web | pitch | stack | assembly | volume |
+|---|---|---|---|---|
+| **touching** | **10.00** | **30.0** | **53.7** | **94.3 cm³** |
+| 2.0 mm | 12.40 | 37.2 | 60.9 | 109.4 cm³ |
+| 3.0 mm | 13.40 | 40.2 | 63.9 | 115.7 cm³ |
 
 ## The pitch is derived, and the web is measured
 
@@ -166,7 +205,11 @@ would cost 2.35 mm of pitch per interface, 7 mm on the stack.
 
 1. **Five distinct plates per node**, fifty per dome. Mitigated by keeping the
    stack captive on its bolts, not eliminated.
-2. **1.9x the material of V1** and a 63.9 mm tall assembly.
+2. **1.6x the material of V1**, in an assembly 2.3 mm taller.
+3. **The rib is thin where it starts.** Material between two channels is
+   0.25 mm at radius 6 and only reaches 2 mm at radius 10. It is not the load
+   path, but it is what keeps a rod from climbing out sideways, and how much of
+   it is enough is a question for a printed sample.
 3. **Nothing tested in plastic.** Every number here comes from the solid model.
    No sample printed, no bolt torqued, no rod bent into it.
 4. **Helpers are copied** from `fan_node_v1.py` rather than shared. All three
