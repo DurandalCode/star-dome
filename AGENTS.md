@@ -35,6 +35,8 @@ This repository is a physical-design workspace for temporary Star Dome structure
 
 ### OpenSCAD
 - Render the dome for visual inspection; read generated data rather than recomputing it.
+- `dome/star_dome.scad` is frozen as a reference implementation of the baseline topology. Do not add features to it. CI regenerates it and compares it to the Python output on every push; if the two disagree, `stardome/` is right.
+- Anything new — sections, ferrules, cut lists, belts, D12 reinforcement, load inputs — goes only into `stardome/`.
 - Keep diameter, rod diameter, reinforcement scheme, and named variants parameterized.
 - Export geometry for Blender integration.
 - Expose stable names/IDs for arcs and crossings where practical so downstream tooling can reason about entrances and interfaces.

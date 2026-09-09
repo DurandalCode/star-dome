@@ -62,6 +62,87 @@ def write_all(data: dict, out_dir: Path | str, stem: str | None = None) -> list:
     return written
 
 
+def scad_variants(variants: dict) -> str:
+    """Render ``configs/variants.scad`` from the TOML presets.
+
+    OpenSCAD cannot read TOML, and the reference implementation in ``dome/``
+    needs the same variant numbers the Python core uses. Generating this file
+    keeps the *parameters* single-sourced while leaving the *geometry* in the
+    two implementations independent -- which is the whole point of the
+    cross-check. See docs/architecture.md.
+
+    The public names here are load-bearing: ``dome/star_dome.scad`` calls
+    ``sd_variant_diameter`` and friends.
+    """
+    rows = [
+        (f'"{v.name}",', f"{v.diameter:g}", f"{v.rod_diameter:g}", v.note)
+        for v in variants.values()
+    ]
+    name_w = max(len(r[0]) for r in rows)
+    dia_w = max(len(r[1]) for r in rows)
+    rod_w = max(len(r[2]) for r in rows)
+    entries = ",\n".join(
+        f"    [{name:<{name_w}} {dia:>{dia_w}}, {rod:>{rod_w}}, \"{note}\"]"
+        for name, dia, rod, note in rows
+    )
+    bend = "\n".join(
+        f"//   {v.name:<4}->  {v.bend_radius:g} mm" for v in variants.values()
+    )
+    return f"""\
+// ---------------------------------------------------------------------------
+// configs/variants.scad -- named Star Dome variants.
+//
+// GENERATED FILE. Do not edit.
+//
+//     python3 -m stardome scad-config
+//
+// The source of truth is configs/variants.toml. This file exists because
+// OpenSCAD cannot read TOML and dome/star_dome.scad needs the same numbers the
+// Python core uses. Parameters are single-sourced; the geometry in dome/ stays
+// an independent implementation, which is what makes the cross-check in
+// tests/test_geometry.py worth anything. See docs/architecture.md.
+//
+// All dimensions in millimetres (see AGENTS.md).
+//
+// ---------------------------------------------------------------------------
+// ROD DIAMETERS ARE PROVISIONAL
+//
+// The values below are engineering *assumptions*, not results. Nothing here
+// has been checked against fiberglass rod properties, buckling, bending
+// stress, minimum bend radius, wind load, cover load or anchoring, and the
+// geometric model deliberately says nothing about whether a given rod can
+// survive being bent to the required radius.
+//
+// Every bow is bent to a radius equal to the dome radius, so the required
+// bend radius scales directly with the variant:
+//
+{bend}
+//
+// Confirm each against the real rod stock before treating a variant as
+// buildable. See docs/roadmap.md milestones 4, 6 and 8.
+// ---------------------------------------------------------------------------
+
+// Record layout.
+SDV_NAME = 0; SDV_DIAMETER = 1; SDV_ROD_DIAMETER = 2; SDV_NOTE = 3;
+
+SD_VARIANTS = [
+{entries}
+];
+
+// Look a variant up by name. Fails loudly rather than silently falling back,
+// so a typo in a -D override cannot quietly render the wrong dome.
+function sd_variant(name) =
+    let (hits = [for (v = SD_VARIANTS) if (v[SDV_NAME] == name) v])
+    assert(len(hits) == 1, str("unknown variant '", name,
+                               "' -- known: ", [for (v = SD_VARIANTS) v[SDV_NAME]]))
+    hits[0];
+
+function sd_variant_diameter(name)     = sd_variant(name)[SDV_DIAMETER];
+function sd_variant_rod_diameter(name) = sd_variant(name)[SDV_ROD_DIAMETER];
+function sd_variant_note(name)         = sd_variant(name)[SDV_NOTE];
+"""
+
+
 def summary(data: dict) -> str:
     """The short golden snapshot: scalars only, no per-crossing detail.
 

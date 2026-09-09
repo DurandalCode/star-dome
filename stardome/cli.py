@@ -71,6 +71,16 @@ def cmd_snapshot(args) -> int:
     return 0
 
 
+def cmd_scad_config(args) -> int:
+    """Regenerate configs/variants.scad from configs/variants.toml."""
+    variants = config.load_all(args.config)
+    path = Path(args.out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(export.scad_variants(variants), encoding="utf-8")
+    print(f"{path}  ({', '.join(variants)})")
+    return 0
+
+
 def cmd_verify(args) -> int:
     failures = 0
     for name in _variant_names(args):
@@ -97,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("report", cmd_report, "print the derived dimensions"),
         ("verify", cmd_verify, "check the geometric invariants"),
         ("snapshot", cmd_snapshot, "refresh the committed golden summaries"),
+        ("scad-config", cmd_scad_config, "regenerate configs/variants.scad from the TOML"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -117,6 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
             )
         if name == "snapshot":
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
+        if name == "scad-config":
+            p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
         p.set_defaults(func=fn)
     return parser
 

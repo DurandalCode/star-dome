@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/geometry
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot venv clean check scad
+.PHONY: help build report verify test snapshot config venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -17,6 +17,7 @@ help:
 	@echo "make verify     check the geometric invariants"
 	@echo "make test       run the test suite (needs 'make venv' once)"
 	@echo "make snapshot   refresh the committed golden summaries"
+	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make check      verify + test; run this before claiming anything works"
 	@echo "make scad       regenerate the OpenSCAD reference export for parity tests"
 	@echo "make clean      remove generated exports"
@@ -32,6 +33,12 @@ verify:
 
 snapshot:
 	$(PYTHON) -m stardome snapshot --all
+
+# configs/variants.scad is generated from configs/variants.toml so that the
+# OpenSCAD reference implementation and the Python core are fed the same
+# numbers. Never edit the .scad by hand.
+config:
+	$(PYTHON) -m stardome scad-config
 
 venv:
 	$(PYTHON) -m venv $(VENV)

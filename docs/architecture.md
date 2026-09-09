@@ -44,8 +44,29 @@ The OpenSCAD model in `dome/` remains a second, independent implementation of
 the same maths. That is deliberate and useful: the two producers emit the same
 schema and are compared field for field by
 `tests/test_geometry.py::test_matches_openscad_export`. Agreement between two
-implementations derived independently is stronger evidence than either alone.
-If they are ever allowed to drift, `stardome/` is the one that is right.
+implementations derived independently is stronger evidence than either alone,
+and it has already earned its keep by catching a field-labelling bug that
+connector generation would have inherited.
+
+### The reference-implementation policy
+
+Keeping two implementations is only cheap while the maths does not move, so
+the split is fixed rather than left to judgement:
+
+- `dome/star_dome.scad` is **frozen as a reference implementation of the
+  baseline topology**. It is not dead code — CI regenerates it from scratch on
+  every push and compares it to the Python output — but it does not grow.
+- **Everything new goes only into `stardome/`**: transport sections and
+  ferrules, cut lists, tension belts, the D12 reinforcement candidates, load
+  inputs. None of it is sphere geometry, and none of it is expressible in
+  OpenSCAD without another scraping layer.
+- The parity test therefore covers the baseline dome permanently, and new work
+  is covered by the invariants in `stardome/verify.py` and the golden
+  snapshots instead.
+
+The rule for resolving a disagreement: if the two ever diverge on the baseline
+topology, `stardome/` is the one that is right, and the divergence is a bug in
+whichever change caused it.
 
 ## 1. Data contract — `model.json`
 

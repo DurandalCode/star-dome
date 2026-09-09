@@ -1,0 +1,93 @@
+name: check
+
+# Two things run here, and the second one is the point.
+#
+# 1. The geometric invariants and the golden snapshots, from Python alone.
+# 2. The OpenSCAD model regenerated from scratch and compared to the Python
+#    output field for field.
+#
+# Step 2 is what keeps the cross-check alive now that Python is the source of
+# truth. dome/star_dome.scad is a second, independently written implementation
+# of the same maths; two implementations agreeing is stronger evidence than
+# either alone, and it already caught a real field-labelling bug. It is kept
+# as a reference implementation for exactly this reason, not as dead code.
+#
+# See docs/architecture.md.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Invariants
+        run: python3 -m stardome verify --all
+
+      - name: Derived dimensions
+        run: python3 -m stardome report --all
+
+      # configs/variants.scad is generated from configs/variants.toml. If the
+      # two ever disagree, the OpenSCAD reference implementation is being fed
+      # different numbers than the Python core and the cross-check is
+      # comparing two different domes.
+      - name: Generated config is up to date
+        run: |
+          python3 -m stardome scad-config
+          git diff --exit-code -- configs/variants.scad
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest
+
+      # Without the OpenSCAD export present the parity tests skip, so this
+      # run covers the invariants and the golden snapshots only.
+      - name: Tests
+        run: python3 -m pytest tests/ -q
+
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install OpenSCAD
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openscad xvfb
+
+      # OpenSCAD renders to a throwaway image to force evaluation, which wants
+      # a display even in CLI mode.
+      - name: Regenerate the OpenSCAD export
+        run: xvfb-run -a python3 tools/export_geometry.py --all
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest
+
+      # The parity tests skip themselves when the export is missing, which
+      # would make this job pass without comparing anything. Fail first if the
+      # four files are not there.
+      - name: Compare both producers
+        run: |
+          ls -1 exports/geometry/*.json
+          test "$(ls -1 exports/geometry/*.json | wc -l)" -eq 4
+          python3 -m pytest tests/test_geometry.py -q -k matches_openscad -rs
+
+      - name: Upload the OpenSCAD export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openscad-geometry-export
+          path: exports/geometry/
+          if-no-files-found: warn

@@ -54,11 +54,14 @@ Rod diameters in `configs/variants.scad` remain provisional engineering assumpti
 - [x] Turn the `dome/README.md` validation table into executable invariants (`stardome verify`).
 - [x] Commit one small golden summary per variant under `tests/golden/`.
 - [x] Cross-check the Python and OpenSCAD producers field for field.
-- [ ] Point the OpenSCAD viewer at the generated data instead of recomputing it.
+- [x] Freeze `dome/star_dome.scad` as a reference implementation and run the cross-check in CI on every push.
 - [ ] Add a `blender/` scene builder that reads `model.json`.
 - [ ] Add a FreeCAD clamp generator that reads `crossing_types`.
+- [ ] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other.
 
-**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Partly met** — the producer, contract, tests and cross-check exist; the three consumers are not yet wired up.
+**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Partly met** — the producer, contract, tests and cross-check exist; Blender and FreeCAD are not yet wired up.
+
+`dome/star_dome.scad` deliberately keeps computing its own geometry: that independence is the whole value of the cross-check. It is frozen rather than converted into a data consumer, so the baseline topology stays under permanent two-implementation verification while all new work goes into `stardome/` alone. See [`docs/architecture.md`](architecture.md), "The reference-implementation policy".
 
 Why this milestone exists: the geometry here is analytic, and the deliverables that Milestones 2 and 3 actually need — node IDs, tangents, crossing angles, symmetry classes, exported as JSON — are the things OpenSCAD cannot produce without a text-scraping layer. Two of the three consumers are already Python. See [`docs/architecture.md`](architecture.md).
 

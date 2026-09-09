@@ -1,26 +1,34 @@
 // ---------------------------------------------------------------------------
 // configs/variants.scad -- named Star Dome variants.
 //
-// This is the file to edit when a size or a rod choice changes. Nothing else
-// in dome/ contains a variant-specific number.
+// GENERATED FILE. Do not edit.
+//
+//     python3 -m stardome scad-config
+//
+// The source of truth is configs/variants.toml. This file exists because
+// OpenSCAD cannot read TOML and dome/star_dome.scad needs the same numbers the
+// Python core uses. Parameters are single-sourced; the geometry in dome/ stays
+// an independent implementation, which is what makes the cross-check in
+// tests/test_geometry.py worth anything. See docs/architecture.md.
 //
 // All dimensions in millimetres (see AGENTS.md).
 //
 // ---------------------------------------------------------------------------
 // ROD DIAMETERS ARE PROVISIONAL
 //
-// The values below are engineering *assumptions*, not results. They are a
-// starting point for visual and geometric work only. Nothing here has been
-// checked against fiberglass rod properties, buckling, bending stress, minimum
-// bend radius, wind load, cover load or anchoring, and the geometric model
-// deliberately says nothing about whether a given rod can survive being bent
-// to the required radius.
+// The values below are engineering *assumptions*, not results. Nothing here
+// has been checked against fiberglass rod properties, buckling, bending
+// stress, minimum bend radius, wind load, cover load or anchoring, and the
+// geometric model deliberately says nothing about whether a given rod can
+// survive being bent to the required radius.
 //
-// Every bow in this design is bent to a radius equal to the dome radius, so
-// the required bend radius scales directly with the variant:
+// Every bow is bent to a radius equal to the dome radius, so the required
+// bend radius scales directly with the variant:
 //
-//   D4  ->  2000 mm      D8  ->  4000 mm
-//   D6  ->  3000 mm      D12 ->  6000 mm
+//   D4  ->  2000 mm
+//   D6  ->  3000 mm
+//   D8  ->  4000 mm
+//   D12 ->  6000 mm
 //
 // Confirm each against the real rod stock before treating a variant as
 // buildable. See docs/roadmap.md milestones 4, 6 and 8.
