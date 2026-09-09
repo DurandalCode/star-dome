@@ -70,7 +70,7 @@ def load_clamp_module():
     return namespace
 
 
-FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v1.py")
+FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
 FAN = None
 
 
@@ -168,7 +168,7 @@ def run():
     for part in sched["parts"]:
         generator = part.get("generator")
 
-        if generator == "fan_node_v1":
+        if generator == "fan_node_v2":
             fan = load_fan_module()
             geo, dims, values = build_fan(part)
 
@@ -184,9 +184,34 @@ def run():
             # afterwards, so a check that runs after the export reports a
             # perfectly good solid as broken.
             checks = fan["verify"](geo, dims, values)
-            files, facets = export_pair(
-                geo["base"], geo["cap"], part["id"], "_Base", "_Cap"
+
+            files = []
+            facets = {}
+            for plate_name, solid in zip(geo["names"], geo["plates"]):
+                step_path, stl_path, count = export_solid(
+                    solid, "%s_%s" % (part["id"], plate_name)
+                )
+                files.extend((step_path, stl_path))
+                facets[plate_name] = count
+
+            # The rods are reference geometry, not parts to print, but without
+            # them neither the STEP set nor a slicer preview shows what the
+            # node is actually holding. Named ref- so nobody prints one.
+            for rod_index, rod in enumerate(geo["rods"], start=1):
+                step_path, stl_path, count = export_solid(
+                    rod, "%s_ref-Rod%d" % (part["id"], rod_index)
+                )
+                files.extend((step_path, stl_path))
+
+            # One file with the whole node in place: five plates and four rods,
+            # for looking at rather than printing.
+            assembly = Part.makeCompound(list(geo["plates"]) + list(geo["rods"]))
+            step_path, stl_path, count = export_solid(
+                assembly, "%s_ref-Assembly" % part["id"]
             )
+            files.extend((step_path, stl_path))
+            facets["ref-Assembly"] = count
+
             report["built"].append(
                 {
                     "id": part["id"],
@@ -194,6 +219,7 @@ def run():
                     "generator": generator,
                     "rod_diameter": part["rod_diameter"],
                     "count_needed": part["count"],
+                    "pieces_per_node": len(geo["plates"]),
                     "fan_gaps_deg": part["fan_gaps_deg"],
                     "fcstd": fcstd,
                     "files": [os.path.basename(f) for f in files],

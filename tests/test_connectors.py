@@ -61,7 +61,7 @@ def test_every_part_has_a_generator(sched):
     generator -- so that landing one could not pass unnoticed. It landed;
     `connectors/fan_node_v1.py` builds it.
     """
-    assert _part(sched, "four_rod_fan")["generator"] == "fan_node_v1"
+    assert _part(sched, "four_rod_fan")["generator"] == "fan_node_v2"
     assert _part(sched, "two_rod_clamp")["generator"] == "crossing_clamp_v1"
     totals = sched["totals"]
     assert totals["generatable_now"] == 40
