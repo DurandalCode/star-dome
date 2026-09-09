@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -22,6 +22,7 @@ help:
 	@echo "make weave      four-rod node fan geometry and stacking order"
 	@echo "make doorways   the chosen door: which bay, framed by what"
 	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
+	@echo "make camp       one S, one M and one L round a yard, doors cut open"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
@@ -82,12 +83,15 @@ clamps:
 # flat mode every crossing has two rods in the same place, which makes a
 # clearance check meaningless.
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
+# Blender exits 0 even when a --python script raises. Without this a
+# broken scene script leaves the previous render in place, looking current.
+BLENDER_RUN = $(BLENDER) --background --factory-startup --python-exit-code 1
 V ?= D6
 v = $(shell echo $(V) | tr A-Z a-z)
 
 blender:
 	$(PYTHON) -m stardome build $(V) --polylines --weave-mode layered -o $(OUT)
-	$(BLENDER) --background --factory-startup --python blender/build_scene.py -- \
+	$(BLENDER_RUN) --python blender/build_scene.py -- \
 		--model $(OUT)/star_dome_$(v).json \
 		--out exports/blender/star_dome_$(v).blend \
 		--render exports/blender/star_dome_$(v).png
@@ -117,14 +121,25 @@ scad:
 # scene answers is not "how big is it" but "does a person get in".
 sizes:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
-	$(BLENDER) --background --factory-startup --python blender/build_site.py -- \
+	$(BLENDER_RUN) --python blender/build_site.py -- \
 		--named-only \
 		--out exports/blender/sizes.blend \
 		--render exports/blender/sizes.png
 
+# One of each of the three sizes anyone camps in, standing round a yard with
+# the doorways actually cut out rather than ghosted. This is the picture of
+# the thing as built; `make sizes` is the picture of the decisions in it.
+camp:
+	$(PYTHON) -m stardome build S M L --polylines --weave-mode layered -o $(OUT)
+	$(BLENDER_RUN) --python blender/build_site.py -- \
+		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json $(OUT)/star_dome_d8.json \
+		--camp 4.0 --gap 3.0 --hide-cuts \
+		--out exports/blender/camp.blend \
+		--render exports/blender/camp.png
+
 site:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
-	$(BLENDER) --background --factory-startup --python blender/build_site.py -- \
+	$(BLENDER_RUN) --python blender/build_site.py -- \
 		--dir $(OUT) \
 		--out exports/blender/site.blend \
 		--render exports/blender/site.png
