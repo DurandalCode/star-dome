@@ -91,6 +91,26 @@ transitions under the counterbore and above the nut pocket).
 
 The bed-contact faces are deliberately left unfilleted.
 
+## What V1 covers in the real dome
+
+Added after the connector schedule was derived from the dome model
+(`python3 -m stardome connectors D6`):
+
+- **Covers:** all 30 unlashed crossings. They are two-rod contacts at a single
+  angle, `acos(1/3)` = 70.5288 deg, so one clamp geometry serves every one of
+  them. The generator builds it at that angle rather than the hand-picked 72
+  deg default in `INPUTS`.
+- **Does not cover:** the 10 lashed nodes, where four rods meet at one point
+  with six pairwise angles between them. A two-piece two-rod clamp cannot serve
+  them, and the radial stacking order that a four-rod part would need is still
+  a drawing convention rather than a build decision.
+
+The reference lashes the second group and leaves the first alone, so V1 as it
+stands solves the crossings the original design does not tie. See
+`docs/roadmap.md` milestone 3.
+
+Batch generation for a whole dome: `connectors/generate_clamps.py`.
+
 ## Known compromises for V1
 
 1. The lower rod is clamped only through the upper rod, and is retained

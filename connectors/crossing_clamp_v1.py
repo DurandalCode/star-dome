@@ -641,6 +641,11 @@ def run():
     return rep
 
 
-REPORT = run()
-import pprint
-pprint.pprint(REPORT, width=110)
+# Executing this file builds the clamp immediately, which is what the usage
+# note above documents. A driver that wants to call build() itself for several
+# parts sets SUPPRESS_AUTORUN in the exec namespace first; see
+# connectors/generate_clamps.py.
+if not globals().get("SUPPRESS_AUTORUN"):
+    REPORT = run()
+    import pprint
+    pprint.pprint(REPORT, width=110)

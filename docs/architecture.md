@@ -97,6 +97,22 @@ Three rules keep the pipeline honest:
 `inclination_convention`, `above_convention`) so a consumer cannot silently
 misread the numbers.
 
+### Where generated files go
+
+The two producers write to separate directories, and must keep doing so:
+
+| directory | written by | read by |
+|---|---|---|
+| `exports/model/` | `stardome` — the source of truth | FreeCAD, Blender, everything downstream |
+| `exports/geometry/` | `tools/export_geometry.py` — the OpenSCAD reference | the parity tests only |
+| `exports/connectors/` | `connectors/generate_clamps.py` | slicers, the workshop |
+| `exports/blender/` | `blender/build_scene.py` | people |
+
+They shared `exports/geometry/` briefly, and the effect was exactly what you
+would expect: a Blender rebuild overwrote the OpenSCAD reference with Python
+output and the parity tests started comparing the Python model against itself.
+Two producers must never write the same filenames.
+
 ### Divergences from the OpenSCAD exporter
 
 Parity is exact across all four variants for every rod, node, crossing and
@@ -128,10 +144,38 @@ FreeCAD is used for parts that must be printed or dimensioned precisely:
 - corridor/entrance transition parts.
 
 These are parametric around rod diameter and print clearance, and driven by
-script (`connectors/*.py`), not hand-modelled. The natural next step is for
-the clamp generator to read `crossing_types` from `model.json` and emit one
-part per class at that class's real angle, so "how many connector types does
-this need" is answered by the data instead of by argument.
+script (`connectors/*.py`), not hand-modelled.
+
+The clamp generation chain is:
+
+```bash
+python3 -m stardome connectors D6            # what parts are needed, and why
+python3 -m stardome connectors D6 --json     # the schedule as data
+<FreeCAD> connectors/generate_clamps.py      # build and export them
+```
+
+`stardome/connectors.py` groups every crossing into the part that would serve
+it, so "how many connector types does this dome need" is answered by the data
+rather than by argument. `connectors/generate_clamps.py` is a consumer: it
+reads that schedule, drives `crossing_clamp_v1.py` once per part at that part's
+real crossing angle, and exports STEP plus a slicer-sized STL into
+`exports/connectors/`. It computes no dome geometry of its own.
+
+The schedule reports what it cannot build instead of quietly skipping it: each
+part carries a `generator`, and a part with `generator: null` is specified but
+not yet buildable.
+
+For the baseline topology the schedule comes to **two connector geometries**:
+a four-rod fan at the 10 lashed nodes, and one two-rod clamp covering all 30
+unlashed crossings. `stardome/weave.py` derives the fan — the four rods at a
+lashed node are coplanar, so the node is flat, and all ten nodes are the same
+shape. It also enumerates the radial stacking orders with the rod-on-rod
+contacts each creates, and records the one the project chose. See
+[`tied-node.md`](tied-node.md).
+
+```bash
+python3 -m stardome weave D6
+```
 
 MCP is for interactive inspection. Anything that must be reproducible runs as
 a script from the repository: if a result cannot be rebuilt with one command
@@ -142,10 +186,27 @@ from a clean clone, it is not a result.
 Blender is the assembly and site-layout environment, never the geometric
 source of truth.
 
-The scene is built from `model.json` at 1:1 scale — rods as curves with a
-real-radius bevel, objects named by rod and node ID — so entrances and
-corridors are checked against actual rod positions rather than a generic
-hemisphere.
+The scene is built from `model.json` at 1:1 scale by `blender/build_scene.py`:
+
+```bash
+make blender            # D6 by default
+make blender V=D12
+```
+
+Rods become poly curves bevelled at the real rod radius, coloured by family;
+objects carry their model IDs (`Rod_G1`, `Node_N07`, `Base_b0`) so a
+regenerated variant can be matched against an existing scene. Tied nodes,
+unlashed crossings, base points and site objects each get their own
+collection. The model is in millimetres and the scene is metres, built 1:1, so
+a 1.8 m doorway and the 1.75 m scale figure measure correctly against the
+rods — which is the entire reason to do this in Blender rather than eyeball it.
+
+The scene builder requires a model generated with `--polylines
+--weave-mode layered`. In flat mode all 15 centrelines lie on one sphere and
+every crossing has two rods occupying the same space, which makes a clearance
+check meaningless; the script warns if given one. Rod centreline points come
+from the model rather than being recomputed from azimuth and tilt, so Blender
+stays a pure consumer.
 
 Typical checks:
 

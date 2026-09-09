@@ -55,11 +55,11 @@ Rod diameters in `configs/variants.scad` remain provisional engineering assumpti
 - [x] Commit one small golden summary per variant under `tests/golden/`.
 - [x] Cross-check the Python and OpenSCAD producers field for field.
 - [x] Freeze `dome/star_dome.scad` as a reference implementation and run the cross-check in CI on every push.
-- [ ] Add a `blender/` scene builder that reads `model.json`.
-- [ ] Add a FreeCAD clamp generator that reads `crossing_types`.
+- [x] Add a `blender/` scene builder that reads `model.json`.
+- [x] Add a FreeCAD clamp generator that reads `crossing_types`.
 - [ ] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other.
 
-**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Partly met** — the producer, contract, tests and cross-check exist; Blender and FreeCAD are not yet wired up.
+**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Met**, apart from retiring the duplicate `.scad` preset file. OpenSCAD, FreeCAD and Blender all consume the generated model; none of them recompute geometry.
 
 `dome/star_dome.scad` deliberately keeps computing its own geometry: that independence is the whole value of the cross-check. It is frozen rather than converted into a data consumer, so the baseline topology stays under permanent two-implementation verification while all new work goes into `stardome/` alone. See [`docs/architecture.md`](architecture.md), "The reference-implementation policy".
 
@@ -71,9 +71,9 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 
 **Goal:** use real generated structural geometry for spatial planning.
 
-- [ ] Export/import the generated dome geometry into Blender at 1:1 scale.
-- [ ] Keep individual arcs/crossings identifiable where practical.
-- [ ] Add reusable human scale figures.
+- [x] Export/import the generated dome geometry into Blender at 1:1 scale. `blender/build_scene.py`, `make blender`.
+- [x] Keep individual arcs/crossings identifiable where practical. Objects carry their model IDs and are split into per-role collections.
+- [x] Add reusable human scale figures. A 1.75 m figure, placed inside the dome.
 - [ ] Add basic fabric-cover representation.
 - [ ] Build an entrance-clearance inspection workflow.
 - [ ] Build a simple covered-corridor generator / placement workflow.
@@ -109,6 +109,50 @@ regenerate with `tools/export_geometry.py`:
 
 The four-rod nodes are a reconstruction, not a quoted fact from the reference;
 verify against photographs or a physical mock-up before committing to a part.
+
+**What the connector schedule says.** `python3 -m stardome connectors D6` groups
+every crossing into the part that would serve it, and the answer is awkward:
+
+- The 30 unlashed crossings are two-rod contacts at **one** angle, so a single
+  clamp geometry covers all of them. `connectors/generate_clamps.py` builds it
+  from the model data and exports STEP + STL.
+- The 10 lashed nodes join four rods and are **not covered at all** by the V1
+  architecture.
+
+So V1 currently solves the crossings the reference leaves alone, and does not
+solve the ones it ties. Closing that is the real content of this milestone.
+
+- [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
+- [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
+- [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
+- [ ] Design the four-rod fan connector.
+
+**The four-rod node turned out to be the easy case.** All four rods at a lashed
+node are coplanar — a great circle's tangent lies in the sphere's tangent plane
+— so the node is a flat four-armed fan with the rods stacked along the radius,
+not a three-dimensional tangle. All ten nodes are the same fan: gaps of
+37.3774, 41.8103, 37.3774 and 63.4349 deg, summing to 180. The five high nodes
+read G-U-U-G and the five low ones L-G-G-L, but as geometry they are one shape.
+
+So the whole dome needs **two connector geometries**: one four-rod fan (10 off)
+and one two-rod clamp (30 off, and optional). Not twelve.
+
+Stacking order chosen as fan order, 1-2-3-4: it puts the three shallowest
+angles into rod-on-rod contact, needs two distinct saddle angles rather than
+three, is palindromic, and states as one sentence in the field. Its cost is
+that G and L rods change level between nodes, which measures out as a 1.6%
+slope — not a constraint. Stack height is three rod diameters.
+
+**The weave closes.** Routing rods straight between their lashed-node offsets
+leaves 15 of the 30 unlashed crossings interpenetrating, so the naive answer is
+wrong — but a consistent route does exist, for every stacking order, and it
+stays inside the radial band the four-rod stack already occupies (±1.5 rod
+diameters). A rod leaves its great circle by about one degree. The weave gets
+easier as the dome grows, so **D4 is the tight case, not D12**.
+
+One consequence for the part: a rod arrives at a node with up to ~1.2° of
+radial tilt, generally different on each side, so a channel bored exactly
+tangent will pre-stress it.
 
 **Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
 
