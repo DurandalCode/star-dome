@@ -36,10 +36,13 @@ def test_a_bare_dome_wastes_most_of_its_floor_when_small():
 
 
 def test_a_small_dome_on_a_skirt_beats_a_bigger_one_without():
-    """D3 + 1 m of skirt gives more standing room than D4 bare, on less rod.
+    """D3 + 1 m of skirt gives more standing room than D4 bare, per metre.
 
-    This is the result that decides the small end of the family, so it is
-    worth a test rather than a note.
+    Not in total rod, though -- it used to, back when the skirt was ten posts
+    and one ring. Bracing it properly adds a second ring, and the small dome
+    now spends 99 m of rod against a bare D4's 94. What survives is the
+    result that actually decides the small end: twice the standing room and
+    twice the room per metre.
     """
     d3 = skirted("D3", 1000.0)
     d4 = model.build(config.load("D4", skirt_height=0.0))
@@ -49,8 +52,10 @@ def test_a_small_dome_on_a_skirt_beats_a_bigger_one_without():
 
     e3 = interior.rod_efficiency(d3)
     e4 = interior.rod_efficiency(d4)
-    assert e3["m2_per_rod_m"] > e4["m2_per_rod_m"]
-    assert e3["total_rod_m"] < e4["total_rod_m"]
+    assert e3["m2_per_rod_m"] > 2 * e4["m2_per_rod_m"]
+    # And the price of bracing, so it cannot go unnoticed again.
+    assert e3["total_rod_m"] > e4["total_rod_m"]
+    assert e3["skirt_strap_m"] > 20.0
 
 
 def test_a_bare_dome_has_the_same_tip_index_at_every_size():

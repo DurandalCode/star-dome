@@ -38,6 +38,7 @@ FAMILY_COLOUR = {
     "L": (0.20, 0.75, 0.35, 1.0),
 }
 SKIRT_COLOUR = (0.80, 0.80, 0.78, 1.0)
+BRACE_COLOUR = (0.35, 0.62, 0.78, 1.0)   # tension diagonals, not rod
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)
 GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)
@@ -206,8 +207,32 @@ def add_rod(rod, radius_m, material_, collection, origin_x, lift, spin_deg=0.0,
     return obj
 
 
+def segment(name, a, b, radius_m, material, collection, place, lift=0.0):
+    """One straight member between two model-space points.
+
+    ``place`` maps a model (x, y) to scene metres, so the same drawing works
+    in a single-dome scene and in a row where each dome is offset and spun.
+    """
+    ax, ay = place(a[0], a[1])
+    bx, by = place(b[0], b[1])
+    az = a[2] * MM + lift
+    bz = b[2] * MM + lift
+    mid = ((ax + bx) / 2.0, (ay + by) / 2.0, (az + bz) / 2.0)
+    length = math.dist((ax, ay, az), (bx, by, bz))
+    if length < 1e-9:
+        return None
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius_m, depth=length,
+                                        location=mid, vertices=12)
+    obj = bpy.context.active_object
+    obj.name = name
+    direction = Vector((bx - ax, by - ay, bz - az))
+    obj.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+    obj.data.materials.append(material)
+    return move_to(obj, collection)
+
+
 def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
-              lift, spin_deg=0.0, origin_y=0.0):
+              lift, spin_deg=0.0, origin_y=0.0, brace_material=None):
     for post in skirt["posts"]:
         z_lo = post["z_bottom"] * MM + lift
         z_hi = post["z_top"] * MM + lift
@@ -223,17 +248,17 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
         obj.data.materials.append(material_)
         move_to(obj, collection)
 
-    bpy.ops.mesh.primitive_torus_add(
-        major_radius=radius_m,
-        minor_radius=rod_radius_m,
-        location=(origin_x, origin_y, skirt["ground_z"] * MM + lift),
-        major_segments=72,
-        minor_segments=8,
-    )
-    ring = bpy.context.active_object
-    ring.name = "Skirt_GroundRing"
-    ring.data.materials.append(material_)
-    move_to(ring, collection)
+    def place(x, y):
+        return _place(x, y, origin_x, spin_deg, origin_y)
+
+    for tag in ("top_ring", "bottom_ring"):
+        for seg in skirt.get(tag, ()):
+            segment(f"Skirt_{seg['name']}", seg["a"], seg["b"], rod_radius_m,
+                    material_, collection, place, lift)
+    for brace in skirt.get("braces", ()):
+        segment(f"Skirt_{brace['name']}", brace["a"], brace["b"],
+                rod_radius_m * 0.45, brace_material or material_, collection,
+                place, lift)
 
 
 def make_transparent(mat, alpha):
@@ -364,6 +389,7 @@ def build(args, models):
     label_mat = material("Label", LABEL_COLOUR)
     jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
     ghost_mat = make_transparent(material("Rod_Cut", GHOST_COLOUR), 0.50)
+    brace_mat = material("Skirt_Brace", BRACE_COLOUR)
 
     x = 0.0
     placed = []
@@ -426,7 +452,7 @@ def build(args, models):
         if data.get("skirt"):
             add_skirt(
                 data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift,
-                spin, origin_y=y0,
+                spin, origin_y=y0, brace_material=brace_mat,
             )
         if door:
             add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)

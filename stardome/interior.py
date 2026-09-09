@@ -131,15 +131,24 @@ def rod_efficiency(data: dict, height: float = 1800.0) -> dict:
     rod = meta["total_rod_length"]
     skirt_rod = 0.0
     if data.get("skirt"):
-        skirt_rod = data["skirt"]["post_total_length"] + data["skirt"][
-            "ground_ring_length"
-        ]
+        skirt = data["skirt"]
+        # Rod only: posts and the two rings. The diagonals are tension members
+        # and are counted separately, because a strap is not a rod and pricing
+        # them together answers no question anyone has.
+        skirt_rod = (
+            skirt["post_total_length"]
+            + skirt["top_ring_length"]
+            + skirt["bottom_ring_length"]
+        )
     total = rod + skirt_rod
     area = usable_area(data, height)["usable_m2"]
     return {
         "height_mm": height,
         "dome_rod_m": round(rod / 1000.0, 1),
         "skirt_rod_m": round(skirt_rod / 1000.0, 1),
+        "skirt_strap_m": round(
+            data.get("skirt", {}).get("brace_total_length", 0.0) / 1000.0, 1
+        ),
         "total_rod_m": round(total / 1000.0, 1),
         "usable_m2": area,
         "m2_per_rod_m": round(area / (total / 1000.0), 4) if total else 0.0,
@@ -187,7 +196,8 @@ def format_analysis(data: dict) -> str:
     f = a["efficiency"]
     lines.append(
         f"  rod {f['total_rod_m']:.0f} m "
-        f"(dome {f['dome_rod_m']:.0f} + skirt {f['skirt_rod_m']:.0f}) "
-        f"-> {f['m2_per_rod_m']:.4f} m2 of standing floor per metre of rod"
+        f"(dome {f['dome_rod_m']:.0f} + skirt {f['skirt_rod_m']:.0f})"
+        + (f" + {f['skirt_strap_m']:.0f} m of strap" if f["skirt_strap_m"] else "")
+        + f" -> {f['m2_per_rod_m']:.4f} m2 of standing floor per metre of rod"
     )
     return "\n".join(lines)

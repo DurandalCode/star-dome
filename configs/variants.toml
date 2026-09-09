@@ -108,4 +108,5 @@ note = "XL -- walk-in door with no skirt at all; expect D8's reinforcement work"
 diameter = 12000
 rod_diameter = 12
 door = "carry"
+door_cut = "portal"
 note = "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"

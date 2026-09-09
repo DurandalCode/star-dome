@@ -46,8 +46,11 @@ D3, standing height 1800 mm:
 | 2000 | 7.07 m² | 100% | 3473 mm | 1.071 | 100 m | 0.071 |
 
 **A 3 m dome on a 1 m skirt has more than twice the standing room of a bare 4 m
-dome**, on a smaller footprint, with less rod, at better than twice the rod
-efficiency. The "silo" is not the compromise it looks like.
+dome**, on a smaller footprint, at better than twice the rod efficiency. It no
+longer uses *less* rod: bracing the skirt properly ([`skirt.md`](skirt.md))
+adds a second ring, and D3 + 1 m now spends 99 m against a bare D4's 94, plus
+27 m of strap. The "silo" is still not the compromise it looks like, but it is
+no longer the cheap option.
 
 And D6, with the 760 mm of skirt a walk-in door needs anyway
 ([`entrance.md`](entrance.md)):
@@ -80,7 +83,7 @@ Two things follow:
 - **Standing room saturates; tipping does not.** D3's floor is fully usable at
   about 1.6 m of skirt. Going to 2.0 m adds 2% of area and another 0.13 to the
   tip index. Past saturation a taller skirt is pure cost.
-- **The skirt is also the unbraced part.** `docs/skirt.md`: ten pin-ended
+- **The skirt is the part that has to be braced.** `docs/skirt.md`: ten pin-ended
   verticals and a ring rack under any sideways load, and the taller they are
   the worse it is. The wind penalty and the bracing problem are the same
   problem.
