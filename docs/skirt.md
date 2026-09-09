@@ -84,8 +84,11 @@ loses its diagonals *and* both ring chords.
 That leaves the top ring an open arc, which carries no hoop tension at all, so
 the force takes a detour over the opening: post head → the U bow rising from
 that base point → **a header between the two U bows** → down the other side.
-On S the header spans 959 mm at 1950 mm above ground, which is 150 mm over an
-1800 mm silhouette and still below the dome's own 2560 mm opening.
+On S the header spans 701 mm at 2350 mm above ground. Note *2350*, not 1950:
+it clears the tallest silhouette the opening actually **admits**, which on S is
+a 2.2 m character, rather than the 1800 mm one the door is nominally sized for.
+A lintel placed on the nominal figure takes back what the doorway was passing,
+and `verify` fails if it does.
 
 That is a portal frame, and it puts bending into the two U bows near their
 feet. Nothing here checks that. One open bay is the limit; `verify` says so,

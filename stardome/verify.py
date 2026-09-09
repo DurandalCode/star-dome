@@ -332,6 +332,18 @@ def check(data: dict) -> list:
                     "the header is above the dome's own opening, where it "
                     "carries nothing over anything",
                 )
+                # A lintel that blocks what the doorway was passing is not a
+                # lintel, it is an obstruction. Measured against what the
+                # opening actually admits, not what it is nominally sized for.
+                from . import entrance
+
+                for name in door.get("admits", []):
+                    needs = max(z for z, _ in entrance.TEMPLATES[name])
+                    want(
+                        header["height_above_ground"] >= needs,
+                        f"the door admits {name} at {needs:.0f} mm but the "
+                        f"header sits at {header['height_above_ground']:.0f}",
+                    )
 
     # --- crossing classes ----------------------------------------------------
     want(

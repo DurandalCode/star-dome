@@ -509,9 +509,13 @@ def test_a_header_carries_the_hoop_force_over_the_doorway():
     assert header["bay"] == skirt["open_bays"][0]
     assert len(set(header["rods"])) == 2
     assert all(rod.startswith("U") for rod in header["rods"])
-    # Level, and clear of anyone walking under it.
+    # Level, and clear of everything the opening admits -- not merely of the
+    # silhouette it is nominally sized for. S is sized for someone carrying
+    # something at 1800 mm and passes a 2.2 m character, and a header on the
+    # nominal figure would have taken that back.
     assert header["a"][2] == pytest.approx(header["b"][2], abs=1.0)
-    assert header["height_above_ground"] > 1800.0
+    assert header["height_above_ground"] > 2200.0
+    assert header["clears_mm"] == 2200.0
     # But not above the dome's own opening, where it would carry nothing.
     assert (
         header["height_above_ground"]
