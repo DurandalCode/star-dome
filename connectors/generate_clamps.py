@@ -179,6 +179,11 @@ def run():
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
             doc.saveAs(fcstd)
 
+            # Verify BEFORE meshing. MeshPart.meshFromShape attaches
+            # triangulation to the shape and leaves isValid() returning False
+            # afterwards, so a check that runs after the export reports a
+            # perfectly good solid as broken.
+            checks = fan["verify"](geo, dims, values)
             files, facets = export_pair(
                 geo["base"], geo["cap"], part["id"], "_Base", "_Cap"
             )
@@ -193,7 +198,7 @@ def run():
                     "fcstd": fcstd,
                     "files": [os.path.basename(f) for f in files],
                     "mesh_facets": facets,
-                    "checks": fan["verify"](geo, dims, values),
+                    "checks": checks,
                 }
             )
             continue
@@ -225,14 +230,15 @@ def run():
         fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
         doc.saveAs(fcstd)
 
+        # Same ordering rule as the fan: verify the solid before meshing it.
+        checks = clamp["verify"](geo, dims, values)
+
         files = []
         facets = {}
         for solid, suffix in ((geo["bottom"], "_BottomClamp"), (geo["cap"], "_TopClamp")):
             step_path, stl_path, count = export_solid(solid, part["id"] + suffix)
             files.extend((step_path, stl_path))
             facets[suffix.lstrip("_")] = count
-
-        checks = clamp["verify"](geo, dims, values)
         report["built"].append(
             {
                 "id": part["id"],

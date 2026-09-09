@@ -82,6 +82,7 @@ INPUTS = [
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("postWallFactor",         1.0,  "mm",  "multiplier on minimumWall for the post-to-rod clearance"),
     ("edgeRadius",             2.0,  "mm",  "outer edge radius"),
+    ("rimFilletFactor",        0.6,  "mm",  "rim fillet as a fraction of edgeRadius; also rounds where a channel opens onto the face"),
     ("hubRadiusFactor",        2.2,  "mm",  "hub radius as a multiple of rodDiameter; sets the saddle length"),
     ("armWidthFactor",         1.6,  "mm",  "arm width as a multiple of the post diameter"),
     ("headConeHeight",         2.8,  "mm",  "tapered transition off the head counterbore, so it prints upside down"),
@@ -176,6 +177,88 @@ def plate(hub_radius, arm_length, arm_width, post_radius, z_lo, z_hi, azimuth_de
             )
         )
     return body.removeSplitter()
+
+
+# --------------------------------------------------------------------------
+# filleting
+#
+# Copied from crossing_clamp_v1.py rather than shared. Both files are exec'd
+# standalone inside FreeCAD, so a shared module would need a path-loading
+# mechanism in each; duplicating forty lines of utility is the smaller cost,
+# and refactoring the verified two-rod clamp to suit this part is the larger
+# risk. If a third connector wants it, extract it then.
+# --------------------------------------------------------------------------
+def _ok(shape):
+    try:
+        return shape.isValid() and len(shape.Solids) == 1 and shape.Volume > 0
+    except Exception:
+        return False
+
+
+def fillet_by_predicate(shape, pred, radius, max_pass=2):
+    """Fillet every edge matching pred, falling back to one edge at a time.
+
+    Edges that cannot take the radius are skipped rather than failing the
+    build: a missing fillet is cosmetic, a failed solid is not.
+    """
+    if radius <= 0:
+        return shape, 0
+    edges = [e for e in shape.Edges if pred(e)]
+    if not edges:
+        return shape, 0
+    for r in (radius, radius * 0.7, radius * 0.45):
+        try:
+            out = shape.makeFillet(r, edges).removeSplitter()
+            if _ok(out):
+                return out, len(edges)
+        except Exception:
+            pass
+    out = shape
+    done = set()
+    applied = 0
+    for _ in range(len(edges) * max_pass):
+        target = None
+        for e in out.Edges:
+            if not pred(e):
+                continue
+            key = tuple(
+                round(c, 3)
+                for c in (e.CenterOfMass.x, e.CenterOfMass.y, e.CenterOfMass.z)
+            )
+            if key in done:
+                continue
+            target = (e, key)
+            break
+        if target is None:
+            break
+        e, key = target
+        done.add(key)
+        for r in (radius, radius * 0.7, radius * 0.45, radius * 0.25):
+            try:
+                candidate = out.makeFillet(r, [e]).removeSplitter()
+                if _ok(candidate):
+                    out = candidate
+                    applied += 1
+                    break
+            except Exception:
+                pass
+    return out, applied
+
+
+def is_vertical_edge(edge, tol=1e-6):
+    """A straight edge along Z: the silhouette corners of the plan shape."""
+    try:
+        if not isinstance(edge.Curve, Part.Line):
+            return False
+    except Exception:
+        return False
+    d = edge.Vertexes[-1].Point.sub(edge.Vertexes[0].Point)
+    return abs(d.x) < tol and abs(d.y) < tol and abs(d.z) > tol
+
+
+def edge_at_z(edge, z, tol=1e-4):
+    box = edge.BoundBox
+    return abs(box.ZMin - z) < tol and abs(box.ZMax - z) < tol
 
 
 def distance_to_rod_axis(point, azimuth_deg):
@@ -336,6 +419,27 @@ def build(values, fan_gaps=None):
             )
         )
 
+    # --- fillets ----------------------------------------------------------
+    #
+    # Vertical silhouette corners on both halves, plus the rim of each part's
+    # upward face in its own print orientation. The bed-contact faces are left
+    # sharp on purpose -- a fillet there costs first-layer adhesion.
+    #
+    # Filleting the upward face also rounds where each rod channel opens onto
+    # it, which is the edge that would otherwise bear into the rod. That is the
+    # point of doing it, not a side effect.
+    r_edge = values["edgeRadius"]
+    r_rim = r_edge * values["rimFilletFactor"]
+
+    base, base_vertical = fillet_by_predicate(base, is_vertical_edge, r_edge)
+    base, base_rim = fillet_by_predicate(
+        base, lambda e: edge_at_z(e, z_base_top), r_rim
+    )
+    cap, cap_vertical = fillet_by_predicate(cap, is_vertical_edge, r_edge)
+    cap, cap_rim = fillet_by_predicate(
+        cap, lambda e: edge_at_z(e, z_cap_bottom), r_rim
+    )
+
     geo = {
         "base": base,
         "cap": cap,
@@ -363,6 +467,8 @@ def build(values, fan_gaps=None):
         "z_base_top": z_base_top,
         "z_cap_bottom": z_cap_bottom,
         "z_cap_top": z_cap_top,
+        "fillets_base": (base_vertical, base_rim),
+        "fillets_cap": (cap_vertical, cap_rim),
     }
     return geo, dims
 
@@ -392,6 +498,10 @@ def _outward_normal(shape, face, u, v, eps=0.05):
     return n
 
 
+OVERHANG_LIMIT_DEG = 45.0
+NEGLIGIBLE_FACE_MM2 = 5.0
+
+
 def printability(shape, flipped=False, samples=5):
     """Overhangs and unsupported ceilings for one print orientation.
 
@@ -406,10 +516,16 @@ def printability(shape, flipped=False, samples=5):
     slicer would have to bridge or support.
     """
     sign = 1.0 if flipped else -1.0
-    bed_z = shape.BoundBox.ZMax if flipped else shape.BoundBox.ZMin
+    # Shape.BoundBox is only an outer estimate, and after filleting it can be
+    # wildly loose -- it put this base's floor at -142 mm instead of -25.2, so
+    # nothing matched the bed and the bed itself was reported as an unsupported
+    # ceiling. Vertex coordinates are exact.
+    zs = [v.Point.z for v in shape.Vertexes]
+    bed_z = max(zs) if flipped else min(zs)
     worst = 90.0
     worst_at = None
     worst_area = 0.0
+    steep_area = 0.0
     flat_area = 0.0
     for face in shape.Faces:
         u0, u1, v0, v1 = face.ParameterRange
@@ -432,18 +548,27 @@ def printability(shape, flipped=False, samples=5):
                     continue
         if not normals:
             continue
-        box = face.BoundBox
-        on_bed = abs(box.ZMax - bed_z) < 0.01 and abs(box.ZMin - bed_z) < 0.01
-        if on_bed:
+        face_zs = [v.Point.z for v in face.Vertexes]
+        if not face_zs:
             continue
+        z_lo, z_hi = min(face_zs), max(face_zs)
+        if abs(z_hi - bed_z) < 0.01 and abs(z_lo - bed_z) < 0.01:
+            continue  # the bed face itself
+        face_worst = 90.0
         for n in normals:
             if n.z * sign <= 1e-3:
                 continue
-            angle = math.degrees(math.acos(min(1.0, abs(n.z))))
-            if angle < worst:
-                worst = angle
-                worst_at = (round(box.ZMin, 2), round(box.ZMax, 2))
-                worst_area = round(face.Area, 2)
+            face_worst = min(face_worst, math.degrees(math.acos(min(1.0, abs(n.z)))))
+
+        if face_worst < OVERHANG_LIMIT_DEG:
+            steep_area += face.Area
+        # A sliver a millimetre across bridges without anyone noticing, so it
+        # should not set the headline number. It still counts in the area.
+        if face.Area >= NEGLIGIBLE_FACE_MM2 and face_worst < worst:
+            worst = face_worst
+            worst_at = (round(z_lo, 2), round(z_hi, 2))
+            worst_area = round(face.Area, 2)
+
         flat = [n for n in normals if n.z * sign > 0.999]
         if len(flat) == len(normals):
             flat_area += face.Area
@@ -452,6 +577,8 @@ def printability(shape, flipped=False, samples=5):
         "worst_overhang_z_range": worst_at,
         "worst_overhang_face_area_mm2": worst_area,
         "flat_ceiling_area_mm2": round(flat_area, 2),
+        "area_steeper_than_limit_mm2": round(steep_area, 2),
+        "negligible_face_mm2": NEGLIGIBLE_FACE_MM2,
     }
 
 
