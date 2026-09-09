@@ -37,6 +37,7 @@ exports/        generated output; mostly ignored by Git
 
 - Agent instructions: [`AGENTS.md`](AGENTS.md)
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
+- Dome geometry: [`dome/README.md`](dome/README.md)
 
 ## Initial variants
 

@@ -20,14 +20,23 @@ This roadmap is intentionally prototype-first. The project should prove geometry
 
 **Goal:** reproduce the baseline Takekawa-style Star Dome as a parametric model.
 
-- [ ] Implement the base Star Dome topology in OpenSCAD.
-- [ ] Parameterize dome diameter and rod diameter.
-- [ ] Generate the D6 reference variant first.
-- [ ] Identify and name arcs, base points, and crossing points.
-- [ ] Add simple geometry checks and derived dimensions.
-- [ ] Generate D4, D8, and D12 research variants from the same model.
+- [x] Implement the base Star Dome topology in OpenSCAD.
+- [x] Parameterize dome diameter and rod diameter.
+- [x] Generate the D6 reference variant first.
+- [x] Identify and name arcs, base points, and crossing points.
+- [x] Add simple geometry checks and derived dimensions.
+- [x] Generate D4, D8, and D12 research variants from the same model.
 
-**Exit criterion:** all named variants are generated from one source model without hand-editing geometry.
+**Exit criterion:** all named variants are generated from one source model without hand-editing geometry. **Met.** See [`dome/README.md`](../dome/README.md).
+
+The 15 bows resolve into three families of 5: family G at tilt `atan(2)` (the icosidodecahedron's equatorial decagons, marked in fifths) and families U and L at 79.1877 deg and 37.3774 deg (marked in thirds), giving 3 rod ends at each of the 10 base points and 10 tied nodes of 4 rods each. Symmetry group D5.
+
+Two results matter for later milestones:
+
+- **Four rods meet at every tied crossing**, not two. Milestone 3's crossing connector has to handle that, at three distinct crossing angles. Verify against photographs and a physical mock-up before designing the part.
+- **Every bow is bent to a radius equal to the dome radius** (2000 mm for D4 up to 6000 mm for D12), so minimum bend radius is a direct constraint on rod selection, not an afterthought.
+
+Rod diameters in `configs/variants.scad` remain provisional engineering assumptions. Nothing structural has been validated.
 
 ## Milestone 2 — Blender integration and human-scale composition
 
