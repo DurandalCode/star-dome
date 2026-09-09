@@ -266,6 +266,12 @@ def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift,
 
     # Thinner than the rod, and its own colour: a strap is not a stick, and
     # the drawing should not suggest it is.
+    header = skirt.get("header")
+    if header:
+        # Rod, not strap: it spans the doorway and has to hold itself up.
+        segment("Skirt_Header", header["a"], header["b"], rod_radius_m,
+                material, collection, place, lift)
+
     for brace in skirt.get("braces", ()):
         made.append(
             segment(f"Skirt_{brace['name']}", brace["a"], brace["b"],

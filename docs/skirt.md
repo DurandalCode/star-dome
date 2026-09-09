@@ -76,9 +76,20 @@ them out of the rod budget, and they are the largest single item in it:
     skirt rod    38.22 m   against 94 m for the dome itself
     diagonals    32.95 m of strap
 
-**The door bay carries no diagonal**, because a diagonal across a doorway is a
-doorway with a diagonal across it. The rings still close around it and the
-other nine bays hold it square. One open bay is the limit; `verify` says so.
+**The door bay is properly open.** Taking the diagonals out is not enough:
+both rings still ran straight across it, one along the ground to trip on and
+one at the top of the skirt, at head height. Neither is a hole. So that bay
+loses its diagonals *and* both ring chords.
+
+That leaves the top ring an open arc, which carries no hoop tension at all, so
+the force takes a detour over the opening: post head → the U bow rising from
+that base point → **a header between the two U bows** → down the other side.
+On S the header spans 959 mm at 1950 mm above ground, which is 150 mm over an
+1800 mm silhouette and still below the dome's own 2560 mm opening.
+
+That is a portal frame, and it puts bending into the two U bows near their
+feet. Nothing here checks that. One open bay is the limit; `verify` says so,
+and it also fails if a ring segment is left lying across the doorway.
 
 Still not modelled, and still the important part: how the posts meet the
 ground, how the diagonals are anchored and tensioned, and whether the base

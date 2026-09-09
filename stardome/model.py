@@ -133,6 +133,105 @@ def _skirt(variant, base_pts: list, radius: float) -> dict:
     }
 
 
+def _on_bow_at_height(bow, radius: float, foot, z_target: float, steps: int = 4000):
+    """The point on a bow at a given height, on the branch leaving ``foot``.
+
+    A bow crosses any height twice; the one that matters for a door header is
+    the leg that starts at the base point beside the doorway.
+    """
+    t0 = bow.t_of(tuple(foot))
+    direction = 1.0 if t0 < 90.0 else -1.0
+    best = None
+    for i in range(steps + 1):
+        t = t0 + direction * 180.0 * i / steps
+        p = bow.point(t, radius)
+        if p[2] < 0.0:
+            continue
+        if best is None or abs(p[2] - z_target) < abs(best[2] - z_target):
+            best = p
+        if p[2] > z_target + 0.1 * radius:
+            break
+    return best
+
+
+def _open_door_bay(skirt: dict, data: dict, radius: float, head_room: float = 150.0):
+    """Take the ring segments out of the door bay and put a header over it.
+
+    Removing the diagonals is not enough to make a doorway: both rings still
+    run straight across the bay, one along the ground to trip on and one at
+    the top of the skirt, right at head height. Neither is a hole.
+
+    So the bay loses both chords, and the hoop force that the top ring was
+    carrying takes a detour over the opening: post head -> the U bow rising
+    from that base point -> a header between the two U bows -> down the other
+    side. That is a portal frame, and it puts bending into the two U bows near
+    their feet, which is a statics question this model does not answer.
+
+    The header sits a little above whatever silhouette the door is sized for,
+    and never above the dome's own opening, where it would do nothing.
+    """
+    from . import geometry
+
+    door = data.get("doorway")
+    if not door or not skirt["open_bays"]:
+        return
+    bay = skirt["open_bays"][0]
+    count = skirt["bay_count"]
+
+    skirt["top_ring"] = [seg for seg in skirt["top_ring"] if seg["bay"] != bay]
+    skirt["bottom_ring"] = [seg for seg in skirt["bottom_ring"] if seg["bay"] != bay]
+    skirt["top_ring_length"] = _r(sum(seg["length"] for seg in skirt["top_ring"]))
+    skirt["bottom_ring_length"] = _r(
+        sum(seg["length"] for seg in skirt["bottom_ring"])
+    )
+
+    base = {b["name"]: b for b in data["base_nodes"]}
+    feet = [
+        base[skirt["posts"][bay]["base_node"]],
+        base[skirt["posts"][(bay + 1) % count]["base_node"]],
+    ]
+    jambs = []
+    for foot in feet:
+        u = [r for r in foot["rods"] if r.startswith("U")]
+        if len(u) != 1:
+            return
+        jambs.append(u[0])
+
+    # How high the header has to be, measured from the ground, and how high it
+    # is allowed to be before it stops being over the doorway at all.
+    from . import entrance
+
+    template = data["meta"].get("door_template", "")
+    wanted = max(h for h, _ in entrance.TEMPLATES[template]) if template else 1800.0
+    ceiling = door["in_bay"]["clear_height_mm"] + skirt["height"]
+    above_ground = min(wanted + head_room, ceiling)
+    z = above_ground - skirt["height"]  # back into base-ring coordinates
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    ends = [
+        _on_bow_at_height(bows[rod], radius, (f["x"], f["y"], f["z"]), z)
+        for rod, f in zip(jambs, feet)
+    ]
+    if any(e is None for e in ends):
+        return
+
+    skirt["header"] = {
+        "name": "hd",
+        "bay": bay,
+        "rods": jambs,
+        "a": [_r(c) for c in ends[0]],
+        "b": [_r(c) for c in ends[1]],
+        "length": _r(math.dist(ends[0], ends[1])),
+        "height_above_ground": _r(above_ground),
+        "clear_below_mm": _r(above_ground),
+        "note": (
+            "Carries the top ring's hoop force over the doorway: post head, up "
+            "the U bow, across, and down the other side. A portal frame, so it "
+            "bends the two U bows near their feet -- unchecked here."
+        ),
+    }
+
+
 def build(
     variant: Variant,
     weave_mode: str = "flat",
@@ -384,9 +483,11 @@ def build(
             skirt["brace_total_length"] = _r(
                 sum(b["length"] for b in skirt["braces"])
             )
+            _open_door_bay(skirt, out, radius)
             skirt["note"] += (
-                f" Bay {open_bay} is left open for the door and carries no "
-                "diagonal."
+                f" Bay {open_bay} is left open for the door: no diagonal, and "
+                "neither ring runs across it. A header over the opening takes "
+                "the hoop force round."
             )
 
         cut = out["doorway"].get("cut")

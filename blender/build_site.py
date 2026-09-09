@@ -255,6 +255,12 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
         for seg in skirt.get(tag, ()):
             segment(f"Skirt_{seg['name']}", seg["a"], seg["b"], rod_radius_m,
                     material_, collection, place, lift)
+    header = skirt.get("header")
+    if header:
+        # Rod, not strap: it spans the doorway and has to hold itself up.
+        segment("Skirt_Header", header["a"], header["b"], rod_radius_m,
+                material_, collection, place, lift)
+
     for brace in skirt.get("braces", ()):
         segment(f"Skirt_{brace['name']}", brace["a"], brace["b"],
                 rod_radius_m * 0.45, brace_material or material_, collection,

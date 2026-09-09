@@ -241,16 +241,24 @@ def check(data: dict) -> list:
         # every bay is a parallelogram. These check that it is not left that
         # way, since the drawing looks the same either way.
         bays = skirt["bay_count"]
-        want(
-            len(skirt["top_ring"]) == bays and len(skirt["bottom_ring"]) == bays,
-            f"a ring should close with {bays} segments, got "
-            f"{len(skirt['top_ring'])} on top and {len(skirt['bottom_ring'])} below",
-        )
+        open_bays = set(skirt["open_bays"])
+        expected_ring = set(range(bays)) - open_bays
         for tag in ("top_ring", "bottom_ring"):
             visited = {seg["bay"] for seg in skirt[tag]}
             want(
-                visited == set(range(bays)),
-                f"{tag} does not close: it covers bays {sorted(visited)}",
+                visited == expected_ring,
+                f"{tag} covers bays {sorted(visited)}, expected "
+                f"{sorted(expected_ring)} -- every bay but the doorway",
+            )
+        # Removing the diagonals is not enough to make a doorway: a ring
+        # segment across the bay is a bar along the ground and another at head
+        # height. Neither is a hole.
+        for tag in ("top_ring", "bottom_ring"):
+            crossing = [seg for seg in skirt[tag] if seg["bay"] in open_bays]
+            want(
+                not crossing,
+                f"{tag} still runs across the doorway in bay "
+                f"{[seg['bay'] for seg in crossing]}",
             )
         want(
             abs(skirt["top_ring_length"] - skirt["bottom_ring_length"]) < 1e-3,
@@ -258,7 +266,6 @@ def check(data: dict) -> list:
             f"length: {skirt['top_ring_length']} vs {skirt['bottom_ring_length']}",
         )
 
-        open_bays = set(skirt["open_bays"])
         braced = {b["bay"] for b in skirt["braces"]}
         want(
             braced == set(range(bays)) - open_bays,
@@ -288,6 +295,43 @@ def check(data: dict) -> list:
             len(open_bays) <= 1,
             f"{len(open_bays)} bays left open; one doorway is enough to weaken",
         )
+
+        # An open bay leaves the top ring an open arc, which carries no hoop
+        # tension at all. Something has to take that force over the doorway.
+        header = skirt.get("header")
+        if open_bays:
+            want(
+                header is not None,
+                "the doorway bay breaks the top ring and nothing carries the "
+                "hoop force over the opening",
+            )
+        if header is not None:
+            want(
+                header["bay"] in open_bays,
+                f"the header sits over bay {header['bay']}, which is not the "
+                f"doorway {sorted(open_bays)}",
+            )
+            want(
+                len(set(header["rods"])) == 2,
+                f"the header should tie two different bows, got {header['rods']}",
+            )
+            want(
+                abs(header["a"][2] - header["b"][2]) < 1.0,
+                "the header is not level: "
+                f"{header['a'][2]:.1f} against {header['b'][2]:.1f}",
+            )
+            want(
+                header["height_above_ground"] > skirt["height"],
+                "the header is inside the skirt rather than over the doorway",
+            )
+            door = data.get("doorway")
+            if door is not None:
+                want(
+                    header["height_above_ground"]
+                    <= door["in_bay"]["clear_height_mm"] + skirt["height"] + 1.0,
+                    "the header is above the dome's own opening, where it "
+                    "carries nothing over anything",
+                )
 
     # --- crossing classes ----------------------------------------------------
     want(
