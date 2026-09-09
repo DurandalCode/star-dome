@@ -75,6 +75,13 @@ def parse_args(argv):
              "from the viewport instead of by clicking through the outliner",
     )
     p.add_argument(
+        "--shots",
+        default=None,
+        metavar="DIR",
+        help="render a set of named views into this directory, first-person "
+             "ones included, instead of the single default frame",
+    )
+    p.add_argument(
         "--hide-cuts",
         action="store_true",
         help="leave the removed pieces out entirely instead of ghosting them",
@@ -496,6 +503,100 @@ def add_camera_and_light(scene, radius_m, height_m, facing_deg=None):
     return cam, sun
 
 
+# Eye height for the first-person views. Not the figure's 1.8 m: eyes sit
+# below the top of a head.
+EYE_HEIGHT = 1.70
+
+
+def _aim(cam, at):
+    direction = Vector(at) - cam.location
+    cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def shot_cameras(scene, radius_m, height_m, facing_deg):
+    """The views worth having, as named cameras.
+
+    A three-quarter view answers "what shape is it". The questions an event
+    actually asks are answered from eye level: can I see out, does the door
+    frame anything, how low is the edge where the useful floor stops. So most
+    of these stand a person up inside and look around.
+    """
+    a = math.radians(facing_deg if facing_deg is not None else 0.0)
+    out = (math.cos(a), math.sin(a))          # towards the door, from centre
+    across = (-math.sin(a), math.cos(a))
+    centre = (0.0, 0.0, EYE_HEIGHT)
+    door = (out[0] * radius_m, out[1] * radius_m, EYE_HEIGHT)
+
+    views = {
+        # Outside, three-quarter, the whole thing.
+        "outside": dict(
+            loc=(out[0] * radius_m * 2.6 - across[0] * radius_m * 1.4,
+                 out[1] * radius_m * 2.6 - across[1] * radius_m * 1.4,
+                 height_m * 0.9),
+            at=(0.0, 0.0, height_m * 0.45),
+            lens=35.0,
+        ),
+        # Standing outside the door, about to walk in.
+        "approach": dict(
+            loc=(out[0] * (radius_m + 4.0), out[1] * (radius_m + 4.0), EYE_HEIGHT),
+            at=(out[0] * radius_m * 0.2, out[1] * radius_m * 0.2, EYE_HEIGHT),
+            lens=28.0,
+        ),
+        # Standing in the middle, looking back out of the door.
+        "inside": dict(loc=centre, at=door, lens=16.0),
+        # Standing in the middle, looking at the far wall -- where the ceiling
+        # comes down is the real limit on a dome, and it only reads from here.
+        "inside_back": dict(
+            loc=centre,
+            # Level, not down: the question is where the ceiling crosses eye
+            # height, and aiming at the floor answers a different one.
+            at=(-out[0] * radius_m, -out[1] * radius_m, EYE_HEIGHT),
+            lens=18.0,
+        ),
+        # Straight up at the crown.
+        # Straight up needs a very short lens or it shows one pentagon.
+        "up": dict(loc=centre, at=(0.0, 0.0, height_m), lens=11.0),
+        # In the doorway itself, looking in.
+        "doorway": dict(
+            loc=(out[0] * (radius_m - 0.2), out[1] * (radius_m - 0.2), EYE_HEIGHT),
+            at=(-out[0] * radius_m, -out[1] * radius_m, EYE_HEIGHT * 0.7),
+            lens=16.0,
+        ),
+    }
+
+    made = {}
+    for name, spec in views.items():
+        data = bpy.data.cameras.new(f"Cam_{name}")
+        data.lens = spec["lens"]
+        cam = bpy.data.objects.new(f"Cam_{name}", data)
+        scene.collection.objects.link(cam)
+        cam.location = spec["loc"]
+        _aim(cam, spec["at"])
+        made[name] = cam
+
+    # Two orthographic drawings, which are not photographs and read better for
+    # dimensions than any perspective view.
+    for name, loc, at, up_axis in (
+        ("plan", (0.0, 0.0, height_m * 4.0), (0.0, 0.0, 0.0), "Y"),
+        (
+            "elevation",
+            (out[0] * radius_m * 8.0, out[1] * radius_m * 8.0, height_m * 0.5),
+            (0.0, 0.0, height_m * 0.5),
+            "Y",
+        ),
+    ):
+        data = bpy.data.cameras.new(f"Cam_{name}")
+        data.type = "ORTHO"
+        data.ortho_scale = radius_m * 2.6
+        cam = bpy.data.objects.new(f"Cam_{name}", data)
+        scene.collection.objects.link(cam)
+        cam.location = loc
+        _aim(cam, at)
+        made[name] = cam
+
+    return made
+
+
 def build(args):
     with open(args.model) as fh:
         data = json.load(fh)
@@ -648,7 +749,9 @@ def build(args):
     if not args.no_human:
         add_humans(radius_m, site_coll, facing)
 
-    add_camera_and_light(scene, radius_m, height_m, facing)
+    default_cam, _ = add_camera_and_light(scene, radius_m, height_m, facing)
+    data["_shot_cameras"] = shot_cameras(scene, radius_m, height_m, facing)
+    data["_default_camera"] = default_cam
 
     # The unlashed markers are noise for most work; keep them out of the way
     # but present, so toggling them on needs no rebuild.
@@ -701,6 +804,17 @@ def main():
     if args.render:
         path = render(bpy.context.scene, args.render)
         print(f"[star-dome] rendered {path}")
+
+    if args.shots:
+        scene = bpy.context.scene
+        stem = meta["variant"].lower()
+        os.makedirs(os.path.abspath(args.shots), exist_ok=True)
+        for name, cam in data["_shot_cameras"].items():
+            scene.camera = cam
+            out = os.path.join(args.shots, f"{stem}_{name}.png")
+            render(scene, out)
+            print(f"[star-dome] shot {name} -> {out}")
+        scene.camera = data["_default_camera"]
 
 
 if __name__ == "__main__":
