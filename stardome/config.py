@@ -67,7 +67,7 @@ class Variant:
         return self.radius
 
 
-CUT_LEVELS = ("none", "jambs", "head")
+CUT_LEVELS = ("none", "jambs", "head", "portal")
 
 
 def _cut_level(value) -> str:

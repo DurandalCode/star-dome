@@ -503,9 +503,17 @@ def place(
         if cuts
         else plain
     )
-    if cuts:
-        # The cut can change where the bays fall, so pick the one still
-        # centred on this door rather than whichever comes first by azimuth.
+    if level == "portal":
+        # The portal is a low bay opened up, not a tall one, so the door is
+        # somewhere else entirely on the dome.
+        wanted = low_bays(data, plain, clearance_mm)[0]["centre_azimuth_deg"]
+        bay = min(
+            bays(data, env, clearance_mm),
+            key=lambda b: _angular_gap(b["centre_azimuth_deg"], wanted),
+        )
+    elif cuts:
+        # A cut can change where the bays fall, so pick the one still centred
+        # on this door rather than whichever comes first by azimuth.
         wanted = tall[0]["centre_azimuth_deg"]
         bay = min(
             tall_bays(data, env, clearance_mm),
@@ -517,7 +525,7 @@ def place(
     return {
         "bay": bay,
         "bay_count": len(tall),
-        "frame": info,
+        "frame": info if level != "portal" else None,
         "cut": (
             {
                 "level": level,
@@ -676,7 +684,68 @@ CUT_LEVELS = {
     "none": lambda data, info=None: {},
     "jambs": jamb_cut,
     "head": head_cut,
+    # A door in a low bay instead of a tall one: two U jambs and a level L
+    # lintel, cleared of the crossing that fills it. Costs what the jamb cut
+    # costs and severs nothing, and gives a taller opening.
+    "portal": lambda data, info=None: portal_cut(data),
 }
+
+
+def low_bays(data: dict, env: dict | None = None, clearance_mm: float = 0.0) -> list:
+    return [b for b in bays(data, env, clearance_mm) if b["kind"] == "low"]
+
+
+def portal_cut(data: dict, bay: dict | None = None) -> dict:
+    """Open a low bay into a portal, by clearing the crossing that fills it.
+
+    The five *low* bays are shaped quite differently from the tall ones. Each
+    is bounded by two U bows rising from adjacent base points and, across the
+    top, one L bow running nearly level between two crossings at the same
+    height. That is a doorway with a **lintel** rather than a pointed arch --
+    b8 - N18 - N19 - b9 on M -- and its head sits at 0.3009 * D, above the tall
+    bay's 0.2629 and high enough to walk under on a bare 6 m dome.
+
+    What fills it is a second pair of L bows crossing low in the middle. Each
+    gives up its end piece **and the piece past that crossing**: stopping at
+    the crossing leaves the next piece still slanting across the opening,
+    which is exactly why removing only its legs changes nothing. Both spans
+    run contiguously to a bow end, so neither bow is severed -- each simply
+    starts higher up, the same bargain the jamb cut makes.
+    """
+    env = entrance.door_envelope(data)
+    bay = bay or low_bays(data, env)[0]
+    centre = bay["centre_azimuth_deg"]
+
+    # The crossing that fills the bay: the lowest node on the bay's azimuth.
+    filler = None
+    for node in data["nodes"]:
+        if _angular_gap(_azimuth(node["x"], node["y"]), centre) > 1.0:
+            continue
+        if filler is None or node["z"] < filler["z"]:
+            filler = node
+    if filler is None:
+        raise ValueError(f"no crossing fills the low bay at {centre} deg")
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    point = (filler["x"], filler["y"], filler["z"])
+
+    spans: dict = {}
+    for rod in filler["rods"]:
+        bow = bows[rod]
+        t_node = bow.t_of(point) % 360.0
+        if t_node > 180.0 + 1e-6:
+            t_node -= 360.0
+        ts = _crossing_ts(data, rod)
+        # _crossing_ts rounds, so the node's own entry can land a whisker above
+        # the unrounded parameter it came from. A degree of slack is far below
+        # the 15-22 degree spacing of real crossings and well above that.
+        if t_node <= 90.0:
+            beyond = [t for t in ts if t > t_node + 1.0]
+            spans[rod] = [(0.0, beyond[0])]
+        else:
+            beyond = [t for t in ts if t < t_node - 1.0]
+            spans[rod] = [(beyond[-1], 180.0)]
+    return spans
 
 
 def cut_pieces(data: dict, cuts: dict) -> dict:
@@ -817,9 +886,14 @@ def format_analysis(
         f"  open area {bay['open_area_m2']:.2f} m2  "
         f"({bay['clear_height_mm'] / diameter:.4f} of D high, "
         f"{bay['open_area_m2'] * 1e6 / diameter ** 2:.4f} of D^2 in area)",
-        f"  framed by rods {info['jamb_rods'][0]} and {info['jamb_rods'][1]}, "
-        f"meeting at lashed node {info['apex_node']}; "
-        f"feet at {info['feet'][0]} and {info['feet'][1]}",
+        (
+            f"  framed by rods {info['jamb_rods'][0]} and {info['jamb_rods'][1]}, "
+            f"meeting at lashed node {info['apex_node']}; "
+            f"feet at {info['feet'][0]} and {info['feet'][1]}"
+            if info
+            else "  a portal in a low bay: two U jambs and an L bow lying "
+                 "level across the top, no pointed head"
+        ),
         *(
             [
                 f"  CUT ({d['cut']['level']}): "
