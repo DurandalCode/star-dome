@@ -107,15 +107,20 @@ construction describes; the 5 lower nodes are the surrounding pentagon.
 ## Files
 
 ```
-dome/star_dome.scad            parameters, rendering, visual aids, console report
-dome/star_dome_geometry.scad   topology, families, nodes, derived dimensions
+dome/star_dome.scad            parameters, rendering, visual aids, reports, data export
+dome/star_dome_geometry.scad   topology, families, nodes, analysis, derived dimensions
 dome/lib/great_circles.scad    great-circle ("bow") maths on a sphere
 dome/lib/vectors.scad          generic 3D vector helpers
+dome/lib/sorting.scad          deterministic sort, so generated IDs stay stable
+dome/lib/formatting.scad       exact fixed-point number formatting for export
 dome/variants/star_dome_*.scad one-line wrappers per named variant
 configs/variants.scad          the named D4 / D6 / D8 / D12 presets
+tools/export_geometry.py       turns the model's DATA| lines into JSON + CSV
 ```
 
 `configs/variants.scad` is the only file containing a variant-specific number.
+`tools/export_geometry.py` contains no geometry at all — see "Engineering
+geometry report" below.
 
 ## Usage
 
@@ -158,8 +163,14 @@ $OSC -o /tmp/preview.png --imgsize=800,600 dome/star_dome.scad
 | `showAxes` | `false` | XYZ axes at the origin |
 | `weaveMode` | `"layered"` | `"layered"` or `"flat"` — see below |
 | `weaveGap` | `1.0` | shell spacing, as a multiple of rod diameter |
-| `reportSummary` | `true` | echo dimensions, rod schedule, node table |
+| `debugCrossings` | `false` | marker + node-ID label at every crossing point |
+| `debugCrossingType` | `-1` | `-1` = all classes; `0`…`11` isolates one and fades the rods not involved |
+| `debugMarkerScale` | `2.6` | debug marker size, as a multiple of rod diameter |
+| `renderModel` | `true` | draw the dome; off for report/export only |
+| `reportSummary` | `true` | echo dimensions, rod schedule, node table, crossing classes |
 | `reportAllCrossings` | `false` | also echo all 90 rod-to-rod crossings |
+| `emitGeometryData` | `false` | echo the machine-readable `DATA\|` lines |
+| `dataDecimals` | `6` | decimals used in the data export |
 
 ### Weave modes
 
@@ -193,6 +204,139 @@ With `reportSummary = true` the model echoes:
 - the untied crossings (all 90 pairs with `reportAllCrossings = true`);
 - topology and symmetry checks.
 
+## Engineering geometry report
+
+### Why it is split across two files
+
+OpenSCAD cannot write files — it can only print. So the model emits tagged
+`DATA|` lines and `tools/export_geometry.py` turns them into JSON and CSV.
+
+The exporter contains **no geometry**. It does not know what a bow is, how many
+crossings there should be, or what any angle is; it parses whatever the model
+prints and cross-checks the row counts against the model's own totals. That
+keeps OpenSCAD the single source of truth, as `AGENTS.md` requires, and means
+the export cannot drift away from the rendered dome.
+
+One consequence worth knowing: OpenSCAD prints every number at 6 significant
+digits and offers no way to ask for more, which would silently round a crossing
+coordinate to about 0.01 mm on a 6 m dome. `dome/lib/formatting.scad` works
+around that by never handing a long number to `str()` — it splits values into
+short chunks and reassembles them as text, so the export is exact to the
+requested decimals.
+
+### Running it
+
+```bash
+tools/export_geometry.py                 # D6, the reference variant
+tools/export_geometry.py --variant D8
+tools/export_geometry.py --all           # every variant in configs/
+tools/export_geometry.py --weave layered # report the drawn radial gaps too
+```
+
+Output lands in `exports/geometry/`:
+
+```
+star_dome_<variant>.json                 everything, nested
+star_dome_<variant>_crossings.csv        the 90 rod-to-rod crossings
+star_dome_<variant>_crossing_types.csv   the 12 symmetry classes
+star_dome_<variant>_nodes.csv            the 40 distinct crossing points
+star_dome_<variant>_base_nodes.csv       the 10 ground points
+star_dome_<variant>_rods.csv             the rod schedule
+```
+
+`exports/` is git-ignored as generated output, per `AGENTS.md`. Regenerate it
+with one command rather than committing it.
+
+### What a crossing record contains
+
+Per rod pair: stable node ID, both rod IDs and families, XYZ of the crossing,
+arc position along each rod in both degrees and millimetres, the unit tangent
+of each rod at the crossing, the acute angle between those tangents, each rod's
+inclination above horizontal, which rod passes above which, the radial gap
+between them, whether the junction is lashed, and its symmetry class.
+
+Conventions, stated because they are choices rather than facts:
+
+- **Coordinates** are nominal centrelines on the sphere, identical to
+  `weaveMode = "flat"`. That is the only configuration in which two rods
+  genuinely intersect at a point. Under the layered weave they pass at a small
+  radial gap instead, reported per pair as `radial_gap` rather than folded into
+  the coordinates.
+- **Inclination** is the unsigned angle of the rod tangent above horizontal,
+  0…90°. Unsigned because a rod has no inherent direction: which way you walk
+  along it must not change the answer.
+- **Above** means the rod on the outer weave shell. This comes from the weave
+  layering, which is a drawing convention — not a validated build decision.
+
+### Two different crossing counts
+
+Both are correct and both matter:
+
+- **40 distinct crossing points** — 10 where four rods pass through one point,
+  30 where two do.
+- **90 rod-to-rod pairs** — `10 × C(4,2) + 30 × 1`. The tables are per pair,
+  because a connector clamps a pair of rods.
+
+## Crossing taxonomy (D6, and identical in shape for every variant)
+
+**12 symmetry-distinct crossing geometries**, six of size 5 and six of size 10,
+totalling the 90 pairs. Heights scale with the dome; angles do not.
+
+| type | rods | count | lashed | height (D6) | angle | inclination a / b |
+|------|------|-------|--------|-------------|-------|-------------------|
+| T00 | U–U | 5  | no  | 2919.75 mm | 70.5288° | 7.62° / 7.62° |
+| T01 | G–U | 10 | yes | 2551.95 mm | 37.3774° | 16.05° / 29.41° |
+| T02 | U–U | 5  | yes | 2551.95 mm | 41.8103° | 29.41° / 29.41° |
+| T03 | G–G | 5  | yes | 2551.95 mm | 63.4349° | 16.05° / 16.05° |
+| T04 | G–U | 10 | yes | 2551.95 mm | 79.1877° | 16.05° / 29.41° |
+| T05 | L–U | 10 | no  | 1804.50 mm | 70.5288° | 50.94° / 4.70° |
+| T06 | G–L | 10 | yes | 1577.19 mm | 37.3774° | 46.35° / 17.67° |
+| T07 | L–L | 5  | yes | 1577.19 mm | 41.8103° | 17.67° / 17.67° |
+| T08 | G–G | 5  | yes | 1577.19 mm | 63.4349° | 46.35° / 46.35° |
+| T09 | G–L | 10 | yes | 1577.19 mm | 79.1877° | 46.35° / 17.67° |
+| T10 | L–U | 10 | no  | 1115.24 mm | 70.5288° | 65.39° / 28.68° |
+| T11 | L–L | 5  | no  | 689.26 mm  | 70.5288° | 34.19° / 34.19° |
+
+**Five distinct crossing angles: 37.3774°, 41.8103°, 63.4349°, 70.5288°,
+79.1877°.** They are not all equal, and no connector that assumes a single
+angle will fit this dome.
+
+Two patterns fall out of the table:
+
+- Every **lashed** crossing is at 37.3774°, 41.8103°, 63.4349° or 79.1877°.
+- Every **unlashed** crossing is at 70.5288° = `acos(1/3)`, the tetrahedral
+  angle, without exception.
+
+### How the classes were verified
+
+The model groups crossings by an invariant signature: the families involved,
+each rod's folded arc position, the height, the angle and the lashed flag —
+every one of which the D5 symmetry group preserves.
+
+That grouping was then checked against the group action itself: all 10 elements
+of D5 (five rotations, five mirrors) were applied to all 90 crossings and the
+orbits computed directly. The orbit partition and the signature partition are
+identical — the signature neither over-splits nor under-splits. Orbit sizes are
+5 and 10, both of which divide the group order, as they must.
+
+## Debug render mode
+
+```bash
+# every crossing point marked and labelled with its node ID
+openscad -D debugCrossings=true dome/star_dome.scad
+
+# isolate one symmetry class; rods not involved fade to 12% opacity
+openscad -D debugCrossings=true -D debugCrossingType=4 dome/star_dome.scad
+```
+
+Lashed nodes get a larger amber marker, unlashed ones a smaller grey marker.
+Markers sit on the nominal sphere, so under the layered weave a marker sits
+between the two rods rather than on either — that offset is the reported
+`radial_gap`.
+
+A class of 10 crossings may show fewer than 10 markers: at the four-rod nodes,
+two pairs of the same class share one point.
+
 ## Validation (D6, OpenSCAD 2021.01)
 
 Rendered and checked. All of the following are computed by the model itself and
@@ -215,6 +359,13 @@ echoed to the console:
 | bow lengths (`weaveMode="flat"`) | all 15 identical at `π·R` |
 | G tie marks | exactly 1/5, 2/5, 3/5, 4/5 of rod length |
 | U and L tie marks | exactly 1/3, 2/3 of rod length |
+| distinct crossing points | 40 (10 four-rod, 30 two-rod) |
+| rod-to-rod crossing pairs | 90 |
+| symmetry-distinct crossing geometries | 12 (6 orbits of 5, 6 of 10) |
+| signature classes vs. true D5 orbits | identical partition |
+| distinct crossing angles | 5 |
+| rod length classes (nominal) | 1 |
+| export row counts vs. model totals | agree for all four variants |
 
 Crossing angles are constant across all 10 nodes, which is further evidence the
 symmetry is exact: G/G 63.4349°, G/U and G/L 37.3774° and 79.1877°,
@@ -275,6 +426,15 @@ places to challenge first if the model ever disagrees with a physical build.
    variant: 2000 mm for D4 up to 6000 mm for D12.
 
 9. **The weave is a drawing convention, not a build instruction.** `"layered"`
-   picks an arbitrary but consistent over/under order so crossings are legible.
-   Which rod actually passes outside at each crossing is a build decision that
-   has not been made.
+   picks an arbitrary but consistent over/under order so crossings are legible:
+   rods are stacked by family, G innermost, then U, then L, and by index within
+   a family. The `rod_above` / `rod_below` columns in the export report exactly
+   that ordering. It is internally consistent and it is what the renders show,
+   but it is not a validated build decision, and it is not symmetric — two
+   crossings in the same symmetry class can have opposite over/under. Deciding
+   the real weave order is prototype work.
+
+10. **The 30 unlashed crossings.** The reference's mark counts say these rods
+    touch but are not tied. They all sit at the same 70.5288° angle. Whether a
+    real build wants a clamp, a spacer or nothing at all there is open, and it
+    matters: they are a third of all rod-to-rod contacts.

@@ -379,3 +379,173 @@ function sd_mirror_is_symmetry(az_plane) =
 function sd_foot_heights(radius) =
     [for (bw = sd_bows())
         each [sd_bow_point(bw, 0, radius).z, sd_bow_point(bw, 180, radius).z]];
+
+// ===========================================================================
+// ENGINEERING ANALYSIS LAYER
+// ===========================================================================
+//
+// Everything below is measurement, not design: it derives node IDs, crossing
+// angles, inclinations and symmetry classes from the geometry generated above.
+// Nothing here introduces a new constant.
+//
+// A note on what a "crossing" is. Two bows always meet at a single point of the
+// nominal sphere, but at 10 of those points FOUR bows pass through the same
+// point, not two. So there are two different counts and both matter:
+//
+//   40 distinct crossing POINTS   (10 with 4 rods, 30 with 2 rods)
+//   90 rod-to-rod PAIRS           (10 * C(4,2) + 30 * 1)
+//
+// The tables below are per-pair, because a connector clamps a pair of rods,
+// and each pair carries the ID of the point it sits at.
+//
+// Coordinates are the nominal centreline positions, i.e. weaveMode "flat".
+// That is the only configuration in which the two rods genuinely intersect.
+// With the layered weave the rods pass at a small radial gap instead, which is
+// reported per pair as `radial_gap` rather than folded into the coordinates.
+// ---------------------------------------------------------------------------
+
+include <lib/sorting.scad>
+
+// Record layout for an enriched crossing.
+SDX_A = 0; SDX_B = 1; SDX_POINT = 2; SDX_TA = 3; SDX_TB = 4; SDX_ANGLE = 5;
+SDX_TANA = 6; SDX_TANB = 7; SDX_INCA = 8; SDX_INCB = 9; SDX_TIED = 10;
+SDX_OUTER = 11; SDX_INNER = 12; SDX_GAP = 13; SDX_SIG = 14;
+
+// Inclination of a direction relative to the horizontal plane, 0..90 deg.
+// Taken as an unsigned angle because a rod's tangent has no inherent
+// direction: which way you walk along the rod must not change the answer.
+function sd_inclination(t) = asin(min(1, abs(t.z)));
+
+// Folded arc position, so that a rod and its mirror image give the same
+// number. The D5 mirrors reverse a bow, sending t to 180 - t.
+function sd_fold_t(t) = min(t, 180 - t);
+
+// Symmetry signature of a crossing. Two crossings get the same signature
+// exactly when they are in the same D5 orbit; this was checked against the
+// group action itself (all 10 elements applied to all 90 pairs), which
+// produced the same 12 classes -- 6 of size 5 and 6 of size 10.
+//
+// Every entry is a D5 invariant: the group preserves height, the acute angle
+// between two rods, whether a crossing is a lashed junction, the families
+// involved, and each rod's folded arc position.
+function sd_crossing_signature(bow_a, bow_b, p, t_a, t_b, angle, tied, dp = 6) =
+    let (
+        fams = bow_a[SD_FAMILY] <= bow_b[SD_FAMILY]
+                 ? [bow_a[SD_FAMILY], bow_b[SD_FAMILY]]
+                 : [bow_b[SD_FAMILY], bow_a[SD_FAMILY]],
+        fa = quantize(sd_fold_t(t_a), dp),
+        fb = quantize(sd_fold_t(t_b), dp),
+        ts = fa <= fb ? [fa, fb] : [fb, fa]
+    )
+    [fams[0], fams[1], ts[0], ts[1], quantize(p.z, dp), quantize(angle, dp), tied];
+
+// All 90 rod-to-rod crossings, enriched. `rod_diameter`, `weave_mode` and
+// `weave_gap` only affect the reported radial gap, never the coordinates.
+function sd_crossings_full(radius, rod_diameter = 0, weave_mode = "flat", weave_gap = 1.0) = [
+    for (c = sd_crossing_pairs(radius))
+        let (
+            ba = sd_bows()[c[0]], bb = sd_bows()[c[1]],
+            ta = c[3], tb = c[4],
+            tan_a = gc_bow_tangent(ba[SD_AZ], ba[SD_TILT], ta),
+            tan_b = gc_bow_tangent(bb[SD_AZ], bb[SD_TILT], tb),
+            tied  = sd_is_tied(c),
+            oa = sd_layer_offset(ba, rod_diameter, weave_mode, weave_gap),
+            ob = sd_layer_offset(bb, rod_diameter, weave_mode, weave_gap),
+            // "Above" means radially further out, which is what the weave
+            // layering decides. Higher layer index = outer shell.
+            outer = ba[SD_LAYER] > bb[SD_LAYER] ? c[0] : c[1],
+            inner = ba[SD_LAYER] > bb[SD_LAYER] ? c[1] : c[0]
+        )
+        [ c[0], c[1], c[2], ta, tb, c[5], tan_a, tan_b,
+          sd_inclination(tan_a), sd_inclination(tan_b), tied,
+          outer, inner, abs(oa - ob),
+          sd_crossing_signature(ba, bb, c[2], ta, tb, c[5], tied) ]
+];
+
+// --- distinct crossing points, with stable IDs ------------------------------
+
+function sd_first_point_index(xs, p, i = 0) =
+    i >= len(xs) ? -1
+    : v_dist(xs[i][SDX_POINT], p) < 1e-6 ? i
+    : sd_first_point_index(xs, p, i + 1);
+
+// Ordered top-of-dome first, then by azimuth. The ordering is what makes the
+// IDs stable: it depends on where a node is, not on loop order.
+function sd_node_points(xs) =
+    sorted_values([
+        for (i = [0 : len(xs) - 1])
+            if (sd_first_point_index(xs, xs[i][SDX_POINT]) == i)
+                let (p = xs[i][SDX_POINT])
+                [[-quantize(p.z), quantize(sd_norm_az(atan2(p.y, p.x)))], p]
+    ]);
+
+function sd_node_index(nodes, p, i = 0) =
+    i >= len(nodes) ? -1
+    : v_dist(nodes[i], p) < 1e-6 ? i
+    : sd_node_index(nodes, p, i + 1);
+
+function sd_node_name(i) = str("N", i < 10 ? "0" : "", i);
+
+// How many rods pass through a node.
+function sd_node_rod_count(xs, p) =
+    len(sd_bows_through(p));
+
+// --- symmetry classes, with stable IDs --------------------------------------
+
+function sd_first_sig_index(xs, s, i = 0) =
+    i >= len(xs) ? -1
+    : xs[i][SDX_SIG] == s ? i
+    : sd_first_sig_index(xs, s, i + 1);
+
+// Ordered by height then angle, so type IDs read top-down like the node IDs.
+function sd_crossing_types(xs) =
+    sorted_values([
+        for (i = [0 : len(xs) - 1])
+            if (sd_first_sig_index(xs, xs[i][SDX_SIG]) == i)
+                [[-quantize(xs[i][SDX_POINT].z), quantize(xs[i][SDX_ANGLE])], xs[i][SDX_SIG]]
+    ]);
+
+function sd_type_index(types, s, i = 0) =
+    i >= len(types) ? -1
+    : types[i] == s ? i
+    : sd_type_index(types, s, i + 1);
+
+function sd_type_name(i) = str("T", i < 10 ? "0" : "", i);
+
+function sd_type_members(xs, s) = [for (c = xs) if (c[SDX_SIG] == s) c];
+
+// --- rod lengths ------------------------------------------------------------
+//
+// Nominal length is the design length: every bow is half a great circle, so all
+// 15 are identical. That single length class is the whole point of the design.
+// The as-drawn length differs slightly per rod under the layered weave, because
+// each rod sits on its own shell; that is a drawing artifact, not a cut list.
+
+function sd_rod_nominal_lengths(radius) =
+    [for (bw = sd_bows()) gc_arc_length(radius)];
+
+function sd_rod_drawn_lengths(radius, rod_diameter, weave_mode, weave_gap) =
+    [for (bw = sd_bows())
+        gc_arc_length(radius + sd_layer_offset(bw, rod_diameter, weave_mode, weave_gap))];
+
+// Distinct values in a list of numbers, quantised so that floating-point noise
+// does not invent extra classes.
+function sd_distinct(values, dp = 6) =
+    [for (i = [0 : len(values) - 1])
+        let (q = quantize(values[i], dp))
+        if (len([for (j = [0 : i]) if (quantize(values[j], dp) == q) 1]) == 1) q];
+
+// --- measured extents -------------------------------------------------------
+//
+// Measured off the sampled rod polylines rather than asserted from R, so that
+// the reported numbers describe the geometry actually generated -- weave
+// offsets included.
+
+function sd_all_rod_points(radius, segments, rod_diameter, weave_mode, weave_gap) = [
+    for (bw = sd_bows())
+        each sd_bow_polyline(bw, radius, segments,
+                             sd_layer_offset(bw, rod_diameter, weave_mode, weave_gap))
+];
+
+function sd_measured_max_radius(pts) = max([for (p = pts) sqrt(p.x * p.x + p.y * p.y)]);
+function sd_measured_height(pts)     = max([for (p = pts) p.z]);

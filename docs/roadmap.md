@@ -36,6 +36,12 @@ Two results matter for later milestones:
 - **Four rods meet at every tied crossing**, not two. Milestone 3's crossing connector has to handle that, at three distinct crossing angles. Verify against photographs and a physical mock-up before designing the part.
 - **Every bow is bent to a radius equal to the dome radius** (2000 mm for D4 up to 6000 mm for D12), so minimum bend radius is a direct constraint on rod selection, not an afterthought.
 
+An engineering geometry report is generated from the same model by
+`tools/export_geometry.py` into `exports/geometry/` (JSON + CSV): every rod-to-rod
+crossing with coordinates, tangents, angles, inclinations, over/under and symmetry
+class. The exporter contains no geometry of its own; OpenSCAD stays the single
+source of truth.
+
 Rod diameters in `configs/variants.scad` remain provisional engineering assumptions. Nothing structural has been validated.
 
 ## Milestone 2 — Blender integration and human-scale composition
@@ -63,6 +69,23 @@ Rod diameters in `configs/variants.scad` remain provisional engineering assumpti
 - [x] Make clearance, rod diameter, wall thickness, and fastener dimensions parametric. 8/10/12 mm variants generate from one parameter set.
 - [ ] Print and test repeated assembly/disassembly.
 - [ ] Record failure modes and revise.
+- [ ] Reconcile the clamp with the generated crossing geometry (see below).
+
+**Geometry constraints the connector has to meet.** From the Milestone 1 model,
+regenerate with `tools/export_geometry.py`:
+
+- There are **40 distinct crossing points**, not 20: 10 where **four** rods pass
+  through one point and 30 where two do. Clamp V1 is a two-rod part.
+- There are **90 rod-to-rod contacts** in **12 symmetry-distinct geometries**, at
+  **five distinct crossing angles**: 37.3774, 41.8103, 63.4349, 70.5288 and
+  79.1877 deg. A part that assumes one angle will not fit.
+- The 60 lashed contacts use four of those angles; all 30 unlashed contacts are at
+  70.5288 deg = `acos(1/3)`.
+- Rod inclination at a crossing ranges from 4.7 to 65.4 deg above horizontal, so
+  the clamp cannot assume the rod pair sits in a convenient plane.
+
+The four-rod nodes are a reconstruction, not a quoted fact from the reference;
+verify against photographs or a physical mock-up before committing to a part.
 
 **Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
 

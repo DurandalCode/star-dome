@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 include <star_dome_geometry.scad>
+include <lib/formatting.scad>
 include <../configs/variants.scad>
 
 /* [Variant] */
@@ -81,10 +82,32 @@ weaveMode = "layered";                       // ["layered", "flat"]
 // interpenetration.
 weaveGap = 1.0;
 
+/* [Debug: crossing inspection] */
+
+// Marker + node-ID label at every crossing point.
+debugCrossings = false;
+
+// Restrict the debug display to a single symmetry class of crossing.
+// -1 shows every class; 0..11 shows only that one and fades the rods that
+// take no part in it. Class IDs come from the console report and the export.
+debugCrossingType = -1;
+
+// Marker size, as a multiple of the rod diameter.
+debugMarkerScale = 2.6;
+
 /* [Console report] */
+
+// Draw the dome. Turn off to get the report or the data export on its own.
+renderModel = true;
 
 // Echo the derived dimensions, rod schedule and node table.
 reportSummary = true;
+
+// Echo the machine-readable DATA| lines that tools/export_geometry.py parses.
+emitGeometryData = false;
+
+// Decimals used in the data export.
+dataDecimals = 6;
 
 // Also echo every one of the 90 rod-to-rod crossings. Verbose.
 reportAllCrossings = false;
@@ -104,6 +127,27 @@ COLOR_FOOT    = [1.00, 0.35, 0.00];
 COLOR_LOOSE   = [0.55, 0.55, 0.60];
 
 function sd_family_color(f) = f == "G" ? COLOR_G : f == "U" ? COLOR_U : COLOR_L;
+
+// Computed once here rather than inside the report modules: each of these is
+// an O(n^2) pass over the 90 crossings, and recomputing them per echo line
+// makes the report noticeably slow.
+SD_X     = sd_crossings_full(domeRadius, rodDiameter, weaveMode, weaveGap);
+SD_NODES = sd_node_points(SD_X);
+SD_TYPES = sd_crossing_types(SD_X);
+
+// Crossings belonging to one symmetry class, and the rods that take part.
+function sd_selected_sig() =
+    debugCrossingType >= 0 && debugCrossingType < len(SD_TYPES)
+        ? SD_TYPES[debugCrossingType] : undef;
+
+function sd_debug_crossings() =
+    let (sig = sd_selected_sig())
+    sig == undef ? SD_X : [for (c = SD_X) if (c[SDX_SIG] == sig) c];
+
+function sd_debug_rod_ids() =
+    let (sel = sd_debug_crossings())
+    [for (i = [0 : SD_BOW_COUNT - 1])
+        if (len([for (c = sel) if (c[SDX_A] == i || c[SDX_B] == i) 1]) > 0) i];
 
 function sd_offset(bow) = sd_layer_offset(bow, rodDiameter, weaveMode, weaveGap);
 
@@ -166,12 +210,38 @@ module sd_label(p, s, size) {
 // ===========================================================================
 
 // The 15 continuous structural members.
+// When a single crossing class is selected for inspection, rods that take no
+// part in it are faded rather than hidden, so the selected pair still reads in
+// the context of the whole dome.
 module sd_rods() {
+    active = sd_debug_rod_ids();
+    fade   = debugCrossings && sd_selected_sig() != undef;
     for (bw = sd_bows())
-        color(sd_family_color(bw[SD_FAMILY]))
+        let (
+            c = sd_family_color(bw[SD_FAMILY]),
+            on = !fade || sd_contains(bw[SD_ID], active)
+        )
+        color(on ? c : [c[0], c[1], c[2], 0.12])
             sd_swept_polyline(
                 sd_bow_polyline(bw, domeRadius, rodSegments, sd_offset(bw)),
                 rodDiameter);
+}
+
+// Debug display: a marker at every crossing point, with its node ID beside it.
+// Markers sit on the nominal sphere. Under the layered weave the rods are
+// offset onto their own shells, so a marker sits between them rather than on
+// either one -- that gap is the reported radial_gap.
+module sd_debug_crossing_markers() {
+    sel  = sd_debug_crossings();
+    size = domeRadius / 22;
+    for (c = sel) {
+        p     = c[SDX_POINT];
+        node  = sd_node_index(SD_NODES, p);
+        four  = sd_node_rod_count(SD_X, p) > 2;
+        col   = c[SDX_TIED] ? COLOR_NODE : COLOR_LOOSE;
+        sd_marker(p, rodDiameter * debugMarkerScale * (four ? 1.25 : 1.0), col);
+        sd_label(p * (1 + size / domeRadius * 1.1), sd_node_name(node), size);
+    }
 }
 
 // The 2 optional bows bent into the ground ring. Drawn as a full torus
@@ -244,6 +314,7 @@ module star_dome() {
     if (showUntiedCrossings) sd_untied_crossing_markers();
     if (showAxes)            sd_axes();
     if (showLabels)          sd_labels();
+    if (debugCrossings)      sd_debug_crossing_markers();
 }
 
 // ===========================================================================
@@ -395,10 +466,168 @@ module sd_report() {
     sd_report_base_nodes();
     sd_report_tied_nodes();
     sd_report_untied();
+    sd_report_crossing_types();
     sd_report_checks();
 }
 
 // ===========================================================================
 
-star_dome();
+// ===========================================================================
+// Crossing classification report
+// ===========================================================================
+
+module sd_report_crossing_types() {
+    echo("");
+    echo(str("  --- crossing classes: ", len(SD_TYPES),
+             " symmetry-distinct geometries over ", len(SD_X), " rod pairs ---"));
+    echo("  id    fams  count  tied   height mm    angle deg    inclination a/b deg");
+    for (i = [0 : len(SD_TYPES) - 1]) {
+        sig = SD_TYPES[i];
+        mem = sd_type_members(SD_X, sig);
+        c   = mem[0];
+        echo(str("  ", sd_type_name(i),
+                 "   ", sig[0], sig[1],
+                 "     ", len(mem) < 10 ? " " : "", len(mem),
+                 "    ", c[SDX_TIED] ? "yes " : "no  ",
+                 "  ", num_str(c[SDX_POINT].z, 3),
+                 "    ", num_str(c[SDX_ANGLE], 4),
+                 "      ", num_str(c[SDX_INCA], 3), " / ", num_str(c[SDX_INCB], 3)));
+    }
+    angles = sd_distinct([for (c = SD_X) c[SDX_ANGLE]], 4);
+    echo(str("  distinct crossing angles: ", len(angles), " -> ",
+             join([for (a = angles) num_str(a, 4)], ", "), " deg"));
+    echo("  NOTE: crossing angles are NOT all equal; a connector family must cover the whole set.");
+}
+
+// ===========================================================================
+// Machine-readable export
+//
+// OpenSCAD cannot write files, so the data leaves as tagged DATA| lines and
+// tools/export_geometry.py turns them into JSON and CSV. Keeping the emitter
+// here means the export and the rendered dome cannot drift apart: there is
+// still exactly one implementation of the geometry.
+//
+// Numbers go through num_str() because OpenSCAD's own number printing silently
+// truncates to 6 significant digits -- see lib/formatting.scad.
+// ===========================================================================
+
+module sd_emit_data() {
+    R  = domeRadius;
+    dp = dataDecimals;
+    pts     = sd_all_rod_points(R, rodSegments, rodDiameter, weaveMode, weaveGap);
+    nominal = sd_rod_nominal_lengths(R);
+    drawn   = sd_rod_drawn_lengths(R, rodDiameter, weaveMode, weaveGap);
+    classes = sd_distinct(nominal, dp);
+
+    echo("DATA|begin|star_dome_geometry|1");
+    echo(str("DATA|meta|variant|", variant));
+    echo(str("DATA|meta|variant_note|", sd_variant_note(variant)));
+    echo("DATA|meta|units|mm");
+    echo(str("DATA|meta|dome_diameter|", num_str(domeDiameter, dp)));
+    echo(str("DATA|meta|dome_radius|", num_str(R, dp)));
+    echo(str("DATA|meta|rod_diameter|", num_str(rodDiameter, dp)));
+    echo(str("DATA|meta|weave_mode|", weaveMode));
+    echo(str("DATA|meta|weave_gap|", num_str(weaveGap, dp)));
+    echo(str("DATA|meta|rod_segments|", rodSegments));
+    echo(str("DATA|meta|rod_count|", SD_BOW_COUNT));
+    echo(str("DATA|meta|base_node_count|", SD_BASE_POINTS));
+    echo(str("DATA|meta|crossing_point_count|", len(SD_NODES)));
+    echo(str("DATA|meta|crossing_pair_count|", len(SD_X)));
+    echo(str("DATA|meta|crossing_type_count|", len(SD_TYPES)));
+    echo(str("DATA|meta|rod_length_nominal|", num_str(sd_bow_length(R), dp)));
+    echo(str("DATA|meta|rod_length_class_count|", len(classes)));
+    echo(str("DATA|meta|rod_length_classes|", num_list_str(classes, dp)));
+    echo(str("DATA|meta|total_rod_length|", num_str(sd_total_rod_length(R), dp)));
+    echo(str("DATA|meta|base_ring_length|", num_str(sd_base_ring_length(R), dp)));
+    echo(str("DATA|meta|dome_height_nominal|", num_str(sd_structural_height(R), dp)));
+    echo(str("DATA|meta|dome_height_measured|", num_str(sd_measured_height(pts), dp)));
+    echo(str("DATA|meta|max_diameter_measured|", num_str(2 * sd_measured_max_radius(pts), dp)));
+    echo(str("DATA|meta|max_diameter_incl_rod|",
+             num_str(2 * sd_measured_max_radius(pts) + rodDiameter, dp)));
+    echo(str("DATA|meta|base_edge_arc|", num_str(sd_base_edge_arc(R), dp)));
+    echo(str("DATA|meta|base_edge_chord|", num_str(sd_base_edge_chord(R), dp)));
+    echo("DATA|meta|coordinate_basis|nominal centreline on the sphere (same as weaveMode=flat); weave offsets are reported per crossing as radial_gap");
+    echo("DATA|meta|inclination_convention|unsigned angle of the rod tangent above horizontal, 0..90 deg");
+    echo("DATA|meta|above_convention|the rod on the outer weave shell (higher layer index); a drawing convention, not a build decision");
+
+    echo(str("DATA|rodhead|number|name|family|foot_a|foot_b|azimuth_deg|tilt_deg",
+             "|length_nominal|length_drawn|layer|radial_offset|tie_marks_deg|tie_marks_mm"));
+    for (bw = sd_bows()) {
+        o = sd_offset(bw);
+        echo(str("DATA|rod|", bw[SD_ID] + 1, "|", bw[SD_NAME], "|", bw[SD_FAMILY],
+                 "|", sd_bow_feet(bw)[0], "|", sd_bow_feet(bw)[1],
+                 "|", num_str(bw[SD_AZ], dp), "|", num_str(bw[SD_TILT], dp),
+                 "|", num_str(nominal[bw[SD_ID]], dp),
+                 "|", num_str(drawn[bw[SD_ID]], dp),
+                 "|", bw[SD_LAYER], "|", num_str(o, dp),
+                 "|", num_list_str(bw[SD_TIES], dp),
+                 "|", num_list_str([for (t = bw[SD_TIES]) gc_arc_length(R, 0, t)], dp)));
+    }
+
+    echo("DATA|basenodehead|index|name|x|y|z|rods");
+    for (i = [0 : SD_BASE_POINTS - 1]) {
+        p = sd_base_point(i, R);
+        echo(str("DATA|basenode|", i, "|b", i,
+                 "|", num_str(p.x, dp), "|", num_str(p.y, dp), "|", num_str(p.z, dp),
+                 "|", join([for (bw = sd_rods_at_base(i)) bw[SD_NAME]], ";")));
+    }
+
+    echo("DATA|nodehead|index|name|x|y|z|rod_count|rods");
+    for (i = [0 : len(SD_NODES) - 1]) {
+        p = SD_NODES[i];
+        echo(str("DATA|node|", i, "|", sd_node_name(i),
+                 "|", num_str(p.x, dp), "|", num_str(p.y, dp), "|", num_str(p.z, dp),
+                 "|", len(sd_bows_through(p)),
+                 "|", join([for (b = sd_bows_through(p)) sd_bows()[b][SD_NAME]], ";")));
+    }
+
+    echo(str("DATA|crossinghead|index|node|rod_a|rod_b|family_a|family_b|x|y|z",
+             "|t_a_deg|t_b_deg|s_a_mm|s_b_mm",
+             "|tan_a_x|tan_a_y|tan_a_z|tan_b_x|tan_b_y|tan_b_z",
+             "|angle_deg|incl_a_deg|incl_b_deg|rod_above|rod_below|radial_gap",
+             "|tied|type"));
+    for (i = [0 : len(SD_X) - 1]) {
+        c  = SD_X[i];
+        ba = sd_bows()[c[SDX_A]]; bb = sd_bows()[c[SDX_B]];
+        p  = c[SDX_POINT];
+        ta = c[SDX_TANA];        tb = c[SDX_TANB];
+        echo(str("DATA|crossing|", i,
+                 "|", sd_node_name(sd_node_index(SD_NODES, p)),
+                 "|", ba[SD_NAME], "|", bb[SD_NAME],
+                 "|", ba[SD_FAMILY], "|", bb[SD_FAMILY],
+                 "|", num_str(p.x, dp), "|", num_str(p.y, dp), "|", num_str(p.z, dp),
+                 "|", num_str(c[SDX_TA], dp), "|", num_str(c[SDX_TB], dp),
+                 "|", num_str(gc_arc_length(R, 0, c[SDX_TA]), dp),
+                 "|", num_str(gc_arc_length(R, 0, c[SDX_TB]), dp),
+                 "|", num_str(ta.x, dp), "|", num_str(ta.y, dp), "|", num_str(ta.z, dp),
+                 "|", num_str(tb.x, dp), "|", num_str(tb.y, dp), "|", num_str(tb.z, dp),
+                 "|", num_str(c[SDX_ANGLE], dp),
+                 "|", num_str(c[SDX_INCA], dp), "|", num_str(c[SDX_INCB], dp),
+                 "|", sd_bows()[c[SDX_OUTER]][SD_NAME],
+                 "|", sd_bows()[c[SDX_INNER]][SD_NAME],
+                 "|", num_str(c[SDX_GAP], dp),
+                 "|", c[SDX_TIED] ? 1 : 0,
+                 "|", sd_type_name(sd_type_index(SD_TYPES, c[SDX_SIG]))));
+    }
+
+    echo(str("DATA|typehead|index|name|count|family_a|family_b|z|angle_deg",
+             "|incl_a_deg|incl_b_deg|t_a_deg|t_b_deg|tied|example_rods"));
+    for (i = [0 : len(SD_TYPES) - 1]) {
+        sig = SD_TYPES[i];
+        mem = sd_type_members(SD_X, sig);
+        c   = mem[0];
+        echo(str("DATA|type|", i, "|", sd_type_name(i), "|", len(mem),
+                 "|", sig[0], "|", sig[1],
+                 "|", num_str(c[SDX_POINT].z, dp),
+                 "|", num_str(c[SDX_ANGLE], dp),
+                 "|", num_str(c[SDX_INCA], dp), "|", num_str(c[SDX_INCB], dp),
+                 "|", num_str(c[SDX_TA], dp), "|", num_str(c[SDX_TB], dp),
+                 "|", c[SDX_TIED] ? 1 : 0,
+                 "|", sd_bows()[c[SDX_A]][SD_NAME], ";", sd_bows()[c[SDX_B]][SD_NAME]));
+    }
+    echo("DATA|end|star_dome_geometry|1");
+}
+
+if (renderModel) star_dome();
 if (reportSummary) sd_report();
+if (emitGeometryData) sd_emit_data();
