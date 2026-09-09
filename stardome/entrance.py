@@ -48,12 +48,21 @@ def door_envelope(
     data: dict,
     bins: int = DEFAULT_BINS,
     clearance_mm: float = 0.0,
+    removed: dict | None = None,
 ) -> dict:
     """Free height from the ground, per azimuth bin.
 
     ``clearance_mm`` is kept clear of every rod surface on top of the rod's own
     radius -- knuckles, a cover hem, a door frame.
+
+    ``removed`` maps a bow name to spans of its parameter t that are not there:
+    ``{"G1": [(0.0, 36.0)]}`` measures the dome as if that piece of that bow
+    had been cut out. Every bow is divided by its crossings into pieces, and
+    cutting one out is the obvious way to enlarge a doorway -- so the obvious
+    question is what that buys, and answering it needs an envelope that can be
+    computed with pieces missing.
     """
+    removed = removed or {}
     meta = data["meta"]
     radius = meta["dome_radius"]
     rod_radius = meta["rod_diameter"] / 2.0
@@ -70,8 +79,11 @@ def door_envelope(
     envelope = [ceiling] * bins
 
     for bow in geometry.build_bows():
+        gaps = removed.get(bow.name, ())
         for i in range(SAMPLES_PER_BOW + 1):
             t = 180.0 * i / SAMPLES_PER_BOW
+            if any(lo <= t <= hi for lo, hi in gaps):
+                continue
             x, y, z = bow.point(t, radius)
             if z < 0.0:
                 continue
