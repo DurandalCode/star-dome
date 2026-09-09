@@ -25,13 +25,29 @@ No paid CAD subscription is required by the intended workflow.
 ## Repository layout
 
 ```text
-docs/           design notes, roadmap, geometry, construction, references
-configs/        named dome variants
-dome/           OpenSCAD parametric geometry
+docs/           design notes, roadmap, architecture, references
+configs/        named dome variants (variants.toml is the source of truth)
+stardome/       Python geometry core — source of truth for the dome maths
+tests/          invariants, golden summaries, OpenSCAD parity checks
+dome/           OpenSCAD model: viewer and independent cross-check
 connectors/     FreeCAD-oriented connector design areas
 blender/        integration scripts and scene workflow
-exports/        generated output; mostly ignored by Git
+exports/        generated output; ignored by Git
 ```
+
+## Generating the geometry
+
+```bash
+python3 -m stardome report --all      # derived dimensions per variant
+python3 -m stardome verify --all      # geometric invariants
+python3 -m stardome build --all       # model.json + CSV into exports/geometry
+make venv && make check               # invariants + test suite
+```
+
+`stardome/` has no third-party dependencies; `pytest` is needed only for the
+tests. `exports/<variant>/model.json` (schema `star_dome_geometry/1`) is the
+single interchange format every other tool reads — see
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Project guidance
 

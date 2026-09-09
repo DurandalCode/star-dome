@@ -8,7 +8,7 @@ This repository is a physical-design workspace for temporary Star Dome structure
 2. Prefer a small number of repeated parts over many unique parts.
 3. Keep dome geometry parametric and reproducible.
 4. Treat Blender as the integration / composition environment, not the geometric source of truth.
-5. Treat OpenSCAD as the source of truth for generated dome geometry.
+5. Treat the `stardome/` Python package as the source of truth for dome geometry, and `exports/<variant>/model.json` (schema `star_dome_geometry/1`) as the only interchange format. OpenSCAD, FreeCAD and Blender consume it; none of them recompute geometry. The OpenSCAD model in `dome/` is kept as an independent second implementation and is cross-checked against Python in the test suite.
 6. Treat FreeCAD as the source of truth for manufactured connector geometry.
 7. Work in millimetres for CAD and exported geometry unless a tool requires otherwise.
 8. Keep real-world safety assumptions explicit. Do not claim a structural variant is safe without calculations/tests.
@@ -26,8 +26,15 @@ This repository is a physical-design workspace for temporary Star Dome structure
 
 ## Tool responsibilities
 
+### Python (`stardome/`)
+- Own the dome maths: topology, crossings, nodes, angles, symmetry classes, derived dimensions.
+- Stay dependency-free so it imports inside FreeCAD's and Blender's bundled interpreters.
+- Emit `model.json` (schema `star_dome_geometry/1`) plus flat CSV views.
+- Keep the `dome/README.md` validation claims as executable invariants; `make check` must pass before any geometric result is reported as true.
+- Never hard-code a number that can be derived. A literal rounded to 6 decimals already drifts past a 1 micron tolerance at D12's radius.
+
 ### OpenSCAD
-- Generate dome centerlines and printable/mesh previews of rods.
+- Render the dome for visual inspection; read generated data rather than recomputing it.
 - Keep diameter, rod diameter, reinforcement scheme, and named variants parameterized.
 - Export geometry for Blender integration.
 - Expose stable names/IDs for arcs and crossings where practical so downstream tooling can reason about entrances and interfaces.
