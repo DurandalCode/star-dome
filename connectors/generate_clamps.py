@@ -54,8 +54,11 @@ except NameError:
 CLAMP_SOURCE = os.path.join(REPO, "connectors", "crossing_clamp_v1.py")
 OUT_DIR = os.path.join(REPO, "exports", "connectors")
 
+# exports/model is the Python producer's output. exports/geometry belongs to
+# the OpenSCAD reference export and is read only by the parity tests; see
+# docs/architecture.md, "Where generated files go".
 SCHEDULE_PATH = os.path.join(
-    REPO, "exports", "geometry", "star_dome_%s_connectors.json" % VARIANT.lower()
+    REPO, "exports", "model", "star_dome_%s_connectors.json" % VARIANT.lower()
 )
 
 

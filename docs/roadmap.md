@@ -55,11 +55,11 @@ Rod diameters in `configs/variants.scad` remain provisional engineering assumpti
 - [x] Commit one small golden summary per variant under `tests/golden/`.
 - [x] Cross-check the Python and OpenSCAD producers field for field.
 - [x] Freeze `dome/star_dome.scad` as a reference implementation and run the cross-check in CI on every push.
-- [ ] Add a `blender/` scene builder that reads `model.json`.
-- [ ] Add a FreeCAD clamp generator that reads `crossing_types`.
+- [x] Add a `blender/` scene builder that reads `model.json`.
+- [x] Add a FreeCAD clamp generator that reads `crossing_types`.
 - [ ] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other.
 
-**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Partly met** — the producer, contract, tests and cross-check exist; Blender and FreeCAD are not yet wired up.
+**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Met**, apart from retiring the duplicate `.scad` preset file. OpenSCAD, FreeCAD and Blender all consume the generated model; none of them recompute geometry.
 
 `dome/star_dome.scad` deliberately keeps computing its own geometry: that independence is the whole value of the cross-check. It is frozen rather than converted into a data consumer, so the baseline topology stays under permanent two-implementation verification while all new work goes into `stardome/` alone. See [`docs/architecture.md`](architecture.md), "The reference-implementation policy".
 
@@ -71,9 +71,9 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 
 **Goal:** use real generated structural geometry for spatial planning.
 
-- [ ] Export/import the generated dome geometry into Blender at 1:1 scale.
-- [ ] Keep individual arcs/crossings identifiable where practical.
-- [ ] Add reusable human scale figures.
+- [x] Export/import the generated dome geometry into Blender at 1:1 scale. `blender/build_scene.py`, `make blender`.
+- [x] Keep individual arcs/crossings identifiable where practical. Objects carry their model IDs and are split into per-role collections.
+- [x] Add reusable human scale figures. A 1.75 m figure, placed inside the dome.
 - [ ] Add basic fabric-cover representation.
 - [ ] Build an entrance-clearance inspection workflow.
 - [ ] Build a simple covered-corridor generator / placement workflow.

@@ -1,7 +1,7 @@
 """Command line entry point.
 
     python3 -m stardome build D6
-    python3 -m stardome build --all -o exports/geometry
+    python3 -m stardome build --all -o exports/model
     python3 -m stardome report D6
     python3 -m stardome verify --all
 
@@ -135,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
             help="flat (default) for measurement; layered is a drawing convention",
         )
         if name == "build":
-            p.add_argument("-o", "--out", default="exports/geometry", type=Path)
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
             p.add_argument(
                 "--polylines",
                 action="store_true",
@@ -147,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
-            p.add_argument("-o", "--out", default="exports/geometry", type=Path)
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         p.set_defaults(func=fn)
     return parser
 

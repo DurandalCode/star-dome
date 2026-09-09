@@ -97,6 +97,22 @@ Three rules keep the pipeline honest:
 `inclination_convention`, `above_convention`) so a consumer cannot silently
 misread the numbers.
 
+### Where generated files go
+
+The two producers write to separate directories, and must keep doing so:
+
+| directory | written by | read by |
+|---|---|---|
+| `exports/model/` | `stardome` — the source of truth | FreeCAD, Blender, everything downstream |
+| `exports/geometry/` | `tools/export_geometry.py` — the OpenSCAD reference | the parity tests only |
+| `exports/connectors/` | `connectors/generate_clamps.py` | slicers, the workshop |
+| `exports/blender/` | `blender/build_scene.py` | people |
+
+They shared `exports/geometry/` briefly, and the effect was exactly what you
+would expect: a Blender rebuild overwrote the OpenSCAD reference with Python
+output and the parity tests started comparing the Python model against itself.
+Two producers must never write the same filenames.
+
 ### Divergences from the OpenSCAD exporter
 
 Parity is exact across all four variants for every rod, node, crossing and
@@ -158,10 +174,27 @@ from a clean clone, it is not a result.
 Blender is the assembly and site-layout environment, never the geometric
 source of truth.
 
-The scene is built from `model.json` at 1:1 scale — rods as curves with a
-real-radius bevel, objects named by rod and node ID — so entrances and
-corridors are checked against actual rod positions rather than a generic
-hemisphere.
+The scene is built from `model.json` at 1:1 scale by `blender/build_scene.py`:
+
+```bash
+make blender            # D6 by default
+make blender V=D12
+```
+
+Rods become poly curves bevelled at the real rod radius, coloured by family;
+objects carry their model IDs (`Rod_G1`, `Node_N07`, `Base_b0`) so a
+regenerated variant can be matched against an existing scene. Tied nodes,
+unlashed crossings, base points and site objects each get their own
+collection. The model is in millimetres and the scene is metres, built 1:1, so
+a 1.8 m doorway and the 1.75 m scale figure measure correctly against the
+rods — which is the entire reason to do this in Blender rather than eyeball it.
+
+The scene builder requires a model generated with `--polylines
+--weave-mode layered`. In flat mode all 15 centrelines lie on one sphere and
+every crossing has two rods occupying the same space, which makes a clearance
+check meaningless; the script warns if given one. Rod centreline points come
+from the model rather than being recomputed from azimuth and tilt, so Blender
+stays a pure consumer.
 
 Typical checks:
 

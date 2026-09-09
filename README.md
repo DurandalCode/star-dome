@@ -40,7 +40,7 @@ exports/        generated output; ignored by Git
 ```bash
 python3 -m stardome report --all      # derived dimensions per variant
 python3 -m stardome verify --all      # geometric invariants
-python3 -m stardome build --all       # model.json + CSV into exports/geometry
+python3 -m stardome build --all       # model.json + CSV into exports/model
 make venv && make check               # invariants + test suite
 ```
 
