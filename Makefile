@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes camp shots venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -23,7 +23,6 @@ help:
 	@echo "make doorways   the chosen door: which bay, framed by what"
 	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
 	@echo "make camp       one S, one M and one L round a yard, doors cut open"
-	@echo "make shots      eye-level, plan and elevation views of every size"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
@@ -137,20 +136,6 @@ camp:
 		--camp 4.0 --gap 3.0 --hide-cuts \
 		--out exports/blender/camp.blend \
 		--render exports/blender/camp.png
-
-# The views an event actually asks about, from eye level: can I see out, what
-# does the door frame, where does the ceiling stop being useful. Plus an
-# orthographic plan and elevation, which read better for dimensions than any
-# perspective view does.
-shots:
-	$(PYTHON) -m stardome build S M L XL --polylines --weave-mode layered -o $(OUT)
-	@for v in d4 d6 d8 d10; do \
-		$(BLENDER_RUN) --python blender/build_scene.py -- \
-			--model $(OUT)/star_dome_$$v.json --hide-cuts \
-			--shots exports/shots >/dev/null || exit 1; \
-	done
-	@echo "shots -> exports/shots/"
-	@ls exports/shots
 
 site:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
