@@ -70,6 +70,40 @@ def load_clamp_module():
     return namespace
 
 
+FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v1.py")
+FAN = None
+
+
+def load_fan_module():
+    """Load the four-rod fan generator, likewise without auto-building."""
+    global FAN
+    if FAN is None:
+        namespace = {"SUPPRESS_AUTORUN": True, "__file__": FAN_SOURCE}
+        with open(FAN_SOURCE) as handle:
+            exec(compile(handle.read(), FAN_SOURCE, "exec"), namespace)
+        FAN = namespace
+    return FAN
+
+
+def build_fan(part):
+    """Build the fan node at the fan angles the schedule derived from the model."""
+    fan = load_fan_module()
+    values = {alias: value for (alias, value, _u, _n) in fan["INPUTS"]}
+    values["rodDiameter"] = float(part["rod_diameter"])
+    geo, dims = fan["build"](values, fan_gaps=part["fan_gaps_deg"])
+    return geo, dims, values
+
+
+def export_pair(first, second, part_id, suffix_a, suffix_b):
+    files = []
+    facets = {}
+    for solid, suffix in ((first, suffix_a), (second, suffix_b)):
+        step_path, stl_path, count = export_solid(solid, part_id + suffix)
+        files.extend((step_path, stl_path))
+        facets[suffix.lstrip("_")] = count
+    return files, facets
+
+
 def load_schedule():
     if not os.path.exists(SCHEDULE_PATH):
         raise SystemExit(
@@ -125,6 +159,27 @@ def run():
 
     for part in sched["parts"]:
         generator = part.get("generator")
+
+        if generator == "fan_node_v1":
+            geo, dims, values = build_fan(part)
+            files, facets = export_pair(
+                geo["base"], geo["cap"], part["id"], "_Base", "_Cap"
+            )
+            report["built"].append(
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "generator": generator,
+                    "rod_diameter": part["rod_diameter"],
+                    "count_needed": part["count"],
+                    "fan_gaps_deg": part["fan_gaps_deg"],
+                    "files": [os.path.basename(f) for f in files],
+                    "mesh_facets": facets,
+                    "checks": FAN["verify"](geo, dims, values),
+                }
+            )
+            continue
+
         if generator != "crossing_clamp_v1":
             report["not_covered"].append(
                 {

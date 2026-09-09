@@ -204,10 +204,13 @@ it should be settled on a D4 prototype instead.
 
 ## 6. What is still open
 
-- **The part itself.** The schedule carries the fan as a specified part with
-  `generator: null`. Nothing builds it yet.
-- **Fan part or a stack of two-rod clamps.** See above; the reference does the
-  latter.
+- ~~The part itself.~~ Built: `connectors/fan_node_v1.py`, driven from the
+  model by `connectors/generate_clamps.py`. See
+  [`fan-node-v1.md`](fan-node-v1.md) for the architecture, the numbers, and
+  what is still crude about it.
+- **Fan part or a stack of two-rod clamps.** Still open. The reference does the
+  latter, and it would keep a single part family. V1 of the fan exists so the
+  two can be compared on real numbers rather than argued about.
 - **Near-crossing interference.** The check is axis separation *at* the
   crossing point. Two rods meeting at the fan's shallowest angle, 37.4°, stay
   close for some distance either side of it; whether finite-diameter rods

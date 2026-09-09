@@ -116,7 +116,7 @@ def schedule(data: dict) -> dict:
             "nodes": entry["nodes"],
             "tied": True,
             "crossing_types": entry["crossing_types"],
-            "generator": None,
+            "generator": "fan_node_v1",
             "fan_gaps_deg": group["gaps_deg"],
             "families_in_fan_order": group["families_in_fan_order"],
             "stack_order": fan["stack_order"],
@@ -127,7 +127,7 @@ def schedule(data: dict) -> dict:
                 "All four rods are coplanar -- a great circle's tangent lies in "
                 "the sphere's tangent plane -- so this is a flat four-armed fan "
                 "with the rods stacked along the radius. One part serves every "
-                "one of these nodes. No generator yet; see docs/tied-node.md."
+                "one of these nodes. See docs/tied-node.md."
             ),
         }
     unsupported = {k: v for k, v in unsupported.items() if v["rod_count"] != 4 or fan["distinct_fans"] != 1}

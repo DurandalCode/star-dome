@@ -139,7 +139,8 @@ solve the ones it ties. Closing that is the real content of this milestone.
 - [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
 - [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
 - [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
-- [ ] Design the four-rod fan connector.
+- [x] Design the four-rod fan connector. V1 in `connectors/fan_node_v1.py`, see [`fan-node-v1.md`](fan-node-v1.md). Base saddle under rod 1 with two posts, cap over rod 4, two M5. Geometry verified; not yet filleted, printability not checked, and it is bulky.
+- [ ] Decide between the fan part and a stack of two-rod clamps, on printed samples.
 
 **The four-rod node turned out to be the easy case.** All four rods at a lashed
 node are coplanar — a great circle's tangent lies in the sphere's tangent plane
