@@ -79,6 +79,8 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             head = by_point[(round(brace["b"][0]), round(brace["b"][1]))]
             at_base[head["base_node"]] += 1
 
+    fan = weave.base_fan(data)
+
     grouped: dict = {}
     for name, count in at_base.items():
         grouped.setdefault(count, []).append(name)
@@ -96,6 +98,12 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "generator": None,
                 "state": UNDESIGNED,
                 "anchored_by_stake": on_ground,
+                "coplanar": fan["coplanar"],
+                "fan_gaps_deg": fan["gaps_deg"],
+                "fan_spread_deg": fan["spread_deg"],
+                "families_in_fan_order": [a["family"] for a in fan["arms"]],
+                "rises_deg": [a["rise_deg"] for a in fan["arms"]],
+                "handed": fan["mirror_pairs"],
                 "note": (
                     "Three bow ends"
                     + (
@@ -433,6 +441,20 @@ def format_schedule(sched: dict) -> str:
                 f"      two rods at {p['crossing_angle']:.4f} deg, "
                 f"classes {'/'.join(p['crossing_types'])}"
             )
+        elif p["kind"] == "base_hub":
+            gaps = ", ".join(f"{g:.4f}" for g in p["fan_gaps_deg"])
+            rises = ", ".join(f"{r:.4f}" for r in p["rises_deg"])
+            lines.append(
+                f"      planar fan of 3, gaps {gaps} deg, spread "
+                f"{p['fan_spread_deg']:.4f}; families "
+                f"{'-'.join(p['families_in_fan_order'])}"
+            )
+            lines.append(
+                f"      rods rise {rises} deg above horizontal; "
+                + ("two mirror sets of five, so one part turned over"
+                   if p["handed"] else "one orientation")
+            )
+            lines.append(f"      {p['members']} members;  {p['note']}")
         else:
             lines.append(f"      {p['members']} members;  {p['note']}")
     if not sched["parts"]:

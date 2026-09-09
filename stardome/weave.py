@@ -187,6 +187,87 @@ def analyse(data: dict) -> dict:
     }
 
 
+def base_fan(data: dict) -> dict:
+    """The three bow ends at a base point, which turn out to be a flat fan too.
+
+    A great circle through a point on the sphere's equator has its tangent
+    there in the surface, and the surface at the equator is the vertical plane
+    tangent to the base ring. So all three bows leave a base point in *one
+    plane* -- no radial component at all -- exactly as the four bows at a
+    lashed node are coplanar for the same reason.
+
+    That makes the base joint the same kind of part as the node: a flat fan,
+    three arms instead of four. It even shares two of the node's gap angles.
+
+    The ten base points fall into two mirror-image sets of five, differing
+    only in which side of the plane the G bow leaves on. A planar part turned
+    over serves the other five, so there is still one geometry.
+    """
+    from . import geometry
+
+    radius = data["meta"]["dome_radius"]
+    bows = {b.name: b for b in geometry.build_bows()}
+
+    groups: dict = {}
+    residual = 0.0
+    detail = None
+    for base in data["base_nodes"]:
+        foot = (base["x"], base["y"], base["z"])
+        outward = vec.unit((base["x"], base["y"], 0.0))
+        along = (-outward[1], outward[0], 0.0)
+
+        arms = []
+        for rod in base["rods"]:
+            bow = bows[rod]
+            t = bow.t_of(foot) % 360.0
+            if t > 180.0 + 1e-6:
+                t -= 360.0
+            direction = vec.unit(bow.tangent(t))
+            if direction[2] < 0.0:
+                direction = tuple(-c for c in direction)
+            residual = max(residual, abs(vec.dot(direction, outward)))
+            in_plane = math.degrees(
+                math.atan2(direction[2], vec.dot(direction, along))
+            ) % 360.0
+            arms.append(
+                {
+                    "rod": rod,
+                    "family": rod[0],
+                    "in_plane_deg": round(in_plane, 6),
+                    "rise_deg": round(math.degrees(math.asin(direction[2])), 6),
+                }
+            )
+        arms.sort(key=lambda a: a["in_plane_deg"])
+        gaps = [
+            round(arms[i + 1]["in_plane_deg"] - arms[i]["in_plane_deg"], 6)
+            for i in range(len(arms) - 1)
+        ]
+        key = (tuple(gaps), tuple(a["family"] for a in arms))
+        groups.setdefault(key, []).append(base["name"])
+        if detail is None:
+            detail = {"arms": arms, "gaps_deg": gaps}
+
+    return {
+        "base_points": len(data["base_nodes"]),
+        "coplanarity_residual": residual,
+        "coplanar": residual < 1e-9,
+        "distinct_fans": len(groups),
+        "mirror_pairs": len(groups) == 2
+        and all(len(v) == len(data["base_nodes"]) // 2 for v in groups.values()),
+        "arms": detail["arms"],
+        "gaps_deg": detail["gaps_deg"],
+        "spread_deg": round(
+            detail["arms"][-1]["in_plane_deg"] - detail["arms"][0]["in_plane_deg"], 6
+        ),
+        "groups": {str(k): v for k, v in groups.items()},
+        "note": (
+            "Three bow ends in the vertical plane tangent to the base ring. "
+            "The two gaps are the same numbers the four-rod node's fan uses, "
+            "so the base hub is the node's part with one arm fewer."
+        ),
+    }
+
+
 def rod_levels(data: dict) -> dict:
     """Radial level of each rod at each lashed node, under ``STACK_ORDER``.
 

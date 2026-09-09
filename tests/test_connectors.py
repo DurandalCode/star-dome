@@ -210,3 +210,64 @@ def test_the_portal_cut_leaves_terminations_that_are_not_crossings():
     term = _part(sched, "cut_termination")
     assert term["count"] == 2
     assert term["generator"] is None
+
+
+def test_the_base_point_is_a_flat_fan_like_the_node(sched):
+    """The result that decides what the base hub is.
+
+    A great circle through a point on the sphere's equator has its tangent
+    there in the surface, and the surface at the equator is the vertical plane
+    tangent to the base ring. So all three bows leave a base point in one
+    plane, with no radial component at all -- the same reason the four bows at
+    a lashed node are coplanar.
+
+    That makes the base hub the node's part with one arm fewer, rather than
+    some new kind of thing, and it shares two of the node's gap angles.
+    """
+    from stardome import model, weave
+
+    data = model.build(config.load(sched["meta"]["variant"], skirt_height=0.0))
+    fan = weave.base_fan(data)
+
+    assert fan["coplanar"]
+    assert fan["coplanarity_residual"] < 1e-12
+    assert fan["gaps_deg"] == pytest.approx([41.8103, 37.3774], abs=1e-4)
+    assert fan["spread_deg"] == pytest.approx(79.1877, abs=1e-4)
+
+
+def test_the_base_fan_shares_the_node_fan_s_gaps(sched):
+    """41.8103 and 37.3774 appear in both, which is why one architecture
+    serves both parts."""
+    node = _part(sched, "four_rod_fan")
+    hub = [p for p in sched["parts"] if p["kind"] == "base_hub"][0]
+    assert set(round(g, 4) for g in hub["fan_gaps_deg"]) <= set(
+        round(g, 4) for g in node["fan_gaps_deg"]
+    )
+
+
+def test_the_bows_rise_at_their_own_family_tilts(sched):
+    """Each bow leaves the ground at exactly its family's tilt.
+
+    Not a coincidence: at the equator the tangent's rise *is* the tilt, so the
+    base hub's three arm angles are the three numbers the whole dome is built
+    from.
+    """
+    from stardome import geometry, model, weave
+
+    data = model.build(config.load(sched["meta"]["variant"], skirt_height=0.0))
+    fan = weave.base_fan(data)
+    tilts = geometry.family_tilts()
+    tilts["G"] = geometry.TILT_G
+
+    for arm in fan["arms"]:
+        assert arm["rise_deg"] == pytest.approx(tilts[arm["family"]], abs=1e-4)
+
+
+def test_the_ten_base_points_are_two_mirror_sets_of_five(sched):
+    """So one geometry still serves them all, turned over for the other half."""
+    from stardome import model, weave
+
+    data = model.build(config.load(sched["meta"]["variant"], skirt_height=0.0))
+    fan = weave.base_fan(data)
+    assert fan["distinct_fans"] == 1 or fan["mirror_pairs"]
+    assert fan["base_points"] == 10
