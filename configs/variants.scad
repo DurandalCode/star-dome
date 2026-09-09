@@ -42,8 +42,8 @@ SDV_NAME = 0; SDV_DIAMETER = 1; SDV_ROD_DIAMETER = 2; SDV_NOTE = 3;
 SD_VARIANTS = [
     ["D3",   3000,  8, "small dome on a 1 m skirt; 1473 mm of dome is not standing height on its own"],
     ["D4",   4000,  8, "S -- smallest size with a walk-in door; needs the tallest skirt to get one"],
-    ["D6",   6000, 10, "M -- reference prototype, bare, door cut to the head. You walk in, just"],
-    ["D8",   8000, 10, "L -- large dome, bare, door cut to the head: 2 m of clear width at 1800"],
+    ["D6",   6000, 10, "M -- reference prototype, bare, jambs cut out. You duck in"],
+    ["D8",   8000, 10, "L -- large dome, bare, jambs cut out: you walk in carrying something"],
     ["D10", 10000, 12, "XL -- takes a walk-in door with no skirt at all; expect D8's reinforcement work"],
     ["D12", 12000, 12, "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"]
 ];

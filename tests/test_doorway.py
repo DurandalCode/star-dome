@@ -197,18 +197,20 @@ def test_a_bare_uncut_six_metre_dome_is_a_crawl_in():
     assert lg["doorway"]["admits"] == ["crawl", "stoop"]
 
 
-def test_m_and_l_ship_with_the_door_cut_to_the_head():
-    """Both are bare, so both are cut open, and both gain two steps.
+def test_m_and_l_ship_with_their_jambs_cut_out():
+    """Both are bare, so both have the door's own two pieces removed.
 
-    M goes from crawling to walking, L from ducking to carrying. The price is
-    the same at both sizes and it is not the rod: two bows severed and the
-    head node left with nothing running through it.
+    That is the cut that costs nothing structurally: M goes from crawling to
+    ducking, L from ducking to carrying. Going further is possible and is not
+    what these two ship with -- see the head-level tests.
     """
-    for name, uncut_best, cut_best in (("M", "crawl", "walk"), ("L", "stoop", "carry")):
+    for name, uncut_best, cut_best in (("M", "crawl", "stoop"), ("L", "stoop", "carry")):
         data = model.build(config.load(name))
         door = data["doorway"]
         assert door["cut"] is not None, f"{name} should ship cut"
-        assert door["cut"]["level"] == "head"
+        assert door["cut"]["level"] == "jambs"
+        assert door["cut"]["cost"]["severs_nothing"]
+        assert not door["cut"]["cost"]["nodes_with_nothing_through"]
         assert cut_best in door["admits"], f"{name} should admit {cut_best} once cut"
 
         uncut = model.build(config.load(name, door_cut="none"))
@@ -219,12 +221,14 @@ def test_m_and_l_ship_with_the_door_cut_to_the_head():
 def test_the_head_cut_strands_the_head_node_and_says_so():
     """The cost that is not measured in metres of rod.
 
-    At this level all four bows terminate at the head node, so nothing runs
-    through it and no continuous member holds it. That wants a lintel, and the
-    model has to say it rather than leave it to be noticed.
+    At the head level all four bows terminate at the head node, so nothing
+    runs through it and no continuous member holds it. That wants a lintel,
+    and the model has to say so rather than leave it to be noticed. This is
+    why neither shipped size uses that level.
     """
     for name in ("M", "L"):
-        cost = model.build(config.load(name))["doorway"]["cut"]["cost"]
+        data = model.build(config.load(name, door_cut="head"))
+        cost = data["doorway"]["cut"]["cost"]
         assert not cost["severs_nothing"]
         assert cost["severed_bows"] == ["L1", "L5"]
         assert cost["nodes_with_nothing_through"] == ["N20"]
