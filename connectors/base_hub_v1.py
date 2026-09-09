@@ -123,6 +123,22 @@ def azimuths_from_gaps(gaps):
     return out
 
 
+def widest_arm_gap(azimuths):
+    """The bisector of the widest gap *between two arms*, and its size.
+
+    Not the empty sector -- that is the 281 deg with nothing in it at all.
+    This is the roomiest place among the arms, which is where a slot running
+    right through the hub has to come out.
+    """
+    ordered = sorted(a % 360.0 for a in azimuths)
+    best = None
+    for i in range(len(ordered) - 1):
+        size = ordered[i + 1] - ordered[i]
+        if best is None or size > best[1]:
+            best = ((ordered[i] + ordered[i + 1]) / 2.0, size)
+    return best
+
+
 def empty_sector(azimuths):
     """The one sector with no arm in it, as (start, size) in degrees.
 
@@ -253,7 +269,17 @@ def build(values, fan_gaps=None):
 
     # The empty sector is where everything that is not a rod has to go.
     sector_start, sector_size = empty_sector(azimuths)
-    stake_azimuth = (sector_start + sector_size / 2.0) % 360.0
+
+    # The stake runs right through the hub, so its axis is not the bisector of
+    # the empty sector -- that would come out 2 deg from an arm. It is set by
+    # where it has to *exit*: the middle of the widest gap between two arms.
+    #
+    # A through slot is what makes the part usable in the field. Drive the
+    # angle to whatever depth the ground gives, then drop the hub on: it finds
+    # its own height. A blind slot means controlling the driven depth to the
+    # millimetre, standing in a field, ten times per dome.
+    exit_azimuth, exit_gap = widest_arm_gap(azimuths)
+    stake_axis = (exit_azimuth + 180.0) % 360.0
 
     boss_r = values["fastenerHeadDiameter"] / 2.0 + wall
     slot_half = values["stakeLegWidth"] / 2.0 + values["stakeClearance"]
@@ -263,6 +289,7 @@ def build(values, fan_gaps=None):
     # fan_node_v2 puts them opposite each other, which works for a fan that
     # spans 180; three arms spanning 79 put the opposite direction 2 deg from
     # an arm, so they go side by side instead.
+    stake_azimuth = stake_axis
     bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
     bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
     closest = min(
@@ -289,7 +316,20 @@ def build(values, fan_gaps=None):
     pitch = rod_d + values["rodGap"]
     levels = [(k - 1.0) * pitch for k in range(3)]
 
-    z_bottom = levels[0] - channel_r - tilt_slack - values["baseFloor"]
+    # The angle passes right through, and it cannot go through the middle: its
+    # section is 30 mm deep along the stack axis whatever way it is rolled,
+    # and the three rods with their walls already occupy 38 of the stack's
+    # 43 mm. There is no room, and the check below says so in mm3.
+    #
+    # So it goes UNDER the bundle, through a deepened base plate. In the part's
+    # own frame that is -Z; installed, the stack axis is horizontal and radial,
+    # so the angle still stands vertical in the fan plane and is simply offset
+    # radially from the rods. The offset is a moment, and it is the one the
+    # ground and the angle's own bending are best placed to take.
+    slot_span = values["stakeLegWidth"] + 2.0 * values["stakeClearance"]
+    slot_top = levels[0] - channel_r - tilt_slack - wall
+    slot_bottom = slot_top - slot_span
+    z_bottom = slot_bottom - values["baseFloor"]
     z_top = levels[2] + channel_r + tilt_slack + values["capThickness"]
 
     bolt_points = [
@@ -330,18 +370,20 @@ def build(values, fan_gaps=None):
     # empty sector, so that once the part is stood up it points at the ground.
     # The angle passes right through the hub and on into the earth, so the slot
     # runs the full reach and out the back.
+    through = stake_reach + arm_len + 8.0
+    slot_centre_z = (slot_top + slot_bottom) / 2.0
     slot = angle_profile(
         values["stakeLegWidth"],
         values["stakeThickness"],
-        stake_reach + hub_r + 4.0,
+        2.0 * through,
         stake_azimuth,
         values["stakeClearance"],
     )
     slot.translate(
         App.Vector(
-            -direction(stake_azimuth).x * (hub_r + 2.0),
-            -direction(stake_azimuth).y * (hub_r + 2.0),
-            0.0,
+            -direction(stake_azimuth).x * through,
+            -direction(stake_azimuth).y * through,
+            slot_centre_z,
         )
     )
 
@@ -356,7 +398,7 @@ def build(values, fan_gaps=None):
         App.Vector(
             cross_centre.x - cross_dir.x * ((slot_half + boss_r + wall) + 2.0),
             cross_centre.y - cross_dir.y * ((slot_half + boss_r + wall) + 2.0),
-            0.0,
+            slot_centre_z,
         ),
         cross_dir,
     )
@@ -383,6 +425,8 @@ def build(values, fan_gaps=None):
 
     # The angle itself, drawn: mostly in the ground, and the reason the empty
     # sector exists.
+    # Drawn passing right through and out the far side, which is the point.
+    protrude = arm_len * 0.5
     stake = angle_profile(
         values["stakeLegWidth"],
         values["stakeThickness"],
@@ -391,16 +435,30 @@ def build(values, fan_gaps=None):
     )
     stake.translate(
         App.Vector(
-            -direction(stake_azimuth).x * hub_r,
-            -direction(stake_azimuth).y * hub_r,
-            0.0,
+            -direction(stake_azimuth).x * protrude,
+            -direction(stake_azimuth).y * protrude,
+            slot_centre_z,
         )
     )
+
+    # A keep-out around each rod: the channel plus a wall, over the length the
+    # part actually holds it. Nothing may be cut out of this.
+    keepouts = [
+        Part.makeCylinder(
+            channel_r + wall,
+            arm_len,
+            App.Vector(0.0, 0.0, levels[k]),
+            direction(azimuths[k]),
+        )
+        for k in range(3)
+    ]
 
     geo = {
         "plates": plates,
         "rods": rods,
         "channels": channels,
+        "keepouts": keepouts,
+        "slot": slot,
         "stake": stake,
     }
     dims = {
@@ -418,7 +476,11 @@ def build(values, fan_gaps=None):
         "ref_rod_length_mm": ref_len,
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
+        "stake_exit_azimuth_deg": exit_azimuth,
+        "stake_exit_gap_deg": exit_gap,
         "stake_leg_mm": values["stakeLegWidth"],
+        "slot_centre_z_mm": slot_centre_z,
+        "slot_clear_of_rods_mm": levels[0] - channel_r - slot_top,
         "stake_thickness_mm": values["stakeThickness"],
         "z_bottom_mm": z_bottom,
         "z_top_mm": z_top,
@@ -471,7 +533,17 @@ def verify(geo, dims, values):
 
     # The stack must not be taller than the rods are apart times their count,
     # plus the floor and cap -- a sanity bound that catches a runaway pitch.
-    bound = dims["pitch_mm"] * 3 + values["baseFloor"] + values["capThickness"] + 8.0
+    # The slot band is part of the stack now: the angle passes under the rods,
+    # so the base plate carries its own leg width plus a wall.
+    bound = (
+        dims["pitch_mm"] * 3
+        + values["baseFloor"]
+        + values["capThickness"]
+        + values["stakeLegWidth"]
+        + 2.0 * values["stakeClearance"]
+        + values["minimumWall"]
+        + 8.0
+    )
     if dims["stack_height_mm"] > bound:
         problems.append(
             f"stack is {dims['stack_height_mm']:.1f} mm, expected under {bound:.1f}"
@@ -479,11 +551,10 @@ def verify(geo, dims, values):
 
     # The angle's leg has to fit between the outer faces of the stack, or the
     # slot breaks out of the top or bottom instead of being a slot.
-    leg_span = dims["stake_leg_mm"] + 2.0 * values["stakeClearance"]
-    if leg_span > dims["stack_height_mm"]:
+    if dims["slot_clear_of_rods_mm"] < values["minimumWall"] - 1e-6:
         problems.append(
-            f"the angle's {leg_span:.1f} mm leg does not fit inside a "
-            f"{dims['stack_height_mm']:.1f} mm stack"
+            f"only {dims['slot_clear_of_rods_mm']:.1f} mm of material between "
+            f"the slot and the lowest rod, wanted {values['minimumWall']:.1f}"
         )
 
     # And the plates must not eat into it either.
@@ -492,6 +563,19 @@ def verify(geo, dims, values):
             v = _vol(plate.common(geo["stake"]))
             if v > 0.5:
                 problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
+
+    # A slot that runs right through can take the wall out from under a rod.
+    # Check inside the part only: two lines in one plane always cross
+    # eventually, and where they cross out in the air there is nothing to
+    # remove.
+    if geo.get("slot") is not None:
+        for i, keepout in enumerate(geo.get("keepouts", [])):
+            v = _vol(geo["slot"].common(keepout))
+            if v > 1.0:
+                problems.append(
+                    f"the stake slot cuts {v:.1f} mm3 out of the wall around "
+                    f"rod {i + 1}"
+                )
 
     # The stake slot has to be in the empty sector, not through an arm.
     for az in dims["arm_azimuths_deg"]:
@@ -534,6 +618,12 @@ def derived_rows(dims, values):
          "length of each reference rod; drawing only"),
         ("stakeLeg", round(dims["stake_leg_mm"], 1), "mm",
          "each leg of the driven angle"),
+        ("slotCentre", round(dims["slot_centre_z_mm"], 2), "mm",
+         "where the through slot sits on the stack axis; below every rod"),
+        ("slotClearance", round(dims["slot_clear_of_rods_mm"], 2), "mm",
+         "material between the slot and the lowest rod"),
+        ("stakeExit", round(dims["stake_exit_azimuth_deg"], 2), "deg",
+         "where the angle comes out: the middle of the widest gap between arms"),
         ("stakeSection", f"L{dims['stake_leg_mm']:g}x{dims['stake_leg_mm']:g}"
          f"x{dims['stake_thickness_mm']:g}", "-",
          "the angle to buy"),
