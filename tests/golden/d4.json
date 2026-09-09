@@ -16,6 +16,8 @@
  "dome_height_nominal": 1964.493893,
  "base_edge_arc": 1256.637061,
  "base_edge_chord": 1236.067977,
+ "skirt_height": 0.0,
+ "overall_height": 1964.493893,
  "crossing_types": [
   {
    "name": "T00",

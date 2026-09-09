@@ -184,6 +184,57 @@ def check(data: dict) -> list:
             f"mirror at azimuth {azimuth} deg is not a symmetry",
         )
 
+    # --- skirt ---------------------------------------------------------------
+    #
+    # The dome frame keeps its base ring at z = 0, so a skirt hangs below into
+    # negative z and the ground sits at -height. Checked here so a change to
+    # that convention cannot pass silently: every consumer that draws a skirt
+    # has to know which way it goes.
+    skirt = data.get("skirt")
+    if skirt is None:
+        want(
+            meta.get("skirt_height", 0.0) == 0.0,
+            f"meta says skirt_height={meta.get('skirt_height')} but there is "
+            f"no skirt block",
+        )
+    else:
+        want(
+            len(skirt["posts"]) == len(data["base_nodes"]),
+            f"{len(skirt['posts'])} skirt posts for "
+            f"{len(data['base_nodes'])} base points",
+        )
+        want(
+            skirt["ground_z"] == -skirt["height"],
+            f"ground at {skirt['ground_z']} for a {skirt['height']} skirt",
+        )
+        by_name = {b["name"]: b for b in data["base_nodes"]}
+        for post in skirt["posts"]:
+            base_node = by_name.get(post["base_node"])
+            want(base_node is not None, f"post {post['name']} has no base node")
+            if base_node is None:
+                continue
+            want(
+                abs(post["x"] - base_node["x"]) < TOL
+                and abs(post["y"] - base_node["y"]) < TOL,
+                f"post {post['name']} is not under {base_node['name']}",
+            )
+            want(
+                abs(post["z_top"] - base_node["z"]) < TOL,
+                f"post {post['name']} does not reach its base node",
+            )
+            want(
+                abs((post["z_top"] - post["z_bottom"]) - skirt["height"]) < 1e-3,
+                f"post {post['name']} is not {skirt['height']} long",
+            )
+        want(
+            abs(
+                meta["overall_height"]
+                - (skirt["height"] + meta["dome_height_nominal"])
+            )
+            < 1e-3,
+            "overall height is not skirt + dome",
+        )
+
     # --- crossing classes ----------------------------------------------------
     want(
         meta["crossing_type_count"] == 12,

@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
 OPENSCAD_EXPORT_DIR = ROOT / "exports" / "geometry"
 
-VARIANTS = ["D4", "D6", "D8", "D12"]
+# Every named variant, so adding one to the config puts it under test.
+VARIANTS = sorted(config.load_all())
 
 # The OpenSCAD exporter labels crossing_types.family_a/family_b from the
 # sorted signature while taking t_a/incl_a from the representative crossing's

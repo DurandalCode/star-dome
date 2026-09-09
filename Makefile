@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave clamps blender venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave clamps blender site venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -22,6 +22,7 @@ help:
 	@echo "make weave      four-rod node fan geometry and stacking order"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
+	@echo "make site       one scene with every variant side by side, at 1:1"
 	@echo "make check      verify + test; run this before claiming anything works"
 	@echo "make scad       regenerate the OpenSCAD reference export for parity tests"
 	@echo "make clean      remove generated exports"
@@ -91,6 +92,16 @@ check: verify test
 scad:
 	$(OPENSCAD) --version >/dev/null 2>&1 || { echo "OpenSCAD not found at $(OPENSCAD)"; exit 1; }
 	$(PYTHON) tools/export_geometry.py
+
+# Every variant in one scene, small to large, each with a 1.75 m figure. The
+# comparison is the point: a dome twice as wide is nowhere near twice the
+# usable volume, and only standing them together shows it.
+site:
+	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
+	$(BLENDER) --background --factory-startup --python blender/build_site.py -- \
+		--dir $(OUT) \
+		--out exports/blender/site.blend \
+		--render exports/blender/site.png
 
 clean:
 	rm -rf $(OUT)

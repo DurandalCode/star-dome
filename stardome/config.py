@@ -6,6 +6,7 @@ variant-specific number. Everything else derives from it.
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -24,10 +25,23 @@ class Variant:
     rod_segments: int
     section_length: float
     weave_gap: float
+    skirt_height: float
 
     @property
     def radius(self) -> float:
         return self.diameter / 2.0
+
+    @property
+    def overall_height(self) -> float:
+        """Structural height including the skirt the dome stands on.
+
+        The dome's own height is the apex of family U, which is a derived
+        angle, not a typed constant -- see geometry.family_tilts.
+        """
+        from . import geometry
+
+        apex = math.sin(math.radians(geometry.family_tilts()["U"]))
+        return self.skirt_height + self.radius * apex
 
     @property
     def bend_radius(self) -> float:
@@ -59,6 +73,9 @@ def load_all(path=None) -> dict:
                 body.get("section_length", defaults.get("section_length", 2400))
             ),
             weave_gap=float(body.get("weave_gap", defaults.get("weave_gap", 1.0))),
+            skirt_height=float(
+                body.get("skirt_height", defaults.get("skirt_height", 0.0))
+            ),
         )
     if not variants:
         raise ValueError(f"no [variants.*] tables found in {path}")

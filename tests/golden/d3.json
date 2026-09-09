@@ -1,29 +1,29 @@
 {
- "variant": "D6",
+ "variant": "D3",
  "units": "mm",
- "dome_diameter": 6000.0,
- "dome_radius": 3000.0,
- "rod_diameter": 10.0,
+ "dome_diameter": 3000.0,
+ "dome_radius": 1500.0,
+ "rod_diameter": 8.0,
  "rod_count": 15,
  "base_node_count": 10,
  "crossing_point_count": 40,
  "crossing_pair_count": 90,
  "crossing_type_count": 12,
- "rod_length_nominal": 9424.777961,
+ "rod_length_nominal": 4712.38898,
  "rod_length_class_count": 1,
- "total_rod_length": 141371.669415,
- "base_ring_length": 18849.555922,
- "dome_height_nominal": 2946.740839,
- "base_edge_arc": 1884.955592,
- "base_edge_chord": 1854.101966,
- "skirt_height": 0.0,
- "overall_height": 2946.740839,
+ "total_rod_length": 70685.8347,
+ "base_ring_length": 9424.777961,
+ "dome_height_nominal": 1473.37042,
+ "base_edge_arc": 942.477796,
+ "base_edge_chord": 927.050983,
+ "skirt_height": 1000.0,
+ "overall_height": 2473.37042,
  "crossing_types": [
   {
    "name": "T00",
    "count": 5,
    "families": "UU",
-   "z": 2919.746968,
+   "z": 1459.873484,
    "angle_deg": 70.528779,
    "tied": 0
   },
@@ -31,7 +31,7 @@
    "name": "T01",
    "count": 10,
    "families": "GU",
-   "z": 2551.952425,
+   "z": 1275.976213,
    "angle_deg": 37.377368,
    "tied": 1
   },
@@ -39,7 +39,7 @@
    "name": "T02",
    "count": 5,
    "families": "UU",
-   "z": 2551.952425,
+   "z": 1275.976213,
    "angle_deg": 41.810315,
    "tied": 1
   },
@@ -47,7 +47,7 @@
    "name": "T03",
    "count": 5,
    "families": "GG",
-   "z": 2551.952425,
+   "z": 1275.976213,
    "angle_deg": 63.434949,
    "tied": 1
   },
@@ -55,7 +55,7 @@
    "name": "T04",
    "count": 10,
    "families": "GU",
-   "z": 2551.952425,
+   "z": 1275.976213,
    "angle_deg": 79.187683,
    "tied": 1
   },
@@ -63,7 +63,7 @@
    "name": "T05",
    "count": 10,
    "families": "UL",
-   "z": 1804.502865,
+   "z": 902.251433,
    "angle_deg": 70.528779,
    "tied": 0
   },
@@ -71,7 +71,7 @@
    "name": "T06",
    "count": 10,
    "families": "GL",
-   "z": 1577.193336,
+   "z": 788.596668,
    "angle_deg": 37.377368,
    "tied": 1
   },
@@ -79,7 +79,7 @@
    "name": "T07",
    "count": 5,
    "families": "LL",
-   "z": 1577.193336,
+   "z": 788.596668,
    "angle_deg": 41.810315,
    "tied": 1
   },
@@ -87,7 +87,7 @@
    "name": "T08",
    "count": 5,
    "families": "GG",
-   "z": 1577.193336,
+   "z": 788.596668,
    "angle_deg": 63.434949,
    "tied": 1
   },
@@ -95,7 +95,7 @@
    "name": "T09",
    "count": 10,
    "families": "GL",
-   "z": 1577.193336,
+   "z": 788.596668,
    "angle_deg": 79.187683,
    "tied": 1
   },
@@ -103,7 +103,7 @@
    "name": "T10",
    "count": 10,
    "families": "UL",
-   "z": 1115.244103,
+   "z": 557.622052,
    "angle_deg": 70.528779,
    "tied": 0
   },
@@ -111,17 +111,17 @@
    "name": "T11",
    "count": 5,
    "families": "LL",
-   "z": 689.258762,
+   "z": 344.629381,
    "angle_deg": 70.528779,
    "tied": 0
   }
  ],
  "node_heights": [
-  2919.746968,
-  2551.952425,
-  1804.502865,
-  1577.193336,
-  1115.244103,
-  689.258762
+  1459.873484,
+  1275.976213,
+  902.251433,
+  788.596668,
+  557.622052,
+  344.629381
  ]
 }

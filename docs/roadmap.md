@@ -77,7 +77,7 @@ The two producers agree exactly on all four variants for every rod, node, crossi
 - [ ] Add basic fabric-cover representation.
 - [ ] Build an entrance-clearance inspection workflow.
 - [ ] Build a simple covered-corridor generator / placement workflow.
-- [ ] Create a composition scene with multiple D4/D6/D8/D12 instances.
+- [x] Create a composition scene with multiple instances. `blender/build_site.py`, `make site`: all six variants in one scene at 1:1, small to large, each with a 1.75 m figure and a label.
 
 **Exit criterion:** entrances and corridors can be positioned against the actual rod layout and inspected from human eye level.
 
