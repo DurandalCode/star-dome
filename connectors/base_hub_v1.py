@@ -94,6 +94,7 @@ INPUTS = [
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with"),
+    ("firstArmRise",       37.3774,  "deg", "how far the first arm rises above horizontal once installed; this is what ties the part's own frame to the ground"),
     ("stakeLegWidth",         30.0,  "mm",  "each leg of the driven steel angle, across"),
     ("stakeThickness",         3.0,  "mm",  "the angle's material thickness"),
     ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
@@ -115,9 +116,16 @@ INPUTS = [
 # --------------------------------------------------------------------------
 # geometry helpers
 # --------------------------------------------------------------------------
-def azimuths_from_gaps(gaps):
-    """Arm directions in the fan plane, starting at zero."""
-    out = [0.0]
+def azimuths_from_gaps(gaps, start=0.0):
+    """Arm directions in the fan plane, measured from horizontal.
+
+    ``start`` is the first arm's rise above horizontal, which is what ties the
+    part's own frame to the ground: with it, +X is horizontal, -Y is straight
+    down, and a Top view shows the part exactly as it stands. Without it the
+    frame is arbitrary and the stake comes out at whatever angle the drawing
+    happens to be rotated to.
+    """
+    out = [start]
     for gap in gaps:
         out.append(out[-1] + gap)
     return out
@@ -261,7 +269,7 @@ def build(values, fan_gaps=None):
         raise ValueError(
             f"a three-arm fan has two gaps, got {len(gaps)}: {gaps}"
         )
-    azimuths = azimuths_from_gaps(gaps)
+    azimuths = azimuths_from_gaps(gaps, values["firstArmRise"])
 
     rod_d = values["rodDiameter"]
     channel_r = rod_d / 2.0 + values["rodClearance"] / 2.0
@@ -270,16 +278,26 @@ def build(values, fan_gaps=None):
     # The empty sector is where everything that is not a rod has to go.
     sector_start, sector_size = empty_sector(azimuths)
 
-    # The stake runs right through the hub, so its axis is not the bisector of
-    # the empty sector -- that would come out 2 deg from an arm. It is set by
-    # where it has to *exit*: the middle of the widest gap between two arms.
+    # The stake is DRIVEN, so it is vertical. Nothing else about it is
+    # negotiable: you hammer it into the ground, and the ground is down.
     #
-    # A through slot is what makes the part usable in the field. Drive the
-    # angle to whatever depth the ground gives, then drop the hub on: it finds
-    # its own height. A blind slot means controlling the driven depth to the
-    # millimetre, standing in a field, ten times per dome.
-    exit_azimuth, exit_gap = widest_arm_gap(azimuths)
-    stake_axis = (exit_azimuth + 180.0) % 360.0
+    # The part is drawn in the frame it stands in: arm azimuths ARE their
+    # rises above horizontal, so +X is horizontal, -Y is straight down, and a
+    # Top view shows the hub as it sits on the ground.
+    #
+    # An earlier version put the stake on the middle of the widest gap between
+    # arms, which gave it the most room and had it entering the earth 32 deg
+    # off plumb. Room is worth having; plumb is worth more.
+    #
+    # A through slot is what makes the part usable in the field: drive the
+    # angle to whatever depth the ground gives, then drop the hub on and it
+    # finds its own height. A blind slot means controlling the driven depth to
+    # the millimetre, standing in a field, ten times per dome.
+    stake_axis = 270.0
+    exit_azimuth = (stake_axis + 180.0) % 360.0
+    exit_gap = min(
+        abs((exit_azimuth - a + 180.0) % 360.0 - 180.0) for a in azimuths
+    )
 
     boss_r = values["fastenerHeadDiameter"] / 2.0 + wall
     slot_half = values["stakeLegWidth"] / 2.0 + values["stakeClearance"]
@@ -292,17 +310,26 @@ def build(values, fan_gaps=None):
     stake_azimuth = stake_axis
     bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
     bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
-    closest = min(
-        abs(math.sin(math.radians(b - a)))
-        for b in bolt_azimuths
-        for a in azimuths
+    # An arm is a RAY, not a line: the rods end at the hub and there is nothing
+    # on the far side. Treating them as lines -- which the first version did,
+    # copying the node where every rod does pass through -- makes a bolt sitting
+    # nearly opposite an arm look blocked by it, and the offset needed to
+    # "clear" a phantom ran to 247 mm. The tail then reached out that far and
+    # the bottom plate came out 311 mm across.
+    ratios = []
+    for b in bolt_azimuths:
+        for a in azimuths:
+            separation = abs((b - a + 180.0) % 360.0 - 180.0)
+            if separation >= 90.0:
+                continue  # behind the hub; that arm is not there
+            ratios.append(math.sin(math.radians(separation)))
+    clear_of_arms = (
+        (boss_r + channel_r) / max(min(ratios), 1e-6) if ratios else 0.0
     )
-    bolt_offset = max(
-        (boss_r + channel_r) / max(closest, 1e-6),
-        (slot_half + boss_r + wall) / max(
-            abs(math.sin(math.radians(bolt_spread))), 1e-6
-        ),
+    clear_of_slot = (slot_half + boss_r + wall) / max(
+        abs(math.sin(math.radians(bolt_spread))), 1e-6
     )
+    bolt_offset = max(clear_of_arms, clear_of_slot)
 
     hub_r = values["hubRadiusFactor"] * rod_d
     arm_w = values["armWidthFactor"] * boss_r * 2.0
@@ -480,7 +507,8 @@ def build(values, fan_gaps=None):
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
         "stake_exit_azimuth_deg": exit_azimuth,
-        "stake_exit_gap_deg": exit_gap,
+        "stake_exit_clearance_deg": exit_gap,
+        "first_arm_rise_deg": values["firstArmRise"],
         "stake_leg_mm": values["stakeLegWidth"],
         "slot_centre_z_mm": slot_centre_z,
         "slot_clear_of_rods_mm": levels[0] - channel_r - slot_top,
@@ -626,7 +654,12 @@ def derived_rows(dims, values):
         ("slotClearance", round(dims["slot_clear_of_rods_mm"], 2), "mm",
          "material between the slot and the lowest rod"),
         ("stakeExit", round(dims["stake_exit_azimuth_deg"], 2), "deg",
-         "where the angle comes out: the middle of the widest gap between arms"),
+         "where the angle comes out the top"),
+        ("stakeExitClear", round(dims["stake_exit_clearance_deg"], 2), "deg",
+         "how far that is from the nearest arm"),
+        ("stakePlumb", "vertical", "-",
+         "the stake axis is straight down once installed; that is what "
+         "firstArmRise is for"),
         ("stakeSection", f"L{dims['stake_leg_mm']:g}x{dims['stake_leg_mm']:g}"
          f"x{dims['stake_thickness_mm']:g}", "-",
          "the angle to buy"),
