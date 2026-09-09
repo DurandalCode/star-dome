@@ -95,8 +95,11 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "nodes": sorted(names),
                 "tied": True,
                 "members": count,
-                "generator": None,
-                "state": UNDESIGNED,
+                # Three arms is the fan the generator draws; the skirted
+                # eight-member hub on top of a post is a different problem and
+                # still has nothing.
+                "generator": "base_hub_v1" if count == 3 else None,
+                "state": GENERATED if count == 3 else UNDESIGNED,
                 "anchored_by_stake": on_ground,
                 "coplanar": fan["coplanar"],
                 "fan_gaps_deg": fan["gaps_deg"],
