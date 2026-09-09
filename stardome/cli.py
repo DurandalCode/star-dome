@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import config, export, model, verify
+from . import config, connectors, export, model, verify
 
 
 def _variant_names(args) -> list:
@@ -71,6 +71,20 @@ def cmd_snapshot(args) -> int:
     return 0
 
 
+def cmd_connectors(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        sched = connectors.schedule(data)
+        if args.json:
+            path = Path(args.out) / f"star_dome_{name.lower()}_connectors.json"
+            export.write_json(sched, path)
+            print(f"{name}: {path}")
+        else:
+            print(connectors.format_schedule(sched))
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -108,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("verify", cmd_verify, "check the geometric invariants"),
         ("snapshot", cmd_snapshot, "refresh the committed golden summaries"),
         ("scad-config", cmd_scad_config, "regenerate configs/variants.scad from the TOML"),
+        ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -130,6 +145,9 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
         if name == "scad-config":
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
+        if name == "connectors":
+            p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
+            p.add_argument("-o", "--out", default="exports/geometry", type=Path)
         p.set_defaults(func=fn)
     return parser
 

@@ -110,6 +110,22 @@ regenerate with `tools/export_geometry.py`:
 The four-rod nodes are a reconstruction, not a quoted fact from the reference;
 verify against photographs or a physical mock-up before committing to a part.
 
+**What the connector schedule says.** `python3 -m stardome connectors D6` groups
+every crossing into the part that would serve it, and the answer is awkward:
+
+- The 30 unlashed crossings are two-rod contacts at **one** angle, so a single
+  clamp geometry covers all of them. `connectors/generate_clamps.py` builds it
+  from the model data and exports STEP + STL.
+- The 10 lashed nodes join four rods and are **not covered at all** by the V1
+  architecture.
+
+So V1 currently solves the crossings the reference leaves alone, and does not
+solve the ones it ties. Closing that is the real content of this milestone.
+
+- [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
+- [ ] Decide the radial stacking order at a four-rod node. It is currently a drawing convention (`above_convention` in the model meta), not a build decision, and a four-rod part cannot be designed without it.
+- [ ] Design a four-rod node connector, or a scheme that splits one node into stacked two-rod clamps.
+
 **Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
 
 ## Milestone 4 — D4/D6 physical prototype

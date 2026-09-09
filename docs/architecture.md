@@ -128,10 +128,26 @@ FreeCAD is used for parts that must be printed or dimensioned precisely:
 - corridor/entrance transition parts.
 
 These are parametric around rod diameter and print clearance, and driven by
-script (`connectors/*.py`), not hand-modelled. The natural next step is for
-the clamp generator to read `crossing_types` from `model.json` and emit one
-part per class at that class's real angle, so "how many connector types does
-this need" is answered by the data instead of by argument.
+script (`connectors/*.py`), not hand-modelled.
+
+The clamp generation chain is:
+
+```bash
+python3 -m stardome connectors D6            # what parts are needed, and why
+python3 -m stardome connectors D6 --json     # the schedule as data
+<FreeCAD> connectors/generate_clamps.py      # build and export them
+```
+
+`stardome/connectors.py` groups every crossing into the part that would serve
+it, so "how many connector types does this dome need" is answered by the data
+rather than by argument. `connectors/generate_clamps.py` is a consumer: it
+reads that schedule, drives `crossing_clamp_v1.py` once per part at that part's
+real crossing angle, and exports STEP plus a slicer-sized STL into
+`exports/connectors/`. It computes no dome geometry of its own.
+
+The schedule reports what it cannot build instead of quietly skipping it. For
+the baseline topology that matters: one clamp geometry covers all 30 unlashed
+crossings, and the 10 four-rod lashed nodes are not covered at all.
 
 MCP is for interactive inspection. Anything that must be reproducible runs as
 a script from the repository: if a result cannot be rebuilt with one command
