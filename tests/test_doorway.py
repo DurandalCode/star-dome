@@ -197,22 +197,55 @@ def test_a_bare_uncut_six_metre_dome_is_a_crawl_in():
     assert lg["doorway"]["admits"] == ["crawl", "stoop"]
 
 
-def test_m_and_l_ship_with_the_cut_made():
-    """Both are bare, so both have their jambs out, and both gain a step.
+def test_m_and_l_ship_with_the_door_cut_to_the_head():
+    """Both are bare, so both are cut open, and both gain two steps.
 
-    M goes from crawling to ducking, L from ducking to walking in with
-    something in your hands -- and neither pays a severed bow for it.
+    M goes from crawling to walking, L from ducking to carrying. The price is
+    the same at both sizes and it is not the rod: two bows severed and the
+    head node left with nothing running through it.
     """
-    for name, before, after in (("M", "crawl", "stoop"), ("L", "stoop", "carry")):
+    for name, uncut_best, cut_best in (("M", "crawl", "walk"), ("L", "stoop", "carry")):
         data = model.build(config.load(name))
         door = data["doorway"]
         assert door["cut"] is not None, f"{name} should ship cut"
-        assert door["cut"]["cost"]["severs_nothing"]
-        assert before in door["admits"]
-        assert after in door["admits"], f"{name} should admit {after} once cut"
+        assert door["cut"]["level"] == "head"
+        assert cut_best in door["admits"], f"{name} should admit {cut_best} once cut"
 
-        uncut = model.build(config.load(name, door_cut=False))
-        assert after not in uncut["doorway"]["admits"]
+        uncut = model.build(config.load(name, door_cut="none"))
+        assert uncut["doorway"]["admits"][-1] == uncut_best
+        assert cut_best not in uncut["doorway"]["admits"]
+
+
+def test_the_head_cut_strands_the_head_node_and_says_so():
+    """The cost that is not measured in metres of rod.
+
+    At this level all four bows terminate at the head node, so nothing runs
+    through it and no continuous member holds it. That wants a lintel, and the
+    model has to say it rather than leave it to be noticed.
+    """
+    for name in ("M", "L"):
+        cost = model.build(config.load(name))["doorway"]["cut"]["cost"]
+        assert not cost["severs_nothing"]
+        assert cost["severed_bows"] == ["L1", "L5"]
+        assert cost["nodes_with_nothing_through"] == ["N20"]
+
+
+def test_each_cut_level_opens_more_than_the_one_below(bare):
+    """none < jambs < head, measured in the door's own bay and nowhere else."""
+    heights = []
+    for level in ("none", "jambs", "head"):
+        placed = doorway.place(bare, cut=level)
+        heights.append(placed["in_bay"]["clear_height_mm"])
+    assert heights[0] <= heights[1] <= heights[2]
+    assert heights[2] > heights[0]
+
+
+def test_the_jamb_level_leaves_the_head_node_carrying_something(bare):
+    """The line between the two levels, in one assertion."""
+    jambs = doorway.place(bare, cut="jambs")["cut"]["cost"]
+    head = doorway.place(bare, cut="head")["cut"]["cost"]
+    assert jambs["nodes_with_nothing_through"] == []
+    assert head["nodes_with_nothing_through"] != []
 
 
 def test_the_cut_reaches_the_rods_that_draw_it():

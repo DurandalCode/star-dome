@@ -94,6 +94,40 @@ def bays(data: dict, env: dict | None = None, clearance_mm: float = 0.0) -> list
     return out
 
 
+def bay_clearance(env: dict, bay: dict) -> dict:
+    """Free height and widths inside one bay, and nowhere else.
+
+    ``max(envelope)`` is a fact about the whole dome. Once a cut is anything
+    but symmetric it can raise some *other* bay, and reading that number as
+    the doorway's is how a cut that does nothing for the door gets reported as
+    opening it up. Everything about a door has to be measured in its own bay.
+    """
+    envelope = env["envelope_mm"]
+    step = env["bin_width_deg"]
+    radius = env["radius_mm"]
+    half = bay["span_deg"] / 2.0 + step
+    centre = bay["centre_azimuth_deg"]
+
+    inside = [
+        i
+        for i in range(len(envelope))
+        if abs((i * step - centre + 180.0) % 360.0 - 180.0) <= half
+    ]
+    widths = {}
+    for height in (1200.0, 1400.0, 1800.0, 2000.0, 2200.0):
+        run = best = 0
+        for i in inside:
+            run = run + 1 if envelope[i] >= height else 0
+            best = max(best, run)
+        widths[str(int(height))] = round(
+            best * math.radians(step) * radius, 1
+        )
+    return {
+        "clear_height_mm": round(max(envelope[i] for i in inside), 1),
+        "widths_mm": widths,
+    }
+
+
 def tall_bays(data: dict, env: dict | None = None, clearance_mm: float = 0.0) -> list:
     return [b for b in bays(data, env, clearance_mm) if b["kind"] == "tall"]
 
@@ -443,7 +477,7 @@ def place(
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
     samples: int = 32,
-    cut: bool = False,
+    cut: str = "none",
 ) -> dict:
     """The chosen doorway, ready to serialise into the model.
 
@@ -460,13 +494,25 @@ def place(
         raise ValueError("no tall bay found; this dome has nowhere to put a door")
     info = frame(data, tall[0]["apex_azimuth_deg"])
 
-    cuts = jamb_cut(data, info) if cut else None
+    level = "none" if cut in (None, False) else ("jambs" if cut is True else cut)
+    if level not in CUT_LEVELS:
+        raise ValueError(f"unknown cut level {cut!r}; know {sorted(CUT_LEVELS)}")
+    cuts = CUT_LEVELS[level](data, info) or None
     env = (
         entrance.door_envelope(data, clearance_mm=clearance_mm, removed=cuts)
         if cuts
         else plain
     )
-    bay = tall_bays(data, env, clearance_mm)[0] if cuts else tall[0]
+    if cuts:
+        # The cut can change where the bays fall, so pick the one still
+        # centred on this door rather than whichever comes first by azimuth.
+        wanted = tall[0]["centre_azimuth_deg"]
+        bay = min(
+            tall_bays(data, env, clearance_mm),
+            key=lambda b: _angular_gap(b["centre_azimuth_deg"], wanted),
+        )
+    else:
+        bay = tall[0]
     skirt = data["meta"].get("skirt_height", 0.0)
     return {
         "bay": bay,
@@ -474,15 +520,17 @@ def place(
         "frame": info,
         "cut": (
             {
+                "level": level,
                 "spans": {r: [list(s) for s in v] for r, v in cuts.items()},
                 "cost": cut_pieces(data, cuts),
                 "note": (
-                    "The jamb pieces are gone. Both were end pieces, so the "
-                    "two bows are a fifth shorter and each now starts at the "
-                    "head node instead of a base point -- but neither is "
-                    "severed. The head node stops being a crossing and "
-                    "becomes the termination of two bows, which is a "
-                    "different connector from the one in docs/fan-node-v2.md."
+                    "The head node stops being a crossing and becomes a place "
+                    "where rod ends meet, which is a different connector from "
+                    "the one in docs/fan-node-v2.md. At level 'head' nothing "
+                    "passes through it at all: four bows converge there and "
+                    "every one of them terminates, so the node is held by no "
+                    "continuous member and wants a lintel or a tie. Whether "
+                    "it stands without one is statics, not geometry."
                 ),
             }
             if cuts
@@ -496,6 +544,7 @@ def place(
         "clearance_mm": clearance_mm,
         "skirt_height_mm": skirt,
         "opening_height_mm": round(bay["clear_height_mm"] + skirt, 1),
+        "in_bay": bay_clearance(env, bay),
         "door": fit(data, template_name, env, clearance_mm),
         # Everything that gets through, largest last. Naming only the chosen
         # silhouette hides both failures and headroom: it cannot show that a
@@ -551,6 +600,85 @@ def jamb_cut(data: dict, frame_info: dict | None = None) -> dict:
     return spans
 
 
+def _crossing_ts(data: dict, rod: str) -> list:
+    """Where the crossings fall along one bow, in its own parameter."""
+    bows = {b.name: b for b in geometry.build_bows()}
+    bow = bows[rod]
+    ts = []
+    for node in data["nodes"]:
+        if rod not in node["rods"]:
+            continue
+        t = bow.t_of((node["x"], node["y"], node["z"])) % 360.0
+        if t > 180.0 + 1e-6:
+            t -= 360.0
+        ts.append(round(t, 4))
+    return sorted(set(ts))
+
+
+def head_cut(data: dict, frame_info: dict | None = None) -> dict:
+    """The jambs, plus the two pieces that still cross the opening above them.
+
+    Once the jambs are gone the bay is bounded by the *other* two rods through
+    the head node -- the L pair -- sloping down across the opening. Removing
+    their pieces is the only way further, and it is a different kind of cut:
+    those are middle pieces, so each of those two bows becomes two bows.
+
+    Worse, it leaves the head node with nothing passing through it. All four
+    rods then terminate there, and a node that was a crossing becomes the
+    converging apex of four bows with no continuous member holding it. That
+    is a structural question this file cannot answer -- see cut_pieces for
+    what it can say.
+    """
+    bay = tall_bays(data)[0]
+    info = frame_info or frame(data, bay["apex_azimuth_deg"])
+    spans = jamb_cut(data, info)
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    radius = data["meta"]["dome_radius"]
+    apex = tuple(info["apex_point"])
+    half = bay["span_deg"] / 2.0
+    centre = bay["centre_azimuth_deg"]
+
+    def clearance(cuts):
+        env = entrance.door_envelope(data, removed=cuts)
+        return bay_clearance(env, bay)["clear_height_mm"]
+
+    baseline = clearance(spans)
+    for rod in info["apex_rods"]:
+        if rod in spans:
+            continue
+        bow = bows[rod]
+        t_apex = bow.t_of(apex) % 360.0
+        if t_apex > 180.0 + 1e-6:
+            t_apex -= 360.0
+        ts = [0.0] + _crossing_ts(data, rod) + [180.0]
+        # Two pieces meet the head node. Only one of them lies across this
+        # doorway; the other runs away over the dome, and removing it would
+        # cost rod and open a bay nobody asked about. Decide by measurement --
+        # keep the piece whose removal actually raises *this* bay.
+        best = None
+        for lo, hi in zip(ts, ts[1:]):
+            if abs(lo - t_apex) > 1e-3 and abs(hi - t_apex) > 1e-3:
+                continue
+            trial = {r: list(v) for r, v in spans.items()}
+            trial.setdefault(rod, []).append((lo, hi))
+            gain = clearance(trial) - baseline
+            if gain > 1e-6 and (best is None or gain > best[0]):
+                best = (gain, (lo, hi))
+        if best is not None:
+            spans.setdefault(rod, []).append(best[1])
+    return spans
+
+
+# How far to open the door, by name. The order is the order of cost:
+# "jambs" severs nothing, "head" severs two bows and strands the head node.
+CUT_LEVELS = {
+    "none": lambda data, info=None: {},
+    "jambs": jamb_cut,
+    "head": head_cut,
+}
+
+
 def cut_pieces(data: dict, cuts: dict) -> dict:
     """What a set of cuts costs: rod removed, and what it severs."""
     radius = data["meta"]["dome_radius"]
@@ -564,13 +692,57 @@ def cut_pieces(data: dict, cuts: dict) -> dict:
                 ends.append(rod)
             else:
                 severed.append(rod)
+    # A severed bow is not debris: each half still runs from a base point to a
+    # node, exactly like a bow whose end piece was removed. What is lost is
+    # continuity *through* the node in the middle, and that is the thing worth
+    # naming rather than the word "severed".
+    orphaned = _nodes_with_nothing_through(data, cuts)
     return {
         "rod_removed_mm": round(removed, 1),
         "rod_removed_fraction": round(removed / data["meta"]["total_rod_length"], 4),
         "end_pieces": sorted(ends),
         "severed_bows": sorted(set(severed)),
         "severs_nothing": not severed,
+        "nodes_with_nothing_through": orphaned,
+        "note": (
+            "Each half of a severed bow still runs from a base point to a "
+            "node. What the cut costs is continuity through the node between "
+            "them -- and a node where every rod terminates is held by no "
+            "continuous member at all. Whether that stands up is statics, not "
+            "geometry."
+        ),
     }
+
+
+def _nodes_with_nothing_through(data: dict, cuts: dict) -> list:
+    """Nodes left with every rod terminating on them and none passing through.
+
+    A crossing is held by the members that run through it. Cut enough away and
+    it stops being a crossing and becomes a free apex where four rod ends meet,
+    which is a different structural object and a different connector.
+    """
+    bows = {b.name: b for b in geometry.build_bows()}
+    stranded = []
+    for node in data["nodes"]:
+        point = (node["x"], node["y"], node["z"])
+        through = 0
+        for rod in node["rods"]:
+            bow = bows[rod]
+            t = bow.t_of(point) % 360.0
+            if t > 180.0 + 1e-6:
+                t -= 360.0
+            spans = cuts.get(rod, ())
+            # The rod passes through unless a removed piece stops at this point
+            # or the node is an end of the bow itself.
+            ends_here = t <= 1e-3 or t >= 180.0 - 1e-3
+            for lo, hi in spans:
+                if abs(lo - t) < 1e-3 or abs(hi - t) < 1e-3:
+                    ends_here = True
+            if not ends_here:
+                through += 1
+        if node["rods"] and through == 0:
+            stranded.append(node["name"])
+    return stranded
 
 
 def with_cut(
@@ -598,12 +770,12 @@ def analyse(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
-    cut: bool | None = None,
+    cut: str | None = None,
 ) -> dict:
     """``cut`` defaults to whatever the variant asked for, so the report and
     the serialised model can never disagree about which dome they describe."""
     if cut is None:
-        cut = bool(data["meta"].get("door_cut", False))
+        cut = data["meta"].get("door_cut", "none")
     env = entrance.door_envelope(data, clearance_mm=clearance_mm)
     meta = data["meta"]
     all_bays = bays(data, env, clearance_mm)
@@ -622,7 +794,7 @@ def format_analysis(
     data: dict,
     template_name: str = DEFAULT_TEMPLATE,
     clearance_mm: float = 0.0,
-    cut: bool | None = None,
+    cut: str | None = None,
 ) -> str:
     a = analyse(data, template_name, clearance_mm, cut)
     d = a["doorway"]
@@ -635,9 +807,10 @@ def format_analysis(
         f"--- {a['variant']} doorway  "
         f"(diameter {diameter:.0f} mm, skirt {a['skirt_height_mm']:.0f} mm)",
         f"  {a['bay_count']} ground openings: {a['tall_bay_count']} tall, {low} low",
-        f"  door bay at azimuth {bay['apex_azimuth_deg']:.1f} deg, "
+        f"  door bay centred {bay['centre_azimuth_deg']:.1f} deg, "
         f"{bay['span_deg']:.1f} deg wide "
-        f"({bay['base_width_mm']:.0f} mm along the base ring)",
+        f"({bay['base_width_mm']:.0f} mm along the base ring), "
+        f"highest at {bay['apex_azimuth_deg']:.1f} deg",
         f"  clear height {bay['clear_height_mm']:.0f} mm dome "
         f"+ {a['skirt_height_mm']:.0f} mm skirt "
         f"= {d['opening_height_mm']:.0f} mm",
@@ -649,7 +822,7 @@ def format_analysis(
         f"feet at {info['feet'][0]} and {info['feet'][1]}",
         *(
             [
-                "  CUT: "
+                f"  CUT ({d['cut']['level']}): "
                 + ", ".join(
                     f"{rod} {lo:.0f}-{hi:.0f} deg"
                     for rod, spans in d["cut"]["spans"].items()
@@ -662,9 +835,20 @@ def format_analysis(
                     if d["cut"]["cost"]["severs_nothing"]
                     else "SEVERS " + ", ".join(d["cut"]["cost"]["severed_bows"]) + ")"
                 )
+                + (
+                    "\n  NOTHING PASSES THROUGH "
+                    + ", ".join(d["cut"]["cost"]["nodes_with_nothing_through"])
+                    + " -- the head is held by no continuous member"
+                    if d["cut"]["cost"]["nodes_with_nothing_through"]
+                    else ""
+                )
             ]
             if d.get("cut")
             else []
+        ),
+        "  clear width in the bay: "
+        + ", ".join(
+            f"{h} mm high: {w:.0f}" for h, w in d["in_bay"]["widths_mm"].items()
         ),
         "  admits: " + (", ".join(d["admits"]) if d["admits"] else "nothing"),
         f"  {door['template']} template "

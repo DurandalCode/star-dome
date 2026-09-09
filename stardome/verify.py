@@ -295,22 +295,58 @@ def check(data: dict) -> list:
                 bay["span_deg"] >= 34.5 - 0.5,
                 f"cutting the jambs made the bay narrower: {bay['span_deg']:.2f} deg",
             )
-            # The whole justification for cutting at all.
+            # Whatever the level, the cut only ever takes pieces off rods
+            # that meet the door's head node.
             want(
-                cut["cost"]["severs_nothing"],
-                f"the door cut severs {cut['cost']['severed_bows']} -- only end "
-                "pieces may be removed without turning a bow into two bows",
+                set(cut["spans"]) <= set(frame["apex_rods"]),
+                f"the cut takes {sorted(cut['spans'])}, which is not a subset "
+                f"of the rods at the head node {sorted(frame['apex_rods'])}",
             )
-            want(
-                sorted(cut["spans"]) == sorted(frame["jamb_rods"]),
-                f"the cut takes {sorted(cut['spans'])}, expected the jambs "
-                f"{sorted(frame['jamb_rods'])}",
-            )
-            want(
-                abs(cut["cost"]["rod_removed_fraction"] - 2.0 / 75.0) < 1e-3,
-                "cutting two of fifteen bows' five equal pieces should remove "
-                f"2/75 of the rod, got {cut['cost']['rod_removed_fraction']:.4f}",
-            )
+
+            if cut["level"] == "jambs":
+                # The whole justification for cutting at this level: it is free
+                # of the one thing that makes cutting expensive.
+                want(
+                    cut["cost"]["severs_nothing"],
+                    f"the jamb cut severs {cut['cost']['severed_bows']} -- at "
+                    "this level only end pieces may go",
+                )
+                want(
+                    sorted(cut["spans"]) == sorted(frame["jamb_rods"]),
+                    f"the jamb cut takes {sorted(cut['spans'])}, expected "
+                    f"{sorted(frame['jamb_rods'])}",
+                )
+                want(
+                    abs(cut["cost"]["rod_removed_fraction"] - 2.0 / 75.0) < 1e-3,
+                    "two of fifteen bows' five equal pieces is 2/75 of the "
+                    f"rod, got {cut['cost']['rod_removed_fraction']:.4f}",
+                )
+                want(
+                    not cut["cost"]["nodes_with_nothing_through"],
+                    "the jamb cut should leave the head node with two rods "
+                    "still running through it, but stranded "
+                    f"{cut['cost']['nodes_with_nothing_through']}",
+                )
+            elif cut["level"] == "head":
+                # This level is defined by going further than that, and the
+                # cost has to be visible rather than implied.
+                want(
+                    sorted(cut["spans"]) == sorted(frame["apex_rods"]),
+                    f"the head cut takes {sorted(cut['spans'])}, expected all "
+                    f"four rods at the head {sorted(frame['apex_rods'])}",
+                )
+                want(
+                    sorted(cut["cost"]["severed_bows"])
+                    == sorted(set(frame["apex_rods"]) - set(frame["jamb_rods"])),
+                    "the head cut should sever exactly the two non-jamb rods, "
+                    f"got {cut['cost']['severed_bows']}",
+                )
+                want(
+                    cut["cost"]["nodes_with_nothing_through"]
+                    == [frame["apex_node"]],
+                    "the head cut should strand exactly the head node, got "
+                    f"{cut['cost']['nodes_with_nothing_through']}",
+                )
         # The whole point of this doorway: it cuts nothing. Its head is a
         # lashed four-rod node and its feet are two base points.
         apex = next(
@@ -346,12 +382,20 @@ def check(data: dict) -> list:
                 abs(max(p[2] for p in points) - frame["apex_point"][2]) < 1e-3,
                 "door outline does not reach the head node",
             )
-        else:
+        elif cut["level"] == "jambs":
             # A traced outline follows the rod surface, so it stops a rod short
-            # of the centreline it runs under.
+            # of the centreline it runs under -- and at this level the head
+            # node is still the top of the opening.
             want(
                 max(p[2] for p in points) < frame["apex_point"][2] + 1e-3,
                 "cut door outline rises above the head node",
+            )
+        else:
+            # At the head level the node is no longer the top of anything: the
+            # opening runs past it to whatever is left above.
+            want(
+                max(p[2] for p in points) > frame["apex_point"][2],
+                "the head cut should open the bay past its old head node",
             )
         want(
             door["door"]["fits"],

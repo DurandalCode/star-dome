@@ -33,9 +33,12 @@ class Variant:
     # Which person-silhouette the doorway is sized to, from entrance.TEMPLATES.
     # Empty means this variant has no door worked out and none is serialised.
     door: str = ""
-    # Take the doorway's two jamb pieces out, opening the lancet to the full
-    # bay. Both are end pieces, so nothing is severed -- see doorway.jamb_cut.
-    door_cut: bool = False
+    # How far the doorway is cut open. "none" leaves the lancet alone;
+    # "jambs" removes the two end pieces that frame it, which severs nothing;
+    # "head" also removes the two pieces still crossing above them, which
+    # severs two bows and leaves the head node with nothing passing through
+    # it. See doorway.CUT_LEVELS.
+    door_cut: str = "none"
 
     @property
     def radius(self) -> float:
@@ -64,6 +67,23 @@ class Variant:
         return self.radius
 
 
+CUT_LEVELS = ("none", "jambs", "head")
+
+
+def _cut_level(value) -> str:
+    """Read door_cut, accepting the bool it used to be."""
+    if value is None or value is False:
+        return "none"
+    if value is True:
+        return "jambs"
+    text = str(value)
+    if text not in CUT_LEVELS:
+        raise ValueError(
+            f"door_cut must be one of {CUT_LEVELS}, got {value!r}"
+        )
+    return text
+
+
 def load_all(path=None) -> dict:
     """Load every named variant, with ``[defaults]`` folded in."""
     path = Path(path) if path is not None else DEFAULT_CONFIG
@@ -88,7 +108,7 @@ def load_all(path=None) -> dict:
             ),
             alias=str(body.get("alias", "")),
             door=str(body.get("door", defaults.get("door", ""))),
-            door_cut=bool(body.get("door_cut", defaults.get("door_cut", False))),
+            door_cut=_cut_level(body.get("door_cut", defaults.get("door_cut"))),
         )
     if not variants:
         raise ValueError(f"no [variants.*] tables found in {path}")
