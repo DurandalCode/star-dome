@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import config, connectors, export, model, verify, weave
+from . import config, connectors, entrance, export, interior, model, verify, weave
 
 
 def _variant_names(args) -> list:
@@ -97,6 +97,41 @@ def cmd_weave(args) -> int:
     return 0
 
 
+def cmd_entrance(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(entrance.format_analysis(data, clearance_mm=args.clearance))
+        if args.door:
+            height, width = args.door
+            r = entrance.skirt_for_door(
+                data, height, width, clearance_mm=args.clearance
+            )
+            if not r["possible"]:
+                print(f"  a {width:g} x {height:g} door: {r['why']}")
+            else:
+                print(
+                    f"  a {width:g} x {height:g} door needs "
+                    f"{r['skirt_needed_mm']:.0f} mm of skirt "
+                    f"(dome reaches {r['dome_reach_mm']:.0f} mm at that width; "
+                    f"{r['skirt_present_mm']:.0f} mm present) -> "
+                    f"{r['overall_height_mm']:.0f} mm overall"
+                )
+    return 0
+
+
+def cmd_interior(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        if args.skirt is not None:
+            variant = config.load(
+                name, args.config, skirt_height=float(args.skirt)
+            )
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(interior.format_analysis(data))
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -136,6 +171,8 @@ def build_parser() -> argparse.ArgumentParser:
         ("scad-config", cmd_scad_config, "regenerate configs/variants.scad from the TOML"),
         ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
         ("weave", cmd_weave, "four-rod node fan geometry and the stacking order"),
+        ("entrance", cmd_entrance, "where a doorway fits, and how big it can be"),
+        ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -158,6 +195,27 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
         if name == "scad-config":
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
+        if name == "interior":
+            p.add_argument(
+                "--skirt",
+                type=float,
+                default=None,
+                help="override the variant's skirt height, mm, to try a trade",
+            )
+        if name == "entrance":
+            p.add_argument(
+                "--clearance",
+                type=float,
+                default=0.0,
+                help="mm kept clear of every rod surface, on top of the rod radius",
+            )
+            p.add_argument(
+                "--door",
+                nargs=2,
+                type=float,
+                metavar=("HEIGHT", "WIDTH"),
+                help="also solve for the skirt a door of this size would need",
+            )
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

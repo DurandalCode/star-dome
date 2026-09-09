@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave clamps blender site venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances interiors clamps blender site venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -20,6 +20,8 @@ help:
 	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make connectors show which connector parts each variant needs"
 	@echo "make weave      four-rod node fan geometry and stacking order"
+	@echo "make entrances  where a doorway fits in each variant, and how big"
+	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make site       one scene with every variant side by side, at 1:1"
@@ -57,6 +59,15 @@ connectors:
 # STEP (open in FreeCAD), STL (drop into a slicer) and FCStd (editable).
 # Needs FreeCAD; runs it headless, no GUI.
 FREECADCMD ?= /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd
+
+# Where a door can go. DOOR sets the opening solved for, height then width.
+DOOR ?= 1800 700
+
+entrances:
+	@$(PYTHON) -m stardome entrance --all --door $(DOOR)
+
+interiors:
+	@$(PYTHON) -m stardome interior --all
 
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
