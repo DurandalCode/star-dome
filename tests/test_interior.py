@@ -107,6 +107,61 @@ def test_taller_standing_height_never_gains_area(built):
     assert areas == sorted(areas, reverse=True)
 
 
+def test_a_skirted_d4_dominates_a_skirted_d3():
+    """Skirt against skirt, D4 wins on area, tipping and rod efficiency.
+
+    The older comparison in this file pits D3 + skirt against a *bare* D4,
+    which flatters D3. Carrying the same walk-in door, D3 is dominated, and
+    that is what decides the small end of the family.
+    """
+    d3 = skirted("D3", 1600.0)
+    d4 = skirted("D4", 1320.0)
+
+    assert (
+        interior.usable_area(d4, 1800.0)["usable_m2"]
+        > interior.usable_area(d3, 1800.0)["usable_m2"]
+    )
+    assert (
+        interior.exposure(d4)["tip_index"] < interior.exposure(d3)["tip_index"]
+    )
+    assert (
+        interior.rod_efficiency(d4)["m2_per_rod_m"]
+        > interior.rod_efficiency(d3)["m2_per_rod_m"]
+    )
+
+
+def test_slenderness_flags_the_variants_that_stop_being_domes():
+    """Overall height over diameter: a bare dome is 0.5, D3 + 1600 exceeds 1."""
+    for name in VARIANTS:
+        bare = model.build(config.load(name, skirt_height=0.0))
+        assert interior.exposure(bare)["slenderness"] == pytest.approx(0.5, abs=0.01)
+
+    assert interior.exposure(skirted("D3", 1600.0))["slenderness"] > 1.0
+    assert interior.exposure(skirted("D4", 1320.0))["slenderness"] < 1.0
+
+
+def test_the_door_requirement_makes_bigger_domes_strictly_better():
+    """With each variant carrying its walk-in door, every column improves.
+
+    This is the counterintuitive one: the skirt a door needs shrinks faster
+    than the dome grows, so there is no size at which extra room is bought
+    with extra exposure.
+    """
+    from stardome import entrance
+
+    tips = []
+    efficiencies = []
+    for name in sorted(VARIANTS, key=lambda k: config.load(k).diameter):
+        bare = model.build(config.load(name, skirt_height=0.0))
+        needed = entrance.skirt_for_door(bare, 1800.0, 700.0)["skirt_needed_mm"]
+        data = skirted(name, float(needed))
+        tips.append(interior.exposure(data)["tip_index"])
+        efficiencies.append(interior.rod_efficiency(data)["m2_per_rod_m"])
+
+    assert tips == sorted(tips, reverse=True)
+    assert efficiencies == sorted(efficiencies)
+
+
 def test_rod_efficiency_improves_with_size_for_bare_domes():
     """The big domes are better value per metre of rod, which is why D12 exists."""
     efficiencies = []

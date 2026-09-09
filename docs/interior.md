@@ -85,6 +85,56 @@ Two things follow:
   the worse it is. The wind penalty and the bracing problem are the same
   problem.
 
+## D4 on a skirt, and why it retires D3
+
+Standing height 1800 mm. `slenderness` is overall height over diameter — at 1.0
+the thing is taller than it is wide, which is when it stops reading as a dome.
+
+| skirt | you can stand in | of floor | overall | tip index | slenderness | rod | m²/m |
+|---|---|---|---|---|---|---|---|
+| 0 | 2.39 m² | 19% | 1964 mm | 0.424 | 0.50 | 94 m | 0.025 |
+| 500 | 7.26 m² | 58% | 2464 mm | 0.542 | 0.62 | 112 m | 0.065 |
+| 800 | 9.42 m² | 75% | 2764 mm | 0.614 | 0.70 | 115 m | 0.082 |
+| **1320** | **11.84 m²** | **94%** | 3284 mm | 0.740 | 0.83 | 120 m | 0.099 |
+| 1800 | 12.57 m² | 100% | 3764 mm | 0.857 | 0.95 | 125 m | 0.101 |
+
+1320 mm is the skirt a walk-in 1800×700 door needs on D4
+([`entrance.md`](entrance.md)), and it lands almost exactly on saturation: the
+last 480 mm of skirt buys 6% more area for another 0.12 of tip index.
+
+Set that against D3 carrying the same door:
+
+| | standing room | of floor | overall | tip index | slenderness | rod | m²/m |
+|---|---|---|---|---|---|---|---|
+| D3 + 1600 | 6.94 m² | 98% | 3073 mm | 0.939 | **1.03** | 96 m | 0.072 |
+| D4 + 1320 | **11.84 m²** | 94% | 3284 mm | **0.740** | 0.83 | 120 m | **0.099** |
+
+**D4 + 1320 beats D3 + 1600 on every axis that matters** — 70% more standing
+room, a materially lower tip index, 37% better rod efficiency — and it is still
+wider than it is tall where D3 is not. D3 pays for its smaller footprint twice:
+once in area and once in stability. Two things stay in D3's favour: the 3 m
+footprint itself, and 96 m of rod against 120 m.
+
+So **D3 + skirt is dominated**, and the earlier "D3 on a skirt beats a bare D4"
+result is true but the wrong comparison — the honest one is skirt against
+skirt. Choose D3 only when the site is too small for 4 m.
+
+The same sweep across the family, each with the skirt its walk-in door needs:
+
+| | skirt | standing room | of floor | tip index | slenderness | m²/m |
+|---|---|---|---|---|---|---|
+| D3 | 1600 | 6.94 m² | 98% | 0.939 | 1.03 | 0.072 |
+| D4 | 1320 | 11.84 m² | 94% | 0.740 | 0.83 | 0.099 |
+| D6 | 760 | 24.88 m² | 88% | 0.543 | 0.63 | 0.148 |
+| D8 | 250 | 42.72 m² | 85% | 0.453 | 0.53 | 0.198 |
+| D10 | 0 | 68.36 m² | 87% | 0.424 | 0.50 | 0.290 |
+| D12 | 0 | 102.92 m² | 91% | 0.424 | 0.50 | 0.364 |
+
+Every column improves monotonically with size. **Bigger is simultaneously more
+efficient and more stable**, because the skirt a door needs shrinks faster than
+the dome grows. The expected trade — big domes buy room at the cost of
+exposure — does not exist once the door requirement is held constant.
+
 ## What this suggests
 
 - **D6 + 760 mm skirt** as the reference: a walk-in door, 88% of the floor
@@ -92,9 +142,10 @@ Two things follow:
 - **D3 + 1300–1600 mm skirt** as a small sleeping pod, accepting a tip index
   near 0.9 and the anchoring that implies. Not a public space.
 - **D10 and above** need no skirt for either headroom or a door.
-- **D4 bare is the worst of the family** — 19% of its floor is usable and its
-  rod efficiency is the lowest of any dome that works at all. If a 4 m dome is
-  wanted, it wants a skirt more than D6 does.
+- **D4 wants a skirt more than any other size, and repays it best.** Bare it is
+  the worst of the family — 19% of its floor usable, the lowest rod efficiency
+  of any dome that works at all. On a skirt it is the best thing at the small
+  end; see below.
 
 None of this is a structural calculation. It is geometry and a shape
 comparison, which is enough to choose a size and not enough to build one.

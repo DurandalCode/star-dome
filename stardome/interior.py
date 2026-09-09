@@ -110,6 +110,10 @@ def exposure(data: dict) -> dict:
         "silhouette_m2": round(area / 1e6, 2),
         "centroid_height_mm": round(centroid, 1),
         "tip_index": round(centroid / radius, 3),
+        # Overall height over diameter. Below about 0.8 it reads as a dome;
+        # at 1.0 it is taller than it is wide, which is a silo. This is what
+        # separates "small dome on a skirt" from "tower".
+        "slenderness": round(top / (2.0 * radius), 3),
         "note": (
             "Comparative shape figure only: overturning arm over righting arm, "
             "per unit sail area. No pressure coefficient, no safety claim."
@@ -176,7 +180,9 @@ def format_analysis(data: dict) -> str:
     e = a["exposure"]
     lines.append(
         f"  silhouette {e['silhouette_m2']:.2f} m2, centroid at "
-        f"{e['centroid_height_mm']:.0f} mm, tip index {e['tip_index']:.3f}"
+        f"{e['centroid_height_mm']:.0f} mm, tip index {e['tip_index']:.3f}, "
+        f"slenderness {e['slenderness']:.2f}"
+        + ("  <- taller than wide" if e["slenderness"] >= 1.0 else "")
     )
     f = a["efficiency"]
     lines.append(
