@@ -75,6 +75,11 @@ def parse_args(argv):
              "from the viewport instead of by clicking through the outliner",
     )
     p.add_argument(
+        "--hide-cuts",
+        action="store_true",
+        help="leave the removed pieces out entirely instead of ghosting them",
+    )
+    p.add_argument(
         "--no-doorway",
         action="store_true",
         help="skip the doorway highlight even if the model carries one",
@@ -553,7 +558,7 @@ def build(args):
             if present:
                 suffix = f"_{index}" if len(runs) > 1 else ""
                 rod_object(rod, rod_radius_m, mat, rods_coll, lift, points, suffix)
-            else:
+            elif not args.hide_cuts:
                 if ghost_coll is None:
                     ghost_coll = new_collection("Cut_Away", root)
                 rod_object(

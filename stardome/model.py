@@ -167,8 +167,13 @@ def _open_door_bay(skirt: dict, data: dict, radius: float, head_room: float = 15
     side. That is a portal frame, and it puts bending into the two U bows near
     their feet, which is a statics question this model does not answer.
 
-    The header sits a little above whatever silhouette the door is sized for,
-    and never above the dome's own opening, where it would do nothing.
+    The header sits above the tallest silhouette the opening actually
+    **admits**, not above the one it is nominally sized for. Those are not the
+    same: S is sized for someone carrying something at 1800 mm but its portal
+    passes a 2.2 m character, and a header placed on the nominal figure takes
+    that back -- a lintel that blocks what the doorway was letting through.
+    It is still never put above the dome's own opening, where it would be
+    carrying nothing over anything.
     """
     from . import geometry
 
@@ -201,9 +206,22 @@ def _open_door_bay(skirt: dict, data: dict, radius: float, head_room: float = 15
     # is allowed to be before it stops being over the doorway at all.
     from . import entrance
 
-    template = data["meta"].get("door_template", "")
-    wanted = max(h for h, _ in entrance.TEMPLATES[template]) if template else 1800.0
-    ceiling = door["in_bay"]["clear_height_mm"] + skirt["height"]
+    admitted = door.get("admits") or []
+    if admitted:
+        wanted = max(
+            max(z for z, _ in entrance.TEMPLATES[name]) for name in admitted
+        )
+    else:
+        template = data["meta"].get("door_template", "")
+        wanted = (
+            max(z for z, _ in entrance.TEMPLATES[template]) if template else 1800.0
+        )
+    # Keep it under the dome's own lintel rather than in it.
+    ceiling = (
+        door["in_bay"]["clear_height_mm"]
+        + skirt["height"]
+        - data["meta"]["rod_diameter"]
+    )
     above_ground = min(wanted + head_room, ceiling)
     z = above_ground - skirt["height"]  # back into base-ring coordinates
 
@@ -223,7 +241,7 @@ def _open_door_bay(skirt: dict, data: dict, radius: float, head_room: float = 15
         "b": [_r(c) for c in ends[1]],
         "length": _r(math.dist(ends[0], ends[1])),
         "height_above_ground": _r(above_ground),
-        "clear_below_mm": _r(above_ground),
+        "clears_mm": _r(wanted),
         "note": (
             "Carries the top ring's hoop force over the doorway: post head, up "
             "the U bow, across, and down the other side. A portal frame, so it "
