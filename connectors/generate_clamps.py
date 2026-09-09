@@ -124,9 +124,16 @@ def run():
     report = {"variant": sched["meta"]["variant"], "built": [], "not_covered": []}
 
     for part in sched["parts"]:
-        if part["kind"] != "two_rod_clamp":
+        generator = part.get("generator")
+        if generator != "crossing_clamp_v1":
             report["not_covered"].append(
-                {"id": part["id"], "why": "unknown part kind %r" % part["kind"]}
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "count": part["count"],
+                    "why": part.get("note")
+                    or "no generator for this part kind (%r)" % part["kind"],
+                }
             )
             continue
 

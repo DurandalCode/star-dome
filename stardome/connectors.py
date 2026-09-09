@@ -18,7 +18,7 @@ not solve the ones it does. See docs/roadmap.md milestone 3.
 
 from __future__ import annotations
 
-from . import SCHEMA_VERSION
+from . import SCHEMA_VERSION, weave
 
 SCHEMA = f"star_dome_connectors/{SCHEMA_VERSION}"
 
@@ -63,6 +63,7 @@ def schedule(data: dict) -> dict:
                     "nodes": [],
                     "tied": bool(contact["tied"]),
                     "crossing_types": [],
+                    "generator": "crossing_clamp_v1",
                 },
             )
             part["count"] += 1
@@ -81,13 +82,6 @@ def schedule(data: dict) -> dict:
                     "nodes": [],
                     "pair_angles": [],
                     "crossing_types": [],
-                    "reason": (
-                        f"{rod_count} rods meet at one point; the V1 two-piece clamp "
-                        f"holds {TWO_ROD_CLAMP_CAPACITY}. Needs a different "
-                        f"architecture, and the radial stacking order is a build "
-                        f"decision that has not been made (see model meta, "
-                        f"above_convention)."
-                    ),
                 },
             )
             entry["count"] += 1
@@ -103,11 +97,51 @@ def schedule(data: dict) -> dict:
         entry["pair_angles"].sort()
         entry["crossing_types"].sort()
 
-    part_list = sorted(parts.values(), key=lambda p: p["crossing_angle"])
+    # Fold in what the fan analysis knows about the four-rod nodes. Their
+    # geometry is settled -- one planar fan serves all ten -- so they belong in
+    # `parts` as a specified part, not in a list of things we cannot describe.
+    # What they still lack is a generator.
+    fan = weave.analyse(data)
+    four_rod = [e for e in unsupported.values() if e["rod_count"] == 4]
+    for entry in four_rod:
+        if fan["distinct_fans"] != 1:
+            continue
+        group = fan["groups"][0]
+        key = _part_id("FAN4", rod_diameter, group["gaps_deg"][0])
+        parts[key] = {
+            "id": key,
+            "kind": "four_rod_fan",
+            "rod_diameter": rod_diameter,
+            "count": entry["count"],
+            "nodes": entry["nodes"],
+            "tied": True,
+            "crossing_types": entry["crossing_types"],
+            "generator": None,
+            "fan_gaps_deg": group["gaps_deg"],
+            "families_in_fan_order": group["families_in_fan_order"],
+            "stack_order": fan["stack_order"],
+            "stack_contacts_deg": fan["stack_contacts"],
+            "stack_height": fan["stack_height"],
+            "coplanar": fan["coplanarity_residual"] < 1e-9,
+            "note": (
+                "All four rods are coplanar -- a great circle's tangent lies in "
+                "the sphere's tangent plane -- so this is a flat four-armed fan "
+                "with the rods stacked along the radius. One part serves every "
+                "one of these nodes. No generator yet; see docs/tied-node.md."
+            ),
+        }
+    unsupported = {k: v for k, v in unsupported.items() if v["rod_count"] != 4 or fan["distinct_fans"] != 1}
+
+    # Four-rod fans first: they are the nodes the reference actually lashes.
+    part_list = sorted(
+        parts.values(),
+        key=lambda p: (p["kind"] != "four_rod_fan", p.get("crossing_angle", 0.0)),
+    )
     unsupported_list = sorted(unsupported.values(), key=lambda e: -e["rod_count"])
 
     covered = sum(p["count"] for p in part_list)
     uncovered = sum(e["count"] for e in unsupported_list)
+    buildable = sum(p["count"] for p in part_list if p.get("generator"))
 
     return {
         "schema": SCHEMA,
@@ -120,10 +154,12 @@ def schedule(data: dict) -> dict:
         "unsupported": unsupported_list,
         "totals": {
             "crossing_points": len(data["nodes"]),
-            "covered_nodes": covered,
+            "specified_nodes": covered,
             "uncovered_nodes": uncovered,
             "distinct_part_types": len(part_list),
             "parts_per_dome": covered,
+            "generatable_now": buildable,
+            "awaiting_a_generator": covered - buildable,
         },
     }
 
@@ -134,17 +170,28 @@ def format_schedule(sched: dict) -> str:
     meta = sched["meta"]
     lines.append(f"--- {meta['variant']} connector schedule  (rod {meta['rod_diameter']:g} mm)")
 
-    if sched["parts"]:
-        lines.append("  parts that can be generated:")
-        for p in sched["parts"]:
-            tied = "lashed" if p["tied"] else "unlashed"
+    for p in sched["parts"]:
+        tied = "lashed" if p["tied"] else "unlashed"
+        state = p["generator"] or "NO GENERATOR YET"
+        lines.append(f"    {p['id']:<20} {p['count']:>3} x   {tied}   [{state}]")
+        if p["kind"] == "four_rod_fan":
+            gaps = ", ".join(f"{g:.4f}" for g in p["fan_gaps_deg"])
+            contacts = ", ".join(f"{c:.4f}" for c in p["stack_contacts_deg"])
             lines.append(
-                f"    {p['id']:<16} {p['count']:>3} x  "
-                f"{p['crossing_angle']:.4f} deg  ({tied}, "
-                f"classes {'/'.join(p['crossing_types'])})"
+                f"      planar fan, gaps {gaps} deg; "
+                f"families {'-'.join(p['families_in_fan_order'])}"
             )
-    else:
-        lines.append("  no generatable parts")
+            lines.append(
+                f"      stack {'-'.join(str(i + 1) for i in p['stack_order'])}: "
+                f"contacts {contacts} deg, height {p['stack_height']:g} mm"
+            )
+        else:
+            lines.append(
+                f"      two rods at {p['crossing_angle']:.4f} deg, "
+                f"classes {'/'.join(p['crossing_types'])}"
+            )
+    if not sched["parts"]:
+        lines.append("  no parts")
 
     for e in sched["unsupported"]:
         lines.append(
@@ -158,7 +205,9 @@ def format_schedule(sched: dict) -> str:
     t = sched["totals"]
     lines.append(
         f"  totals: {t['distinct_part_types']} distinct part type(s), "
-        f"{t['parts_per_dome']} parts per dome, "
-        f"{t['uncovered_nodes']} node(s) uncovered"
+        f"{t['parts_per_dome']} parts per dome "
+        f"({t['generatable_now']} generatable now, "
+        f"{t['awaiting_a_generator']} awaiting a generator), "
+        f"{t['uncovered_nodes']} node(s) unspecified"
     )
     return "\n".join(lines)

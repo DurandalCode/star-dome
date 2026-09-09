@@ -123,8 +123,25 @@ So V1 currently solves the crossings the reference leaves alone, and does not
 solve the ones it ties. Closing that is the real content of this milestone.
 
 - [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
-- [ ] Decide the radial stacking order at a four-rod node. It is currently a drawing convention (`above_convention` in the model meta), not a build decision, and a four-rod part cannot be designed without it.
-- [ ] Design a four-rod node connector, or a scheme that splits one node into stacked two-rod clamps.
+- [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
+- [ ] Design the four-rod fan connector.
+- [ ] Check whether one global over/under assignment is consistent across all 90 contacts at once.
+
+**The four-rod node turned out to be the easy case.** All four rods at a lashed
+node are coplanar — a great circle's tangent lies in the sphere's tangent plane
+— so the node is a flat four-armed fan with the rods stacked along the radius,
+not a three-dimensional tangle. All ten nodes are the same fan: gaps of
+37.3774, 41.8103, 37.3774 and 63.4349 deg, summing to 180. The five high nodes
+read G-U-U-G and the five low ones L-G-G-L, but as geometry they are one shape.
+
+So the whole dome needs **two connector geometries**: one four-rod fan (10 off)
+and one two-rod clamp (30 off, and optional). Not twelve.
+
+Stacking order chosen as fan order, 1-2-3-4: it puts the three shallowest
+angles into rod-on-rod contact, needs two distinct saddle angles rather than
+three, is palindromic, and states as one sentence in the field. Its cost is
+that G and L rods change level between nodes, which measures out as a 1.6%
+slope — not a constraint. Stack height is three rod diameters.
 
 **Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
 

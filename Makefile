@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors blender venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave blender venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -19,6 +19,7 @@ help:
 	@echo "make snapshot   refresh the committed golden summaries"
 	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make connectors show which connector parts each variant needs"
+	@echo "make weave      four-rod node fan geometry and stacking order"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make check      verify + test; run this before claiming anything works"
 	@echo "make scad       regenerate the OpenSCAD reference export for parity tests"
@@ -44,6 +45,9 @@ config:
 
 # What connector parts the dome needs, derived from the model rather than
 # argued about. Add --json to feed connectors/generate_clamps.py.
+weave:
+	@$(PYTHON) -m stardome weave --all
+
 connectors:
 	@$(PYTHON) -m stardome connectors --all
 

@@ -161,9 +161,21 @@ reads that schedule, drives `crossing_clamp_v1.py` once per part at that part's
 real crossing angle, and exports STEP plus a slicer-sized STL into
 `exports/connectors/`. It computes no dome geometry of its own.
 
-The schedule reports what it cannot build instead of quietly skipping it. For
-the baseline topology that matters: one clamp geometry covers all 30 unlashed
-crossings, and the 10 four-rod lashed nodes are not covered at all.
+The schedule reports what it cannot build instead of quietly skipping it: each
+part carries a `generator`, and a part with `generator: null` is specified but
+not yet buildable.
+
+For the baseline topology the schedule comes to **two connector geometries**:
+a four-rod fan at the 10 lashed nodes, and one two-rod clamp covering all 30
+unlashed crossings. `stardome/weave.py` derives the fan — the four rods at a
+lashed node are coplanar, so the node is flat, and all ten nodes are the same
+shape. It also enumerates the radial stacking orders with the rod-on-rod
+contacts each creates, and records the one the project chose. See
+[`tied-node.md`](tied-node.md).
+
+```bash
+python3 -m stardome weave D6
+```
 
 MCP is for interactive inspection. Anything that must be reproducible runs as
 a script from the repository: if a result cannot be rebuilt with one command

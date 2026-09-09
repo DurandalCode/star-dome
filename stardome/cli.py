@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import config, connectors, export, model, verify
+from . import config, connectors, export, model, verify, weave
 
 
 def _variant_names(args) -> list:
@@ -85,6 +85,14 @@ def cmd_connectors(args) -> int:
     return 0
 
 
+def cmd_weave(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(weave.format_analysis(data))
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -123,6 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("snapshot", cmd_snapshot, "refresh the committed golden summaries"),
         ("scad-config", cmd_scad_config, "regenerate configs/variants.scad from the TOML"),
         ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
+        ("weave", cmd_weave, "four-rod node fan geometry and the stacking order"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
