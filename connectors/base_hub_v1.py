@@ -94,8 +94,9 @@ INPUTS = [
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with"),
-    ("stakeWidth",            40.0,  "mm",  "across the driven angle's blade"),
-    ("stakeThickness",         5.0,  "mm",  "the angle's material thickness"),
+    ("stakeLegWidth",         30.0,  "mm",  "each leg of the driven steel angle, across"),
+    ("stakeThickness",         3.0,  "mm",  "the angle's material thickness"),
+    ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
     ("stakeClearance",         0.6,  "mm",  "fit clearance on the stake slot, per side"),
     ("stakeBoltDiameter",      8.5,  "mm",  "M8 clearance hole through the stake slot"),
     ("fastenerDiameter",       5.5,  "mm",  "M5 clearance hole diameter"),
@@ -179,6 +180,30 @@ def rod_channel(radius, length, azimuth_deg, z, tilt_deg, reach_back, steps=2):
     return solid
 
 
+def angle_profile(leg, thickness, length, azimuth_deg, clearance=0.0):
+    """A steel angle: an L in section, run along one azimuth.
+
+    An angle rather than a flat bar, and that is not a detail. A blade in a
+    slot can rotate in its own plane; an L cannot, because turning it drives
+    one leg into the side of the slot. The hub gets its resistance to twisting
+    on the stake for free, out of the section.
+
+    Built in a local frame -- section in (Y, Z), extruded along +X -- then
+    turned to the azimuth, the same way the rod channels are, because building
+    boxes at an angle in world coordinates is where OCC starts producing
+    invalid solids.
+    """
+    half = leg / 2.0 + clearance
+    t = thickness + 2.0 * clearance
+    # Two legs sharing the corner at (-half, -half) of a leg-square centred on
+    # the axis, so the section sits centred whatever the leg width.
+    flat = Part.makeBox(length, 2.0 * half, t, App.Vector(0.0, -half, -half))
+    upright = Part.makeBox(length, t, 2.0 * half, App.Vector(0.0, -half, -half))
+    solid = flat.fuse(upright).removeSplitter()
+    solid.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), azimuth_deg)
+    return solid
+
+
 def arm(length, width, height, z, azimuth_deg):
     """A rectangular arm running out along one azimuth from the hub."""
     box = Part.makeBox(
@@ -231,7 +256,7 @@ def build(values, fan_gaps=None):
     stake_azimuth = (sector_start + sector_size / 2.0) % 360.0
 
     boss_r = values["fastenerHeadDiameter"] / 2.0 + wall
-    slot_half = values["stakeWidth"] / 2.0 + values["stakeClearance"]
+    slot_half = values["stakeLegWidth"] / 2.0 + values["stakeClearance"]
 
     # Two bolts, one either side of the stake slot, far enough round that each
     # clears the nearest arm and far enough out that its boss clears the slot.
@@ -301,17 +326,24 @@ def build(values, fan_gaps=None):
         for p in bolt_points
     ]
 
-    # The stake slot: a blade-shaped hole through the whole stack, on the
-    # bisector of the empty sector, so that once the part is stood up it
-    # points at the ground.
-    slot_t = values["stakeThickness"] + 2.0 * values["stakeClearance"]
-    slot = Part.makeBox(
-        stake_reach + hub_r,
-        slot_t,
-        (z_top - z_bottom) + 4.0,
-        App.Vector(-hub_r, -slot_t / 2.0, z_bottom - 2.0),
+    # The stake slot: an L-section hole running out along the bisector of the
+    # empty sector, so that once the part is stood up it points at the ground.
+    # The angle passes right through the hub and on into the earth, so the slot
+    # runs the full reach and out the back.
+    slot = angle_profile(
+        values["stakeLegWidth"],
+        values["stakeThickness"],
+        stake_reach + hub_r + 4.0,
+        stake_azimuth,
+        values["stakeClearance"],
     )
-    slot.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), stake_azimuth)
+    slot.translate(
+        App.Vector(
+            -direction(stake_azimuth).x * (hub_r + 2.0),
+            -direction(stake_azimuth).y * (hub_r + 2.0),
+            0.0,
+        )
+    )
 
     # And a cross bolt through it, perpendicular to the blade and in the fan
     # plane, which is what stops the hub lifting off the stake.
@@ -349,10 +381,27 @@ def build(values, fan_gaps=None):
             raise RuntimeError(f"plate {PLATE_NAMES[i]} came out invalid")
         plates.append(solid)
 
+    # The angle itself, drawn: mostly in the ground, and the reason the empty
+    # sector exists.
+    stake = angle_profile(
+        values["stakeLegWidth"],
+        values["stakeThickness"],
+        values["stakeLength"],
+        stake_azimuth,
+    )
+    stake.translate(
+        App.Vector(
+            -direction(stake_azimuth).x * hub_r,
+            -direction(stake_azimuth).y * hub_r,
+            0.0,
+        )
+    )
+
     geo = {
         "plates": plates,
         "rods": rods,
         "channels": channels,
+        "stake": stake,
     }
     dims = {
         "fan_gaps_deg": gaps,
@@ -369,6 +418,8 @@ def build(values, fan_gaps=None):
         "ref_rod_length_mm": ref_len,
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
+        "stake_leg_mm": values["stakeLegWidth"],
+        "stake_thickness_mm": values["stakeThickness"],
         "z_bottom_mm": z_bottom,
         "z_top_mm": z_top,
         "stack_height_mm": z_top - z_bottom,
@@ -426,6 +477,22 @@ def verify(geo, dims, values):
             f"stack is {dims['stack_height_mm']:.1f} mm, expected under {bound:.1f}"
         )
 
+    # The angle's leg has to fit between the outer faces of the stack, or the
+    # slot breaks out of the top or bottom instead of being a slot.
+    leg_span = dims["stake_leg_mm"] + 2.0 * values["stakeClearance"]
+    if leg_span > dims["stack_height_mm"]:
+        problems.append(
+            f"the angle's {leg_span:.1f} mm leg does not fit inside a "
+            f"{dims['stack_height_mm']:.1f} mm stack"
+        )
+
+    # And the plates must not eat into it either.
+    if geo.get("stake") is not None:
+        for name, plate in zip(PLATE_NAMES, plates):
+            v = _vol(plate.common(geo["stake"]))
+            if v > 0.5:
+                problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
+
     # The stake slot has to be in the empty sector, not through an arm.
     for az in dims["arm_azimuths_deg"]:
         separation = abs(
@@ -465,6 +532,11 @@ def derived_rows(dims, values):
          "hub centre to the end of an arm"),
         ("refRodDrawn", round(dims["ref_rod_length_mm"], 1), "mm",
          "length of each reference rod; drawing only"),
+        ("stakeLeg", round(dims["stake_leg_mm"], 1), "mm",
+         "each leg of the driven angle"),
+        ("stakeSection", f"L{dims['stake_leg_mm']:g}x{dims['stake_leg_mm']:g}"
+         f"x{dims['stake_thickness_mm']:g}", "-",
+         "the angle to buy"),
         ("plateCount", dims["plate_count"], "-", "prints per hub"),
     ]
 
@@ -472,13 +544,28 @@ def derived_rows(dims, values):
 # --------------------------------------------------------------------------
 # document
 # --------------------------------------------------------------------------
+# See docs/colours.md. A light-to-dark ramp so the stacking order reads without
+# selecting anything, and the family colours for the rods -- the same three a
+# bow gets in every Blender scene.
 PLATE_COLOURS = [
-    (0.85, 0.85, 0.88),
-    (0.75, 0.80, 0.88),
-    (0.70, 0.76, 0.86),
-    (0.62, 0.70, 0.84),
+    (0.86, 0.86, 0.89),
+    (0.76, 0.81, 0.89),
+    (0.70, 0.76, 0.87),
+    (0.62, 0.70, 0.85),
 ]
-ROD_COLOURS = [(0.20, 0.75, 0.35), (0.95, 0.45, 0.10), (0.15, 0.55, 0.95)]
+PLATE_TRANSPARENCY = 55
+FAMILY_COLOUR = {
+    "G": (0.15, 0.55, 0.95),
+    "U": (0.95, 0.45, 0.10),
+    "L": (0.20, 0.75, 0.35),
+}
+# Arms in fan order at a base point are L, U, G -- see weave.base_fan. Family
+# colours work here, unlike at the four-rod node, because no two arms share a
+# family.
+ROD_FAMILIES = ["L", "U", "G"]
+# Steel, and not one of the rod families: it is the one member here that is
+# bought rather than made.
+STAKE_COLOUR = (0.45, 0.45, 0.48)
 
 
 def populate(doc, geo):
@@ -494,14 +581,22 @@ def populate(doc, geo):
     for i, rod in enumerate(geo["rods"]):
         obj = doc.addObject("Part::Feature", f"Ref_Rod{i + 1}")
         obj.Shape = rod
+    if geo.get("stake") is not None:
+        obj = doc.addObject("Part::Feature", "Ref_Stake")
+        obj.Shape = geo["stake"]
     doc.recompute()
 
 
 def apply_view(doc):
-    """Colour the plates and make the reference rods translucent.
+    """Plates translucent, rods in their family colours. See docs/colours.md.
 
-    A no-op headless, which is where this usually runs.
+    A no-op headless, and not because the import fails: FreeCADGui imports
+    perfectly well under freecadcmd, but `ViewObject` is None whenever
+    `App.GuiUp` is 0, so guarding on the import alone passes and then colours
+    nothing. Guard on GuiUp.
     """
+    if not getattr(App, "GuiUp", 0):
+        return
     try:
         import FreeCADGui as Gui
     except ImportError:
@@ -515,11 +610,14 @@ def apply_view(doc):
         if obj.Name.startswith("Plate_"):
             idx = PLATE_NAMES.index(obj.Name.split("_", 1)[1])
             view.ShapeColor = PLATE_COLOURS[idx % len(PLATE_COLOURS)]
+            view.Transparency = PLATE_TRANSPARENCY
+        elif obj.Name == "Ref_Stake":
+            view.ShapeColor = STAKE_COLOUR
             view.Transparency = 0
         elif obj.Name.startswith("Ref_Rod"):
             idx = int(obj.Name[-1]) - 1
-            view.ShapeColor = ROD_COLOURS[idx % len(ROD_COLOURS)]
-            view.Transparency = 55
+            view.ShapeColor = FAMILY_COLOUR[ROD_FAMILIES[idx % len(ROD_FAMILIES)]]
+            view.Transparency = 0
     try:
         Gui.SendMsgToActiveView("ViewFit")
     except Exception:
