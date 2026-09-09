@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave blender venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave clamps blender venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -20,6 +20,7 @@ help:
 	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make connectors show which connector parts each variant needs"
 	@echo "make weave      four-rod node fan geometry and stacking order"
+	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make check      verify + test; run this before claiming anything works"
 	@echo "make scad       regenerate the OpenSCAD reference export for parity tests"
@@ -50,6 +51,15 @@ weave:
 
 connectors:
 	@$(PYTHON) -m stardome connectors --all
+
+# Build every connector the schedule asks for, into exports/connectors/ as
+# STEP (open in FreeCAD), STL (drop into a slicer) and FCStd (editable).
+# Needs FreeCAD; runs it headless, no GUI.
+FREECADCMD ?= /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd
+
+clamps:
+	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
+	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(V)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
 
 # Build the 1:1 Blender scene. Layered weave and polylines are required: in
 # flat mode every crossing has two rods in the same place, which makes a

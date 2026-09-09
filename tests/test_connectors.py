@@ -54,16 +54,18 @@ def test_one_four_rod_fan_serves_every_lashed_node(sched):
     assert sum(part["fan_gaps_deg"]) == pytest.approx(180.0, abs=1e-6)
 
 
-def test_the_fan_still_has_no_generator(sched):
-    """Guards the honesty of the schedule.
+def test_every_part_has_a_generator(sched):
+    """The whole connector set is buildable from the model.
 
-    When a four-rod generator lands, this test should be updated deliberately,
-    not discovered to have been silently passing.
+    This test previously asserted the opposite -- that the fan had no
+    generator -- so that landing one could not pass unnoticed. It landed;
+    `connectors/fan_node_v1.py` builds it.
     """
-    assert _part(sched, "four_rod_fan")["generator"] is None
+    assert _part(sched, "four_rod_fan")["generator"] == "fan_node_v1"
+    assert _part(sched, "two_rod_clamp")["generator"] == "crossing_clamp_v1"
     totals = sched["totals"]
-    assert totals["generatable_now"] == 30
-    assert totals["awaiting_a_generator"] == 10
+    assert totals["generatable_now"] == 40
+    assert totals["awaiting_a_generator"] == 0
 
 
 def test_every_crossing_point_is_accounted_for(sched):

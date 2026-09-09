@@ -107,8 +107,22 @@ regenerate with `tools/export_geometry.py`:
 - Rod inclination at a crossing ranges from 4.7 to 65.4 deg above horizontal, so
   the clamp cannot assume the rod pair sits in a convenient plane.
 
-The four-rod nodes are a reconstruction, not a quoted fact from the reference;
-verify against photographs or a physical mock-up before committing to a part.
+**The four-rod node is confirmed.** It was a reconstruction; it has now been
+checked against the reference's own construction diagram. Panel 1 rings 5
+junctions of the blue pentagram, each with two blue bows crossing; panel 2 adds
+the green bows and the same 5 rings carry two blue plus two green. Four rods,
+in the pattern the model predicts. See [`tied-node.md`](tied-node.md) and
+[`references.md`](references.md).
+
+Two things the same source changes, though:
+
+- The reference **ties those junctions pairwise**, with two or three cable ties
+  clustered over a short span, not as one four-rod bundle. A rigid fan part is
+  a departure from its practice, so a short stack of two-rod clamps stays a
+  legitimate alternative — and one that keeps a single part family.
+- The bamboo model has ties at **many more crossings than the ten marked ones**.
+  So the reference's authority does not support dropping the 30 two-rod clamps;
+  that call belongs to the D4 prototype.
 
 **What the connector schedule says.** `python3 -m stardome connectors D6` groups
 every crossing into the part that would serve it, and the answer is awkward:
@@ -125,7 +139,8 @@ solve the ones it ties. Closing that is the real content of this milestone.
 - [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
 - [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
 - [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
-- [ ] Design the four-rod fan connector.
+- [x] Design the four-rod fan connector. V1 in `connectors/fan_node_v1.py`, see [`fan-node-v1.md`](fan-node-v1.md). Base saddle under rod 1 with two posts, cap over rod 4, two M5. Geometry verified, and both halves print without supports: worst overhang 50.06 deg and 49.99 deg against a 45 deg limit, zero flat unsupported ceiling. 60 cm3 for the pair. No fillets yet, and nothing tested in plastic.
+- [ ] Decide between the fan part and a stack of two-rod clamps, on printed samples.
 
 **The four-rod node turned out to be the easy case.** All four rods at a lashed
 node are coplanar — a great circle's tangent lies in the sphere's tangent plane

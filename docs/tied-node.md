@@ -163,14 +163,55 @@ side. A channel bored exactly tangent will pre-stress the rod. Flared mouths
 already help; whether the fan needs an explicit tilt allowance is a question
 for the printed prototype.
 
-## 5. What is still open
+## 5. Checked against the reference
 
-- **The part itself.** The schedule carries the fan as a specified part with
-  `generator: null`. Nothing builds it yet.
+The four-rod node was a reconstruction, and the roadmap held it as something to
+confirm before spending effort on tooling. It is confirmed, from the
+reference's own construction diagram rather than from a photograph:
+
+- **Panel 1** draws the pentagram of 5 blue bows and rings 5 junctions. Two
+  blue bows cross at each ring.
+- **Panel 2** adds the 5 green bows. The same 5 rings now carry **two blue plus
+  two green** — four rods, in exactly the two-of-one-family, two-of-another
+  pattern this model predicts.
+
+The reference's own text does not state a number; it says only that the count
+"varies by location", which is why the diagram is the evidence.
+
+### But the reference does not build them as one joint
+
+The bamboo model photograph shows how those junctions are actually made:
+**pairwise cable ties, two or three of them clustered over a short span along
+the rods**, not one bundle of four. The rods are visibly not concurrent — they
+pass a few rod-widths apart.
+
+That is worth stating plainly, because it makes the fan part a **departure from
+the reference's practice, not a reproduction of it**. A rigid four-rod part
+forces exact concurrency where the original tolerates a spread. Two
+consequences for the design:
+
+- The fan should tolerate the rods arriving slightly off the ideal point —
+  slots and flared mouths rather than exact bores, on top of the ~1.2° radial
+  tilt allowance from the weave analysis.
+- A legitimate alternative is not to make a four-rod part at all, but a short
+  stack of two-rod clamps, which is closer to what the reference does. That
+  keeps one part family instead of two, at the cost of more pieces per node.
+
+The same photograph shows ties at many more crossings than the ten marked ones,
+so the original builder did tie two-rod crossings as well. That is evidence
+against dropping the 30 unlashed clamps entirely on the reference's authority —
+it should be settled on a D4 prototype instead.
+
+## 6. What is still open
+
+- ~~The part itself.~~ Built: `connectors/fan_node_v1.py`, driven from the
+  model by `connectors/generate_clamps.py`. See
+  [`fan-node-v1.md`](fan-node-v1.md) for the architecture, the numbers, and
+  what is still crude about it.
+- **Fan part or a stack of two-rod clamps.** Still open. The reference does the
+  latter, and it would keep a single part family. V1 of the fan exists so the
+  two can be compared on real numbers rather than argued about.
 - **Near-crossing interference.** The check is axis separation *at* the
   crossing point. Two rods meeting at the fan's shallowest angle, 37.4°, stay
   close for some distance either side of it; whether finite-diameter rods
   clear each other over that whole region is not modelled.
-- **Whether the reference really has four rods per node.** This is a
-  reconstruction from the rod marking diagram, not a quoted fact. Verify
-  against photographs or a physical mock-up before committing to tooling.
