@@ -76,12 +76,17 @@ jobs:
         run: python3 -m pip install --quiet pytest
 
       # The parity tests skip themselves when the export is missing, which
-      # would make this job pass without comparing anything. Fail first if the
-      # four files are not there.
+      # would make this job pass without comparing anything. Fail first if a
+      # variant is missing its file. The count comes from the config, not from
+      # a literal: hardcoding 4 here is what broke this job the day a fifth
+      # and sixth variant landed.
       - name: Compare both producers
         run: |
           ls -1 exports/geometry/*.json
-          test "$(ls -1 exports/geometry/*.json | wc -l)" -eq 4
+          expected=$(python3 -c 'from stardome import config; print(len(config.load_all()))')
+          actual=$(ls -1 exports/geometry/*.json | wc -l | tr -d ' ')
+          echo "variants in config: $expected, exports present: $actual"
+          test "$actual" -eq "$expected"
           python3 -m pytest tests/test_geometry.py -q -k matches_openscad -rs
 
       - name: Upload the OpenSCAD export
