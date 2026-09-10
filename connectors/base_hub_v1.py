@@ -653,9 +653,17 @@ def verify(geo, dims, values):
                 f"{separation:.1f} deg from the arm at {az:.1f}"
             )
 
+    # The cap prints flipped so its channel faces up; every other plate prints
+    # with its upward channel up. Same convention as the four-rod node.
+    printability = {
+        name: kit.printability(plate, flipped=(name == "Cap"))
+        for name, plate in zip(PLATE_NAMES, plates)
+    }
+
     return {
         "problems": problems,
         "ok": not problems,
+        "printability": printability,
         "rod_interference_mm3": round(interference, 2),
         "plate_volumes_mm3": [round(kit.vol(p), 1) for p in plates],
         "stack_height_mm": round(dims["stack_height_mm"], 2),
