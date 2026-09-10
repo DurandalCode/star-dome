@@ -9,7 +9,19 @@ A corridor is how two domes become a camp rather than two tents. This puts one
 on the chosen doorway and checks the thing everyone assumes: **that it fits
 through the hole it is attached to.**
 
-## What it is
+There are two kinds, and the second does not replace the first.
+
+| | hoop | portal |
+|---|---|---|
+| material | bent fibreglass rod | sawn board, 45 × 145 |
+| shape | legs + semicircular roof | posts + header + knee braces |
+| width | 900 mm | 1500–2000 mm |
+| per rib | 4414 mm of rod | 7.1 m of board |
+| passes a bare D10 door | yes, whole | no — 1025 mm is the limit |
+
+`--kind hoop` is the default. `--kind portal` is below.
+
+## What the hoop is
 
 A hooped tunnel — a polytunnel. Straight legs to shoulder height, a
 semicircular roof over them, fabric across the lot.
@@ -83,6 +95,75 @@ A semicircular roof narrows fast near the crown, and heads are near the crown.
 900 mm wide needs **1915 mm** of height before the "carry" silhouette's
 shoulders *and* head both clear it; at 1900 mm only "walk" gets through. The
 default is 1950 mm to keep margin over that threshold.
+
+## The timber portal
+
+```bash
+python3 -m stardome corridor D10 --kind portal --width 1800
+```
+
+Two posts, a header across them, a knee brace in each top corner. Boards, not
+rod — so it is a cut list rather than a bend:
+
+| member | count | length |
+|---|---|---|
+| post | 2 | 2100 mm |
+| header | 1 | 2090 mm |
+| knee brace | 2 | 424 mm, both ends at 45° |
+
+7.1 m of board per frame, at 1200 mm centres.
+
+**The braces are not optional.** Three boards pinned at two corners is a
+mechanism: it folds along the corridor under any wind. A brace turns each top
+corner into a triangle. It costs clear opening to do it — which is the next
+point.
+
+### The opening is a trapezoid
+
+The braces cut both top corners at 45°, so what is clear is full width up to
+`height − brace_leg`, then chamfered in by the brace leg. At 1800 × 2100 with
+300 mm braces: 1800 wide up to 1800 high, 1200 wide at the header.
+
+That shape happens to suit the traffic. A person is wide at the shoulders and
+narrower at the head, and so is this. The hoop's semicircular roof starts
+narrowing at shoulder height and does not stop — which is why the hoop needs
+1915 mm before a "carry" silhouette clears it, and why its head pinch is the
+thing that sets its height.
+
+### What it buys, and what it costs
+
+**Buys width.** At head height (1800 mm) an 1800 mm portal is 900 mm to the
+centreline against the 900 mm hoop's 424 — more than twice. That is two-way
+traffic, or furniture, rather than one more person-shape on the list. Both
+kinds pass every standard silhouette at 2100 mm high; the templates simply do
+not reach wide enough to show the difference.
+
+**Costs the junction.** A bay narrows toward its head, and the portal demands
+full width right up to the braces — where the hoop has already curved in. So
+the portal is the *worse* shape for getting through the lancet:
+
+| dome | widest hoop at 1950 | widest portal at 2100 |
+|---|---|---|
+| S (D4 + 1350) | 900 mm | 725 mm |
+| M (D6 bare) | 1175 mm tall max | nothing |
+| L (D8 bare) | — | nothing |
+| XL (D10 bare) | 900 mm passes whole | 1025 mm |
+| D12 bare | — | 1675 mm |
+
+A 1800 mm portal passes no dome in the family whole. Its posts land on the
+bows rather than inside the bay, so **the junction needs a detail that does
+not exist yet** — trim the corridor down to the bay, or raise the dome:
+
+    D6   1800 mm of skirt
+    D8   1300 mm
+    D10   700 mm
+    D4   not at any skirt under 3 m
+
+None of which makes the portal wrong. A person walks from the corridor
+through the doorway unaffected — D10's door admits every silhouette including
+the 2.2 m character. It bites on carrying something through in one movement,
+and on what holds the corridor up where it meets the dome. That interface is
+milestone 5.
 
 ## In the scene
 

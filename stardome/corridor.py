@@ -95,6 +95,100 @@ def section(width: float, height: float, samples: int = ARC_SAMPLES) -> list:
     return out
 
 
+# --------------------------------------------------------------------------
+# the timber portal
+# --------------------------------------------------------------------------
+# A second kind of corridor, not a replacement for the hoop. Two posts, a
+# header across them, a knee brace in each top corner: a P-frame in boards.
+# It buys width the bent hoop cannot -- 1.5 to 2 m instead of 900 mm -- at the
+# cost of being timber rather than the rod stock already on site.
+DEFAULT_PORTAL_WIDTH_MM = 1800.0
+DEFAULT_PORTAL_HEIGHT_MM = 2100.0
+DEFAULT_PORTAL_PITCH_MM = 1200.0
+
+# A knee brace at 45 degrees across each top corner. Without one the frame is
+# three boards pinned at two corners, which is a mechanism: it folds sideways
+# under any wind along the corridor. With one, each corner is a triangle.
+DEFAULT_BRACE_LEG_MM = 300.0
+
+# Nominal sawn board, mm. Thickness is across the frame, width is in its plane
+# -- boards resist bending the way they are turned, and a portal frame bends
+# in its own plane.
+DEFAULT_BOARD_THICKNESS_MM = 45.0
+DEFAULT_BOARD_WIDTH_MM = 145.0
+
+
+def portal_section(
+    width: float,
+    height: float,
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
+) -> list:
+    """The clear opening of a portal frame as ``(height, half_width)``.
+
+    Not a rectangle. The knee braces cut both top corners at 45 degrees, so
+    what is actually clear is a trapezoid: full width up to ``height -
+    brace_leg``, then chamfered in.
+
+    That turns out to suit the traffic better than the hoop does. A person is
+    wide at the shoulders and narrower at the head, and so is this; the hoop's
+    semicircular roof starts narrowing at shoulder height and keeps going.
+    """
+    half = width / 2.0
+    if brace_leg < 0:
+        raise ValueError("brace leg cannot be negative")
+    if brace_leg > half:
+        raise ValueError(
+            f"brace leg {brace_leg:g} is more than half the width {width:g}: "
+            "the two braces would meet in the middle of the opening"
+        )
+    if height <= brace_leg:
+        raise ValueError(
+            f"height {height:g} is not more than the brace leg {brace_leg:g}"
+        )
+    return [
+        (0.0, half),
+        (height - brace_leg, half),
+        (height, half - brace_leg),
+    ]
+
+
+def portal_frame(
+    width: float,
+    height: float,
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
+    thickness: float = DEFAULT_BOARD_THICKNESS_MM,
+    board: float = DEFAULT_BOARD_WIDTH_MM,
+) -> dict:
+    """One frame, as a cut list. Boards, so it is lengths rather than a bend.
+
+    ``width`` and ``height`` are the CLEAR opening -- what you walk through --
+    so the posts stand outside it and the header sits above it.
+    """
+    post = height
+    header = width + 2.0 * board
+    brace = brace_leg * math.sqrt(2.0)
+    total = 2.0 * post + header + 2.0 * brace
+    return {
+        "clear_width_mm": round(width, 1),
+        "clear_height_mm": round(height, 1),
+        "overall_width_mm": round(header, 1),
+        "overall_height_mm": round(height + board, 1),
+        "board": f"{thickness:g} x {board:g}",
+        "members": [
+            {"name": "post", "count": 2, "length_mm": round(post, 1)},
+            {"name": "header", "count": 1, "length_mm": round(header, 1)},
+            {"name": "knee brace", "count": 2, "length_mm": round(brace, 1),
+             "note": "cut both ends at 45 deg"},
+        ],
+        "board_length_mm": round(total, 1),
+        "note": (
+            "Clear opening given; posts stand outside it, header above it. "
+            "The braces are what stop the frame racking -- three boards pinned "
+            "at two corners is a mechanism, not a frame."
+        ),
+    }
+
+
 def hoop(width: float, height: float, rod_diameter: float, dome_radius: float) -> dict:
     """One bent hoop: how much rod, and how hard it is bent."""
     half = width / 2.0
@@ -117,7 +211,8 @@ def hoop(width: float, height: float, rod_diameter: float, dome_radius: float) -
 
 
 def mouth(data: dict, azimuth_deg: float, width: float, height: float,
-          samples: int = ARC_SAMPLES) -> dict:
+          samples: int = ARC_SAMPLES, kind: str = "hoop",
+          brace_leg: float = DEFAULT_BRACE_LEG_MM) -> dict:
     """Where the tunnel meets the cover, as a closed 3D curve.
 
     Exact, not a plane cut: above the base ring the cover is a sphere, through
@@ -133,7 +228,7 @@ def mouth(data: dict, azimuth_deg: float, width: float, height: float,
     eu = (math.cos(a), math.sin(a))
     ev = (-math.sin(a), math.cos(a))
 
-    outline = section(width, height, samples)
+    outline = section_for(kind, width, height, samples, brace_leg)
     # Up one side and down the other: a closed loop round the section.
     loop = [(z, +w) for z, w in outline] + [(z, -w) for z, w in reversed(outline)]
 
@@ -180,13 +275,48 @@ def mouth(data: dict, azimuth_deg: float, width: float, height: float,
     }
 
 
-def _profile(width: float, height: float, samples: int) -> list:
-    """The hoop's own curve as ``(v, z)``: up one leg, over, down the other.
+KINDS = ("hoop", "portal")
+
+
+def section_for(
+    kind: str,
+    width: float,
+    height: float,
+    samples: int = ARC_SAMPLES,
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
+) -> list:
+    """The clear cross-section of either kind of corridor, as a silhouette."""
+    if kind == "hoop":
+        return section(width, height, samples)
+    if kind == "portal":
+        return portal_section(width, height, brace_leg)
+    raise ValueError(f"unknown corridor kind {kind!r}; expected one of {KINDS}")
+
+
+def _portal_members(width: float, height: float, brace_leg: float,
+                    thickness: float, board: float) -> list:
+    """Each board as a centreline in the frame's own ``(v, z)`` plane."""
+    outer = width / 2.0 + board / 2.0
+    inner = width / 2.0 + board
+    return [
+        ("post_left", (-outer, 0.0), (-outer, height)),
+        ("post_right", (outer, 0.0), (outer, height)),
+        ("header", (-inner, height + board / 2.0), (inner, height + board / 2.0)),
+        ("brace_left", (-outer, height - brace_leg),
+         (-(width / 2.0 - brace_leg), height)),
+        ("brace_right", (outer, height - brace_leg),
+         (width / 2.0 - brace_leg, height)),
+    ]
+
+
+def _profile(width: float, height: float, samples: int,
+             kind: str = "hoop", brace_leg: float = DEFAULT_BRACE_LEG_MM) -> list:
+    """The clear opening's own curve as ``(v, z)``: up one side and down the other.
 
     Continuous, and in that order. Running one side crown-downward instead
     makes the curve jump across the floor, which draws a hoop as a bow tie.
     """
-    outline = section(width, height, samples)
+    outline = section_for(kind, width, height, samples, brace_leg)
     left = [(-w, z) for z, w in outline]            # ground up to the crown
     right = [(w, z) for z, w in reversed(outline)]  # crown back down
     return left + right[1:]                         # the crown is in both
@@ -203,6 +333,34 @@ def _reach(rc: float, v: float, z: float) -> float:
     return math.sqrt(inside) if inside > 0.0 else 0.0
 
 
+def _board_box(a2, b2, eu, ev, u, ground, thickness, board):
+    """One board as eight corners: a member from a2 to b2 in the frame plane."""
+    (v0, z0), (v1, z1) = a2, b2
+    dv, dz = v1 - v0, z1 - z0
+    span = math.hypot(dv, dz)
+    if span < 1e-9:
+        return [], []
+    # In-plane normal to the member, so the board's WIDTH lies in the frame.
+    nv, nz = -dz / span, dv / span
+    hb, ht = board / 2.0, thickness / 2.0
+
+    verts = []
+    for v_end, z_end in ((v0, z0), (v1, z1)):
+        for sn in (-1.0, 1.0):
+            for st in (-1.0, 1.0):
+                v = v_end + nv * hb * sn
+                z = z_end + nz * hb * sn
+                du = ht * st
+                verts.append([
+                    round(eu[0] * (u + du) + ev[0] * v, 3),
+                    round(eu[1] * (u + du) + ev[1] * v, 3),
+                    round(ground + z, 3),
+                ])
+    faces = [[0, 1, 3, 2], [4, 6, 7, 5], [0, 2, 6, 4],
+             [1, 5, 7, 3], [0, 4, 5, 1], [2, 3, 7, 6]]
+    return verts, faces
+
+
 def drawing(
     data: dict,
     azimuth_deg: float,
@@ -211,8 +369,10 @@ def drawing(
     length: float,
     pitch: float,
     samples: int = ARC_SAMPLES,
+    kind: str = "hoop",
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
 ) -> dict:
-    """Hoop centrelines and the fabric skin, as geometry a consumer can draw.
+    """Rib centrelines and the fabric skin, as geometry a consumer can draw.
 
     Exported rather than described, the same contract the rod polylines keep:
     a scene builder should never work out where a hoop goes.
@@ -223,7 +383,7 @@ def drawing(
     rc = cover.radius(data)
     ground = meta.get("ground_z", 0.0) or 0.0
     eu, ev = _frame(azimuth_deg)
-    profile = _profile(width, height, samples)
+    profile = _profile(width, height, samples, kind, brace_leg)
 
     def place3(u: float, v: float, z_rel: float) -> list:
         return [
@@ -238,11 +398,29 @@ def drawing(
     count = int(length // pitch) + 1
 
     hoops = []
+    frames = []
+    members = (
+        _portal_members(width, height, brace_leg,
+                        DEFAULT_BOARD_THICKNESS_MM, DEFAULT_BOARD_WIDTH_MM)
+        if kind == "portal" else []
+    )
     for i in range(count):
         u = u_far - i * pitch
         if u < u_first - 1e-9:
             break
-        hoops.append([place3(u, v, z) for v, z in profile])
+        if kind == "portal":
+            fverts, ffaces = [], []
+            for _name, a2, b2 in members:
+                bv, bf = _board_box(
+                    a2, b2, eu, ev, u, ground,
+                    DEFAULT_BOARD_THICKNESS_MM, DEFAULT_BOARD_WIDTH_MM,
+                )
+                base = len(fverts)
+                fverts.extend(bv)
+                ffaces.extend([[k + base for k in face] for face in bf])
+            frames.append({"vertices": fverts, "faces": ffaces})
+        else:
+            hoops.append([place3(u, v, z) for v, z in profile])
 
     verts = []
     near = []
@@ -260,8 +438,10 @@ def drawing(
     ]
 
     return {
-        "hoop_count": len(hoops),
+        "kind": kind,
+        "hoop_count": len(hoops) or len(frames),
         "hoops": hoops,
+        "frames": frames,
         "skin": {
             "vertex_count": len(verts),
             "face_count": len(faces),
@@ -276,26 +456,32 @@ def drawing(
     }
 
 
-def admits(width: float, height: float) -> list:
+def _clear_half_width(outline: list, h: float) -> float:
+    """Half width of a section at height ``h``, interpolated between samples."""
+    if h > outline[-1][0]:
+        return -1.0
+    prev_h, prev_w = outline[0]
+    for point_h, point_w in outline:
+        if h <= point_h:
+            if point_h == prev_h:
+                return min(prev_w, point_w)
+            t = (h - prev_h) / (point_h - prev_h)
+            return prev_w + t * (point_w - prev_w)
+        prev_h, prev_w = point_h, point_w
+    return prev_w
+
+
+def admits(width: float, height: float, kind: str = "hoop",
+           brace_leg: float = DEFAULT_BRACE_LEG_MM) -> list:
     """Which standard silhouettes fit inside the tunnel itself, smallest first.
 
     Containment only -- this asks whether the corridor is big enough, not
     whether it is attached to anything.
     """
-    half = width / 2.0
-    leg = height - half
+    outline = section_for(kind, width, height, ARC_SAMPLES, brace_leg)
     passing = []
     for name, template in entrance.TEMPLATES.items():
-        ok = True
-        for h, w in template:
-            if h > height:
-                ok = False
-                break
-            avail = half if h <= leg else math.sqrt(max(0.0, half * half - (h - leg) ** 2))
-            if w > avail:
-                ok = False
-                break
-        if ok:
+        if all(_clear_half_width(outline, h) >= w for h, w in template):
             passing.append(name)
     return sorted(passing, key=lambda k: max(h for h, _ in entrance.TEMPLATES[k]))
 
@@ -308,6 +494,8 @@ def place(
     pitch: float = DEFAULT_PITCH_MM,
     samples: int = ARC_SAMPLES,
     include_geometry: bool = False,
+    kind: str = "hoop",
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
 ) -> dict:
     """Put a corridor on the chosen doorway and measure everything about it."""
     meta = data["meta"]
@@ -320,32 +508,46 @@ def place(
 
     bay = door["bay"]
     azimuth = bay["centre_azimuth_deg"]
-    half = width / 2.0
-    leg = height - half
 
-    shape = section(width, height, samples)
+    shape = section_for(kind, width, height, samples, brace_leg)
     env = entrance.door_envelope(data)
     through = doorway.fit_shape(data, shape, "corridor", env)
 
-    m = mouth(data, azimuth, width, height, samples)
-    hoops = hoop(width, height, meta["rod_diameter"], meta["dome_radius"])
+    m = mouth(data, azimuth, width, height, samples, kind, brace_leg)
+
+    if kind == "portal":
+        rib = portal_frame(width, height, brace_leg)
+    else:
+        rib = hoop(width, height, meta["rod_diameter"], meta["dome_radius"])
 
     count = int(length // pitch) + 1
-    skin_perimeter = 2.0 * leg + math.pi * half
+    # Perimeter and area straight off the outline, so both kinds are measured
+    # by one rule rather than by two formulas that can drift apart.
+    profile = _profile(width, height, samples, kind, brace_leg)
+    skin_perimeter = sum(
+        math.dist(profile[i], profile[i + 1]) for i in range(len(profile) - 1)
+    )
     skin_area = skin_perimeter * length
     floor_area = width * length
-    section_area = width * leg + math.pi * half * half / 2.0
+    section_area = 0.0
+    for i in range(len(shape) - 1):
+        h0, w0 = shape[i]
+        h1, w1 = shape[i + 1]
+        section_area += (w0 + w1) * (h1 - h0)  # trapezoid, both halves
 
     out = {
         "present": True,
+        "kind": kind,
         "attaches_to_bay_azimuth_deg": azimuth,
         "width_mm": round(width, 1),
         "height_mm": round(height, 1),
         "length_mm": round(length, 1),
         "hoop_pitch_mm": round(pitch, 1),
         "hoop_count": count,
-        "hoop": hoops,
-        "rod_total_mm": round(count * hoops["rod_length_mm"], 1),
+        "rib": rib,
+        "material_total_mm": round(
+            count * rib.get("rod_length_mm", rib.get("board_length_mm", 0.0)), 1
+        ),
         "mouth": m,
         "through_doorway": {
             "fits": through["fits"],
@@ -361,7 +563,25 @@ def place(
             ),
             "bay_widths_mm": door["in_bay"]["widths_mm"],
         },
-        "admits": admits(width, height),
+        "admits": admits(width, height, kind, brace_leg),
+        # A corridor wider than its door is a normal building, not a mistake:
+        # you walk from the corridor through the doorway. `fits` asks the
+        # strict question -- does the whole section pass unobstructed -- and
+        # this says what still gets through when the answer is no.
+        "bottleneck": {
+            "at": None if through["fits"] else "the dome's doorway",
+            "doorway_admits": door.get("admits", []),
+            "note": (
+                "None -- the whole section passes."
+                if through["fits"] else
+                "The corridor is bigger than the opening it meets, so its "
+                "posts land on the bows rather than inside the bay. Walking "
+                "through is unaffected -- the door still admits a person -- "
+                "but the junction needs a detail that does not exist yet: "
+                "trim the corridor to the bay, or raise the dome on a skirt. "
+                "See roadmap milestone 5, entrance/corridor interface."
+            ),
+        },
         "cover_m2": round(skin_area / 1e6, 2),
         "floor_m2": round(floor_area / 1e6, 2),
         "section_m2": round(section_area / 1e6, 3),
@@ -373,7 +593,7 @@ def place(
     }
     if include_geometry and m["fits_on_dome"]:
         out["drawing"] = drawing(
-            data, azimuth, width, height, length, pitch, samples
+            data, azimuth, width, height, length, pitch, samples, kind, brace_leg
         )
     return out
 
@@ -382,6 +602,8 @@ def widest_that_fits(
     data: dict,
     height: float = DEFAULT_HEIGHT_MM,
     step: float = 25.0,
+    kind: str = "hoop",
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
 ) -> dict:
     """The widest corridor of this height the doorway will pass.
 
@@ -392,19 +614,18 @@ def widest_that_fits(
     best = 0.0
     width = 2.0 * step
     while width <= 3000.0:
-        if height < width / 2.0:
-            break
         try:
-            shape = section(width, height)
+            shape = section_for(kind, width, height, ARC_SAMPLES, brace_leg)
         except ValueError:
-            break
+            width += step
+            continue
         if doorway.fit_shape(data, shape, "corridor", env)["fits"]:
             best = width
         width += step
     return {
         "height_mm": round(height, 1),
         "widest_mm": round(best, 1),
-        "admits": admits(best, height) if best else [],
+        "admits": admits(best, height, kind, brace_leg) if best else [],
     }
 
 
@@ -467,24 +688,47 @@ def format_analysis(
     height: float = DEFAULT_HEIGHT_MM,
     length: float = DEFAULT_LENGTH_MM,
     pitch: float = DEFAULT_PITCH_MM,
+    kind: str = "hoop",
+    brace_leg: float = DEFAULT_BRACE_LEG_MM,
 ) -> str:
     """The corridor, as a page for a person."""
     meta = data["meta"]
-    c = place(data, width, height, length, pitch)
+    c = place(data, width, height, length, pitch, kind=kind, brace_leg=brace_leg)
     if not c["present"]:
         return f"--- {meta['variant']} corridor: {c['note']}"
 
-    h = c["hoop"]
+    rib = c["rib"]
     t = c["through_doorway"]
     lines = [
-        f"--- {meta['variant']} corridor  {c['width_mm']:.0f} x {c['height_mm']:.0f} mm, "
+        f"--- {meta['variant']} {c['kind']} corridor  "
+        f"{c['width_mm']:.0f} x {c['height_mm']:.0f} mm, "
         f"{c['length_mm'] / 1000.0:.1f} m long, on the bay at "
         f"{c['attaches_to_bay_azimuth_deg']:.1f} deg",
-        f"  hoops           {c['hoop_count']} at {c['hoop_pitch_mm']:.0f} mm, "
-        f"{h['rod_length_mm']:.0f} mm of rod each, {c['rod_total_mm'] / 1000.0:.1f} m total",
-        f"  bend radius     {h['bend_radius_mm']:.0f} mm, "
-        f"{h['times_tighter_than_dome']:.1f}x tighter than the dome's "
-        f"{h['dome_bend_radius_mm']:.0f} mm",
+    ]
+    if c["kind"] == "portal":
+        cuts = ", ".join(
+            f"{m['count']}x {m['length_mm']:.0f}" for m in rib["members"]
+        )
+        lines += [
+            f"  frames          {c['hoop_count']} at {c['hoop_pitch_mm']:.0f} mm, "
+            f"board {rib['board']}",
+            f"  cut list        {cuts} mm  "
+            f"({rib['board_length_mm'] / 1000.0:.1f} m per frame, "
+            f"{c['material_total_mm'] / 1000.0:.1f} m total)",
+            f"  clear opening   {rib['clear_width_mm']:.0f} wide, "
+            f"{rib['clear_height_mm']:.0f} high, corners cut back "
+            f"{brace_leg:.0f} mm by the braces",
+        ]
+    else:
+        lines += [
+            f"  hoops           {c['hoop_count']} at {c['hoop_pitch_mm']:.0f} mm, "
+            f"{rib['rod_length_mm']:.0f} mm of rod each, "
+            f"{c['material_total_mm'] / 1000.0:.1f} m total",
+            f"  bend radius     {rib['bend_radius_mm']:.0f} mm, "
+            f"{rib['times_tighter_than_dome']:.1f}x tighter than the dome's "
+            f"{rib['dome_bend_radius_mm']:.0f} mm",
+        ]
+    lines += [
         f"  cover           {c['cover_m2']:.2f} m2 skin over {c['floor_m2']:.2f} m2 of floor",
         f"  admits          {', '.join(c['admits']) or 'nothing'}",
         "",
@@ -502,6 +746,22 @@ def format_analysis(
     if t["fits"]:
         lines.append(
             f"  through the bay YES, with {t['spare_mm']:.0f} mm of headroom to spare"
+        )
+    elif c["kind"] == "portal":
+        w = widest_that_fits(data, height, 25.0, kind, brace_leg)
+        lines.append(
+            f"  through the bay NO -- the corridor is wider than the door. "
+            f"Widest portal that passes whole is {w['widest_mm']:.0f} mm."
+        )
+        lines.append(
+            "                  So its posts land on the bows rather than "
+            "inside the bay. A person is unaffected -- the door still admits "
+            + (", ".join(c["bottleneck"]["doorway_admits"]) or "nothing")
+            + " -- but the junction needs a detail that does not exist yet."
+        )
+        lines.append(
+            "                  Trim the corridor to the bay, or raise the "
+            "dome: 1800 mm of skirt on D6, 1300 on D8, 700 on D10."
         )
     else:
         w = widest_that_fits(data, height)

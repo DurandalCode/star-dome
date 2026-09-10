@@ -219,6 +219,16 @@ def cmd_cover(args) -> int:
 
 
 def cmd_corridor(args) -> int:
+    # Each kind has its own sensible size, so an unset flag means "this kind's
+    # default" rather than "the hoop's default applied to a timber frame".
+    if args.kind == "portal":
+        args.width = args.width or corridor.DEFAULT_PORTAL_WIDTH_MM
+        args.height = args.height or corridor.DEFAULT_PORTAL_HEIGHT_MM
+        args.pitch = args.pitch or corridor.DEFAULT_PORTAL_PITCH_MM
+    else:
+        args.width = args.width or corridor.DEFAULT_WIDTH_MM
+        args.height = args.height or corridor.DEFAULT_HEIGHT_MM
+        args.pitch = args.pitch or corridor.DEFAULT_PITCH_MM
     for name in _variant_names(args):
         variant = config.load(name, args.config)
         if args.skirt is not None:
@@ -233,6 +243,8 @@ def cmd_corridor(args) -> int:
                 height=args.height,
                 length=args.length,
                 pitch=args.pitch,
+                kind=args.kind,
+                brace_leg=args.brace,
             )
         )
     return 0
@@ -362,10 +374,23 @@ def build_parser() -> argparse.ArgumentParser:
                 help="fabric roll width, mm; sets the gore count",
             )
         if name == "corridor":
-            p.add_argument("--width", type=float, default=corridor.DEFAULT_WIDTH_MM)
-            p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
+            p.add_argument(
+                "--kind",
+                choices=corridor.KINDS,
+                default="hoop",
+                help="hoop: bent rod, narrow. portal: boards in a P-frame with "
+                     "knee braces, 1.5-2 m wide",
+            )
+            p.add_argument("--width", type=float, default=None)
+            p.add_argument("--height", type=float, default=None)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
-            p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+            p.add_argument("--pitch", type=float, default=None)
+            p.add_argument(
+                "--brace",
+                type=float,
+                default=corridor.DEFAULT_BRACE_LEG_MM,
+                help="knee-brace leg, mm; portal only",
+            )
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

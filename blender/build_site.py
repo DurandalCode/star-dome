@@ -253,7 +253,17 @@ def add_corridor(corridor, rod_radius_m, material_, skin_material, collection,
         px, py = _place(x, y, origin_x, spin_deg, origin_y)
         return (px, py, z * MM + lift)
 
-    for i, hoop in enumerate(drawing["hoops"], start=1):
+    for i, frame in enumerate(drawing.get("frames") or [], start=1):
+        mesh = bpy.data.meshes.new(f"Corridor_Frame_{i}")
+        mesh.from_pydata([put(*v) for v in frame["vertices"]], [],
+                         [f[:] for f in frame["faces"]])
+        mesh.update()
+        obj = bpy.data.objects.new(f"Corridor_Frame_{i}", mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+    for i, hoop in enumerate(drawing.get("hoops") or [], start=1):
         curve = bpy.data.curves.new(f"CorridorHoop_{i}", "CURVE")
         curve.dimensions = "3D"
         spline = curve.splines.new("POLY")
