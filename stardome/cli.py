@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from . import (
+    camp,
     config,
     connectors,
     corridor,
@@ -250,6 +251,91 @@ def cmd_corridor(args) -> int:
     return 0
 
 
+# The camp the project keeps coming back to: a hall with three ways out of
+# it, one of which leads on to a fourth dome. Labels are what the links name.
+DEFAULT_CAMP = ["L", "M", "S", "S", "S"]
+DEFAULT_LINKS = ["L:M", "L:S1", "L:S2", "M:S3"]
+
+
+def _camp_labels(variants: list) -> list:
+    """S, S, S becomes S1, S2, S3; a lone M stays M."""
+    seen = {}
+    out = []
+    for v in variants:
+        seen[v] = seen.get(v, 0) + 1
+        out.append(v)
+    count = dict(seen)
+    running = {}
+    for i, v in enumerate(variants):
+        if count[v] == 1:
+            out[i] = v
+        else:
+            running[v] = running.get(v, 0) + 1
+            out[i] = f"{v}{running[v]}"
+    return out
+
+
+def cmd_camp(args) -> int:
+    variants = args.dome or DEFAULT_CAMP
+    labels = _camp_labels(variants)
+    built = {}
+    for label, variant in zip(labels, variants):
+        built[label] = model.build(
+            config.load(variant, args.config),
+            weave_mode=args.weave_mode,
+            include_polylines=args.polylines,
+        )
+
+    links = []
+    for text in (args.link or DEFAULT_LINKS):
+        if ":" not in text:
+            raise SystemExit(f"link {text!r} should look like L:M")
+        a, b = text.split(":", 1)
+        links.append((a.strip(), b.strip()))
+
+    spec = {
+        "kind": args.kind,
+        "width": args.width if args.width is not None else (
+            corridor.DEFAULT_PORTAL_WIDTH_MM if args.kind == "portal"
+            else corridor.DEFAULT_WIDTH_MM
+        ),
+        "height": args.height if args.height is not None else (
+            corridor.DEFAULT_PORTAL_HEIGHT_MM if args.kind == "portal"
+            else corridor.DEFAULT_HEIGHT_MM
+        ),
+        "length": args.length,
+        "pitch": args.pitch if args.pitch is not None else (
+            corridor.DEFAULT_PORTAL_PITCH_MM if args.kind == "portal"
+            else corridor.DEFAULT_PITCH_MM
+        ),
+        "brace_leg": args.brace,
+    }
+
+    try:
+        plan = camp.solve(built, links, spec)
+    except ValueError as problem:
+        raise SystemExit(f"cannot lay this camp out: {problem}")
+
+    camp.geometry(plan, built)
+    overlaps = camp.clashes(plan, built)
+    plan["clashes"] = overlaps
+
+    if args.json:
+        path = Path(args.out) / "star_dome_camp.json"
+        export.write_json(plan, path)
+        print(f"camp: {path}")
+    else:
+        print(camp.format_plan(plan))
+        if overlaps:
+            print()
+            for bad in overlaps:
+                print(
+                    f"  CLASH  {bad['a']} and {bad['b']} overlap by "
+                    f"{bad['overlap_mm'] / 1000.0:.2f} m"
+                )
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -294,6 +380,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
         ("cover", cmd_cover, "fabric area, and how few gores it sews from"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
+        ("camp", cmd_camp, "several domes joined by corridors, and where they may stand"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -391,6 +478,30 @@ def build_parser() -> argparse.ArgumentParser:
                 default=corridor.DEFAULT_BRACE_LEG_MM,
                 help="knee-brace leg, mm; portal only",
             )
+        if name == "camp":
+            p.add_argument(
+                "--dome", action="append",
+                help="a dome in the camp, repeatable; default L M S S S",
+            )
+            p.add_argument(
+                "--link", action="append", metavar="A:B",
+                help="a corridor between two labels, repeatable; "
+                     "default L:M L:S1 L:S2 M:S3",
+            )
+            p.add_argument("--kind", choices=corridor.KINDS, default="hoop")
+            p.add_argument("--width", type=float, default=None)
+            p.add_argument("--height", type=float, default=None)
+            p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
+            p.add_argument("--pitch", type=float, default=None)
+            p.add_argument(
+                "--brace", type=float, default=corridor.DEFAULT_BRACE_LEG_MM
+            )
+            p.add_argument(
+                "--polylines", action="store_true",
+                help="carry rod centrelines too, so a scene can be built from it",
+            )
+            p.add_argument("--json", action="store_true")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

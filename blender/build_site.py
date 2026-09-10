@@ -87,6 +87,14 @@ def parse_args(argv):
              "as a camp round a yard rather than as a size chart",
     )
     p.add_argument(
+        "--plan",
+        default=None,
+        metavar="JSON",
+        help="build a solved camp plan (stardome camp --json) instead of a "
+             "row: each dome at its own place and rotation, joined by the "
+             "corridors the plan worked out",
+    )
+    p.add_argument(
         "--aerial",
         action="store_true",
         help="look down on the camp, so the corridors read as tunnels rather "
@@ -465,6 +473,160 @@ def build(args, models):
     return placed, span, max_radius
 
 
+def add_plan_corridor(link, rod_radius_m, material_, skin_material, collection):
+    """A corridor between two domes, drawn from the plan's world coordinates.
+
+    No transform here at all: a corridor belongs to two domes at once, so the
+    core solves it on the shared ground and this draws what it is given.
+    """
+    drawing = link.get("drawing")
+    if not drawing:
+        return
+
+    def put(x, y, z):
+        return (x * MM, y * MM, z * MM)
+
+    for i, rib in enumerate(drawing.get("hoops") or [], start=1):
+        curve = bpy.data.curves.new(f"Link_{link['from']}_{link['to']}_{i}", "CURVE")
+        curve.dimensions = "3D"
+        spline = curve.splines.new("POLY")
+        spline.points.add(len(rib) - 1)
+        for point, (x, y, z) in zip(spline.points, rib):
+            point.co = (*put(x, y, z), 1.0)
+        curve.bevel_depth = rod_radius_m
+        curve.bevel_resolution = 3
+        obj = bpy.data.objects.new(f"Link_{link['from']}_{link['to']}_hoop{i}", curve)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+    for i, frame in enumerate(drawing.get("frames") or [], start=1):
+        mesh = bpy.data.meshes.new(f"Link_{link['from']}_{link['to']}_frame{i}")
+        mesh.from_pydata([put(*v) for v in frame["vertices"]], [],
+                         [f[:] for f in frame["faces"]])
+        mesh.update()
+        obj = bpy.data.objects.new(mesh.name, mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+    skin = drawing["skin"]
+    mesh = bpy.data.meshes.new(f"Link_{link['from']}_{link['to']}_skin")
+    mesh.from_pydata([put(*v) for v in skin["vertices"]], [],
+                     [f[:] for f in skin["faces"]])
+    mesh.update()
+    obj = bpy.data.objects.new(mesh.name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(skin_material)
+    move_to(obj, collection)
+
+
+def build_plan(args, plan, models):
+    """Place every dome where the plan puts it, then join them up."""
+    scene = bpy.context.scene
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=False)
+    scene.unit_settings.system = "METRIC"
+    scene.unit_settings.length_unit = "METERS"
+    root = new_collection("Camp", scene.collection)
+
+    mats = {f: material(f"Rod_{f}", c) for f, c in FAMILY_COLOUR.items()}
+    skirt_mat = material("Skirt", SKIRT_COLOUR)
+    brace_mat = material("Skirt_Brace", BRACE_COLOUR)
+    label_mat = material("Label", LABEL_COLOUR)
+    jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
+    ghost_mat = make_transparent(material("Rod_Cut", GHOST_COLOUR), 0.50)
+    corridor_mat = material("Corridor", CORRIDOR_COLOUR)
+    corridor_skin_mat = make_transparent(
+        material("Corridor_Skin", CORRIDOR_SKIN_COLOUR), 0.30
+    )
+    human_mats = {
+        label: material(f"Figure_{label}", colour)
+        for _h, label, colour in HUMAN_HEIGHTS
+    }
+
+    max_radius = 0.0
+    for entry in plan["domes"]:
+        data = models[entry["variant"]]
+        meta = data["meta"]
+        radius_m = meta["dome_radius"] * MM
+        rod_radius_m = meta["rod_diameter"] * MM / 2.0
+        lift = (meta.get("skirt_height", 0.0) or 0.0) * MM
+        x = entry["x_mm"] * MM
+        y = entry["y_mm"] * MM
+        spin = entry["spin_deg"]
+        coll = new_collection(entry["label"], root)
+
+        door = data.get("doorway")
+        jambs = set(door["frame"]["jamb_rods"]) if door and door.get("frame") else set()
+
+        for rod in data["rods"]:
+            mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
+            runs = rod_runs(rod)
+            for piece, (pts, present) in enumerate(runs):
+                if present:
+                    suffix = f"_{piece}" if len(runs) > 1 else ""
+                    add_rod(rod, rod_radius_m, mat, coll, x, lift, spin, pts,
+                            suffix, origin_y=y)
+                elif not args.hide_cuts:
+                    add_rod(rod, rod_radius_m, ghost_mat, coll, x, lift, spin,
+                            pts, "_cut", bevel=rod_radius_m * 0.7, origin_y=y)
+
+        if data.get("skirt"):
+            add_skirt(data["skirt"], radius_m, rod_radius_m, skirt_mat, coll,
+                      x, lift, spin, origin_y=y, brace_material=brace_mat)
+        if door:
+            add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y)
+
+        add_humans(x, 0.0, human_mats, coll, entry["label"], origin_y=y - radius_m)
+
+        if not args.no_labels:
+            add_label(entry["label"], x, y - radius_m - 1.2, label_mat, coll,
+                      size=max(0.35, radius_m * 0.20))
+        max_radius = max(max_radius, radius_m)
+
+    links_coll = new_collection("Corridors", root)
+    for link in plan["corridors"]:
+        add_plan_corridor(link, 0.005, corridor_mat, corridor_skin_mat, links_coll)
+
+    xs = [d["x_mm"] * MM for d in plan["domes"]]
+    ys = [d["y_mm"] * MM for d in plan["domes"]]
+    cx, cy = (max(xs) + min(xs)) / 2.0, (max(ys) + min(ys)) / 2.0
+    span = max(max(xs) - min(xs), max(ys) - min(ys)) + 4.0 * max_radius
+
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(cx, cy, 0.0))
+    ground = bpy.context.active_object
+    ground.name = "Ground"
+    ground.scale = (span * 2.0, span * 2.0, 1.0)
+    ground.data.materials.append(material("Ground", GROUND_COLOUR))
+    move_to(ground, root)
+
+    return (cx, cy), span, max_radius
+
+
+def add_plan_camera(scene, centre, span, tallest):
+    """Straight down the camp from above: a plan is read, not admired."""
+    cx, cy = centre
+    lens = 40.0
+    cam_data = bpy.data.cameras.new("Camera")
+    cam_data.lens = lens
+    cam = bpy.data.objects.new("Camera", cam_data)
+    scene.collection.objects.link(cam)
+    needed = (span * 0.62) / math.tan(math.atan(18.0 / lens))
+    cam.location = (cx, cy - needed * 0.55, needed * 0.80)
+    target = Vector((cx, cy, tallest * 0.3))
+    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+    scene.camera = cam
+
+    sun_data = bpy.data.lights.new("Sun", type="SUN")
+    sun_data.energy = 3.5
+    sun = bpy.data.objects.new("Sun", sun_data)
+    scene.collection.objects.link(sun)
+    sun.location = (cx, cy - span * 0.3, span)
+    sun.rotation_euler = (math.radians(48), 0.0, math.radians(25))
+    return cam
+
+
 def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0,
                          aerial=False):
     """Frame the whole row from its length rather than by guesswork.
@@ -532,6 +694,43 @@ def main():
             "no models with polylines found.\n"
             "run:  python3 -m stardome build --all --polylines --weave-mode layered"
         )
+
+    if args.plan:
+        with open(args.plan) as fh:
+            plan = json.load(fh)
+        by_variant = {d["meta"]["variant"]: d for d in models}
+        missing = {e["variant"] for e in plan["domes"]} - set(by_variant)
+        if missing:
+            raise SystemExit(
+                "the plan needs models this run has not got: "
+                + ", ".join(sorted(missing))
+            )
+        centre, span, max_radius = build_plan(args, plan, by_variant)
+        tallest = max(
+            by_variant[e["variant"]]["meta"].get(
+                "overall_height",
+                by_variant[e["variant"]]["meta"]["dome_height_measured"],
+            ) * MM
+            for e in plan["domes"]
+        )
+        add_plan_camera(bpy.context.scene, centre, span, tallest)
+        print(
+            f"[camp] {len(plan['domes'])} domes, {len(plan['corridors'])} "
+            f"corridors, {span:.1f} m across"
+        )
+        for link in plan["corridors"]:
+            print(
+                f"[camp]   {link['from']} -> {link['to']}  "
+                f"bearing {link['world_azimuth_deg']:.1f} deg, "
+                f"{link['centre_distance_mm'] / 1000.0:.1f} m between centres"
+            )
+        if args.out:
+            os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+            bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.out))
+            print(f"[camp] saved {args.out}")
+        if args.render:
+            print(f"[camp] rendered {render(bpy.context.scene, args.render)}")
+        return
 
     placed, span, max_radius = build(args, models)
     tallest = max(

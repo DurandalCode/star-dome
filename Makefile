@@ -27,6 +27,7 @@ help:
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make covers     fabric area, and how few gores it sews from"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
+	@echo "make camp       five domes joined by corridors, laid out and drawn"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make site       one scene with every variant side by side, at 1:1"
@@ -146,18 +147,21 @@ sizes:
 # One of each of the three sizes anyone camps in, standing round a yard with
 # the doorways actually cut out rather than ghosted. This is the picture of
 # the thing as built; `make sizes` is the picture of the decisions in it.
-# A camp rather than a size chart: three S, one M, one L, each with the
-# largest corridor its own doorway will actually pass. They are not the same
-# corridor -- S takes 1950 mm, L 1700, M only 1175 -- and that difference is
-# the point of the picture. Seen from above, or the corridors point straight
-# at the camera and read as frames round each door.
+# A camp, not a size chart: five domes actually JOINED by corridors. L is the
+# hall with three ways out of it, and M takes a fourth on to the last S.
+# The layout is solved, not drawn -- a dome has five bays 72 degrees apart, so
+# the bearings are quantised and the domes have to be turned to agree.
+# CAMP_KIND is hoop or portal.
+CAMP_KIND ?= hoop
+
 camp:
-	$(PYTHON) -m stardome build S M L --polylines --corridor-fit --weave-mode layered -o $(OUT)
+	$(PYTHON) -m stardome camp --kind $(CAMP_KIND)
+	$(PYTHON) -m stardome camp --kind $(CAMP_KIND) --json -o $(OUT)
+	$(PYTHON) -m stardome build S M L --polylines --weave-mode layered -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
-		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d4.json \
-		         $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json \
+		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json \
 		         $(OUT)/star_dome_d8.json \
-		--camp 5.0 --gap 3.0 --hide-cuts --aerial \
+		--plan $(OUT)/star_dome_camp.json --hide-cuts \
 		--out exports/blender/camp.blend \
 		--render exports/blender/camp.png
 

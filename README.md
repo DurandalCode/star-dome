@@ -59,6 +59,7 @@ single interchange format every other tool reads — see
 - How much room you get: [`docs/interior.md`](docs/interior.md)
 - The fabric cover: [`docs/cover.md`](docs/cover.md)
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
+- Joining domes into a camp: [`docs/camp.md`](docs/camp.md)
 
 ## Sizes
 
