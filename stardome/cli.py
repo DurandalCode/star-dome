@@ -209,6 +209,18 @@ def cmd_interior(args) -> int:
 
 
 def cmd_cover(args) -> int:
+    if args.summary:
+        rows = []
+        for name in _variant_names(args):
+            variant = config.load(name, args.config)
+            if args.skirt is not None:
+                variant = config.load(name, args.config, skirt_height=float(args.skirt))
+            data = model.build(variant, weave_mode=args.weave_mode)
+            rows.append(cover.summary_row(
+                data, args.roll, args.lap, args.oversize, args.price, args.leaves
+            ))
+        print(cover.format_summary(rows, args.roll, args.oversize, args.price))
+        return 0
     for name in _variant_names(args):
         variant = config.load(name, args.config)
         if args.skirt is not None:
@@ -489,6 +501,17 @@ def build_parser() -> argparse.ArgumentParser:
                 "--patterns",
                 action="store_true",
                 help="compare the three cutting patterns instead of the areas",
+            )
+            p.add_argument(
+                "--summary",
+                action="store_true",
+                help="one line per size, for comparing sizes rather than patterns",
+            )
+            p.add_argument(
+                "--leaves",
+                type=int,
+                default=5,
+                help="leaves in the summary's leaf pattern; 5 or 10",
             )
             p.add_argument(
                 "--price",

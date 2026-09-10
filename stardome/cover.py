@@ -396,10 +396,13 @@ def leaf(data: dict, leaves: int = 10, roll_width_mm: float = DEFAULT_ROLL_WIDTH
     r = radius(data) * (1.0 + oversize)
     slant = math.pi * r / 2.0
 
-    step = roll_width_mm - lap_mm
-    if step <= 0:
+    if roll_width_mm - lap_mm <= 0:
         raise ValueError("the lap cannot be as wide as the roll")
-    lanes = max(1, math.ceil((slant - lap_mm) / step))
+    lanes = max(1, math.ceil((slant - lap_mm) / (roll_width_mm - lap_mm)))
+    # Divide the slant evenly rather than packing lanes at full roll width and
+    # letting the last one hang off the end. Same lane count, no overhang, and
+    # every lane is the same piece -- which is also easier to cut.
+    step = (slant - lap_mm) / lanes
 
     def leaf_width(arc):
         return 2.0 * math.pi * r * math.sin(min(arc / r, math.pi / 2.0)) / leaves
@@ -429,6 +432,11 @@ def leaf(data: dict, leaves: int = 10, roll_width_mm: float = DEFAULT_ROLL_WIDTH
         "pattern": "leaf",
         "leaves": leaves,
         "lanes_per_leaf": lanes,
+        "lane_height_mm": round(step + lap_mm, 1),
+        # The lane rarely fills the roll's width exactly, and what is left is
+        # a continuous strip down the whole run -- the entry triangle and
+        # every patch come out of it.
+        "offcut_strip_mm": round(roll_width_mm - (step + lap_mm), 1),
         "piece_count": leaves * lanes,
         "lane_widths_mm": widths,
         "lap_mm": lap_mm,
@@ -523,8 +531,10 @@ def format_patterns(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
     p = patterns(data, roll_width_mm, lap_mm, oversize, price_per_m)
     f, l10, l5, g = p["faceted"], p["leaf_10"], p["leaf_5"], p["gore"]
 
+    alias = meta.get("alias")
+    name = f"{alias} ({meta['variant']})" if alias else meta["variant"]
     lines = [
-        f"--- {meta['variant']} cover patterns  "
+        f"--- {name} cover patterns  "
         f"({roll_width_mm:.0f} mm roll, +{oversize * 100:.0f}% oversize)",
         "",
         f"  {'':<10}{'pieces':>8}{'area m2':>10}{'roll m':>9}{'floor':>8}"
@@ -582,4 +592,93 @@ def format_patterns(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
     ]
     if price_per_m is None:
         lines += ["", "  Pass --price to cost it; the price per metre is yours, not mine."]
+    return "\n".join(lines)
+
+
+def summary_row(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+                lap_mm: float = DEFAULT_LAP_MM,
+                oversize: float = DEFAULT_OVERSIZE,
+                price_per_m: float | None = None,
+                leaves: int = 5) -> dict:
+    """One size, one line: what the recommended pattern actually costs.
+
+    The leaf at five is the pattern the reference prefers and the numbers
+    agree with, so that is what a summary quotes. The gore is carried
+    alongside because the difference between them is the point.
+    """
+    meta = data["meta"]
+    l = leaf(data, leaves, roll_width_mm, lap_mm, oversize)
+    g = gore_plan(data, roll_width_mm, oversize)
+    row = {
+        "variant": meta["variant"],
+        "alias": meta.get("alias"),
+        "diameter_mm": meta["dome_diameter"],
+        "skirt_mm": meta.get("skirt_height", 0.0) or 0.0,
+        "area_m2": l["area_m2"],
+        "leaves": leaves,
+        "pieces": l["piece_count"],
+        "roll_m": l["roll_length_m"],
+        "seam_m": l["leaf_seam_length_m"],
+        "gore_roll_m": g["roll_length_m"],
+        "gore_seam_m": g["seam_length_m"],
+        # What you actually buy. Running metres are only comparable within one
+        # roll width; area is comparable across widths, and a wider roll does
+        # not cost the same per metre as a narrow one.
+        "bought_m2": round(l["roll_length_m"] * roll_width_mm / 1000.0, 1),
+        "waste_m2": round(
+            l["roll_length_m"] * roll_width_mm / 1000.0 - l["area_m2"], 1
+        ),
+    }
+    if price_per_m is not None:
+        row["cost"] = round(l["roll_length_m"] * price_per_m, 2)
+        row["gore_cost"] = round(g["roll_length_m"] * price_per_m, 2)
+        row["saved"] = round(row["gore_cost"] - row["cost"], 2)
+    return row
+
+
+def format_summary(rows: list, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+                   oversize: float = DEFAULT_OVERSIZE,
+                   price_per_m: float | None = None) -> str:
+    """Several sizes on one page, for choosing between them."""
+    priced = price_per_m is not None
+    head = (
+        f"--- cover, leaf pattern  ({roll_width_mm:.0f} mm roll, "
+        f"+{oversize * 100:.0f}% oversize"
+        + (f", {price_per_m:g} per metre)" if priced else ")")
+    )
+    lines = [
+        head,
+        "",
+        f"  {'size':<10}{'across':>9}{'area m2':>10}{'bought':>9}{'pieces':>8}"
+        f"{'roll m':>9}{'seam m':>9}" + (f"{'cost':>10}{'vs gore':>10}" if priced else ""),
+    ]
+    for r in rows:
+        name = r["alias"] or r["variant"]
+        if r["alias"]:
+            name = f"{r['alias']} {r['variant']}"
+        across = f"{r['diameter_mm'] / 1000.0:.0f} m"
+        if r["skirt_mm"]:
+            across += f"+{r['skirt_mm'] / 1000.0:.2f}"
+        money = ""
+        if priced:
+            money = f"{r['cost']:>10.0f}{r['saved']:>+10.0f}"
+        lines.append(
+            f"  {name:<10}{across:>9}{r['area_m2']:>10.2f}{r['bought_m2']:>9.1f}"
+            f"{r['pieces']:>8}{r['roll_m']:>9.1f}{r['seam_m']:>9.1f}{money}"
+        )
+    lines += [
+        "",
+        f"  Leaf of {rows[0]['leaves']} if any, lanes lapped and nested end for end.",
+        "  'vs gore' is what the one-piece gore pattern would add.",
+        "  'bought' is roll m x roll width -- the fabric you pay for, waste "
+        "included.",
+        "  Most of that waste is one continuous strip down the run, where the "
+        "lane is shorter than the",
+        "  roll is wide. The entry triangle and every patch come out of it.",
+        "  Running metres compare only WITHIN one roll width: a wider roll is "
+        "not the same price",
+        "  per metre. To compare widths, price the bought area instead.",
+        "  Price per metre is yours; area includes the oversize, not seam "
+        "allowance or hem.",
+    ]
     return "\n".join(lines)

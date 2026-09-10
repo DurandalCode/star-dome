@@ -155,3 +155,70 @@ def test_the_comparison_carries_every_pattern(built):
         assert p[key]["roll_floor_m"] > 0
     for key in ("leaf_10", "leaf_5", "gore"):
         assert p[key]["cost"]["total"] > 0
+
+
+# --- the lanes lie evenly -------------------------------------------------
+def test_lanes_divide_the_slant_evenly_and_never_overhang(built):
+    """Packing lanes at full roll width leaves the last one hanging off."""
+    for roll in (1000.0, 1500.0, 2000.0):
+        l = cover.leaf(built, 5, roll_width_mm=roll, lap_mm=80.0)
+        assert l["lane_height_mm"] <= roll + 1e-6
+        assert l["offcut_strip_mm"] == pytest.approx(
+            roll - l["lane_height_mm"], abs=0.2
+        )
+        assert l["offcut_strip_mm"] >= -1e-6
+
+
+def test_a_wider_roll_takes_fewer_lanes(built):
+    narrow = cover.leaf(built, 5, roll_width_mm=1000.0)
+    wide = cover.leaf(built, 5, roll_width_mm=2000.0)
+    assert wide["lanes_per_leaf"] <= narrow["lanes_per_leaf"]
+    assert wide["piece_count"] <= narrow["piece_count"]
+
+
+# --- the cross-size summary ------------------------------------------------
+def test_the_summary_has_a_row_for_every_named_size():
+    rows = [
+        cover.summary_row(
+            model.build(config.load(n), weave_mode="layered"),
+            roll_width_mm=1500.0, price_per_m=450.0,
+        )
+        for n in ("S", "M", "L", "XL")
+    ]
+    assert [r["alias"] for r in rows] == ["S", "M", "L", "XL"]
+    assert [r["variant"] for r in rows] == ["D4", "D6", "D8", "D10"]
+    # Bigger dome, more fabric, more money -- monotone all the way up.
+    for key in ("area_m2", "roll_m", "cost"):
+        values = [r[key] for r in rows]
+        assert values == sorted(values)
+
+
+def test_bought_area_is_the_roll_times_its_width(built):
+    for roll in (1000.0, 1500.0, 2500.0):
+        r = cover.summary_row(built, roll_width_mm=roll)
+        assert r["bought_m2"] == pytest.approx(
+            r["roll_m"] * roll / 1000.0, abs=0.15
+        )
+        assert r["waste_m2"] == pytest.approx(
+            r["bought_m2"] - r["area_m2"], abs=0.15
+        )
+
+
+def test_the_summary_prices_both_patterns_and_the_difference(built):
+    r = cover.summary_row(built, price_per_m=450.0)
+    assert r["cost"] == pytest.approx(r["roll_m"] * 450.0, abs=1.0)
+    assert r["gore_cost"] == pytest.approx(r["gore_roll_m"] * 450.0, abs=1.0)
+    assert r["saved"] == pytest.approx(r["gore_cost"] - r["cost"], abs=1.0)
+
+
+def test_the_summary_needs_no_price(built):
+    r = cover.summary_row(built)
+    assert "cost" not in r
+    text = cover.format_summary([r])
+    assert "cost" not in text.split("\n")[3]
+
+
+def test_the_summary_warns_that_widths_are_not_comparable_per_metre(built):
+    r = cover.summary_row(built, price_per_m=450.0)
+    text = cover.format_summary([r], price_per_m=450.0)
+    assert "WITHIN one roll width" in text

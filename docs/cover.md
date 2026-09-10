@@ -73,6 +73,32 @@ D6, 1500 mm roll, +10% oversize (Takekawa's own figure):
 *floor* is area ÷ roll width: the roll you would buy if fabric came in the
 shape you wanted.
 
+### Every size, one line
+
+```bash
+python3 -m stardome cover S M L XL --summary --roll 1500 --price 450
+```
+
+| size | across | area m² | bought | pieces | roll m | seam m | cost | vs gore |
+|---|---|---|---|---|---|---|---|---|
+| S D4 | 4 m + 1.35 | 32.26 | 39.9 | 15 | 26.6 | 17.8 | 11 970 | +4 050 |
+| M D6 | 6 m | 71.89 | 80.2 | 20 | 53.5 | 26.6 | 24 075 | +11 790 |
+| L D8 | 8 m | 126.25 | 133.5 | 25 | 89.0 | 35.2 | 40 050 | +20 160 |
+| XL D10 | 10 m | 196.97 | 234.5 | 35 | 156.3 | 44.0 | 70 335 | +24 660 |
+
+*bought* is roll metres × roll width: the fabric you pay for, waste included.
+*vs gore* is what the one-piece pattern would add. The price per metre is
+yours — pass whatever the supplier quotes.
+
+**Running metres compare only within one roll width.** A 3 m roll is not the
+same price per metre as a 1.5 m one, so to compare widths, price the *bought
+area* instead. Same cover on M: 83.2 m² bought on a 1 m roll, 80.2 on 1.5 m,
+80.7 on 3 m — the width barely moves the fabric, it moves the handling.
+
+Most of the waste is one continuous strip down the run, where the lane is
+shorter than the roll is wide: 260 mm on S, 112 on M, 28 on L, 175 on XL. The
+entry triangle and every patch come out of it.
+
 ### Faceted — 6 pentagons and 10 triangles
 
 Half an icosidodecahedron, the solid whose equatorial decagons **are** the G
