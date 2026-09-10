@@ -195,7 +195,10 @@ def test_splices_are_the_largest_part_count_on_any_real_size(sched):
     in the schedule, and nothing generates them.
     """
     splice = _part(sched, "rod_splice")
-    assert splice["generator"] is None
+    # It HAS a generator now -- connectors/splice_v1.py, two identical steel
+    # ferrules and a bought stud. The count is still the story.
+    assert splice["generator"] == "splice_v1"
+    assert splice["ferrules"] == splice["count"] * 2
     others = max(
         p["count"] for p in sched["parts"] if p["kind"] != "rod_splice"
     )

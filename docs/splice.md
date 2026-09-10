@@ -104,6 +104,48 @@ clears, and reports what it cost.
 extra splices over the dome. One more way the top of the range is the awkward
 end.
 
+## The part
+
+`connectors/splice_v1.py`, built by `make clamps` like the others.
+
+**One part, used twice, with a bought stud between.** Each half is a steel
+socket: bored for the rod at the outer end, tapped at the inner, and the two
+pulled together by a stud. A male half and a female half would be two parts to
+make, two to stock and two to pick up in a field with cold hands, for no gain
+— **the stud is the male.**
+
+    rod → [ bore, 6d ][ shoulder ][ thread ] | [ thread ][ shoulder ][ bore ] ← rod
+                                            stud
+
+M, on 10 mm rod:
+
+| | |
+|---|---|
+| ferrule | 77 mm long, 40 g, 5.13 cm³ |
+| the pair | 154 mm, against 379 mm of free span |
+| bore | 10.4 mm, a slide fit |
+| engagement | 60 mm, six rod diameters |
+| joint end | 14.4 mm across, 4.65 mm of wall round the thread |
+| mouth end | 12.0 mm across |
+| over the rod | 4.4 mm at its widest |
+| stud | M6 × 28 |
+| pin | 4 mm at 22 from the mouth |
+| **per dome** | 43 joints, **86 identical ferrules** |
+
+**The outside tapers, and that is the whole design.** Steel needs 2 mm of wall
+at the joint to hold a thread, which is 15.6× the rod's bending stiffness —
+the joint does not share the curve and the bow takes the extra bend just
+outside it. Thinning to 0.8 mm by the mouth spreads that step over the
+engagement instead of standing it at one section, and takes the ratio there
+down to **4.5×**. The taper is a parameter; turn it off and `verify` reports
+both ends so the cost is visible rather than assumed.
+
+The mouth is flared 0.35 mm over 2.5 mm, because a square bore edge is a
+stress raiser on fibreglass — the same rule the crossing clamp follows.
+
+Everything scales with `rodDiameter`: 8 mm for D3/D4, 10 for D6/D8, 12 for
+D10/D12, with the stud and pin following it. One script, three sizes.
+
 ## What this does not settle
 
 - **Only the moment from being bent to shape.** Wind, snow and handling add to

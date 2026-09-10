@@ -262,20 +262,25 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             parts.append(
                 {
                     "id": f"SPLICE-{rod_diameter:g}",
-                    "state": UNDESIGNED,
+                    "state": GENERATED,
                     "kind": "rod_splice",
                     "rod_diameter": rod_diameter,
                     "count": total,
                     "nodes": [],
                     "tied": False,
+                    # Two identical ferrules and a bought stud, so the count
+                    # of PARTS to make is twice the count of joints.
                     "members": 2,
-                    "generator": None,
+                    "ferrules": total * 2,
+                    "generator": "splice_v1",
                     "note": (
                         f"A bow is {meta['rod_length_nominal']:.0f} mm long and "
                         f"transports in {section:.0f} mm sections, so it is "
-                        "spliced along its length. The joint has to carry "
+                        "spliced along its length. Two identical steel "
+                        "ferrules and a threaded stud; the joint carries "
                         "bending, because the bow is bent everywhere, and it "
-                        "must miss the crossings -- see docs/roadmap.md M5."
+                        "sits in a gap between crossings. See "
+                        "docs/transport.md and docs/splice.md."
                     ),
                 }
             )

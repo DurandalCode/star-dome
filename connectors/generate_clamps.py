@@ -78,6 +78,21 @@ def load_clamp_module():
 FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
 FAN = None
 
+SPLICE_SOURCE = os.path.join(REPO, "connectors", "splice_v1.py")
+SPLICE = None
+
+
+def load_splice_module():
+    """Load the section ferrule, likewise without auto-building."""
+    global SPLICE
+    if SPLICE is None:
+        namespace = {"SUPPRESS_AUTORUN": True, "__file__": SPLICE_SOURCE,
+                     "REPO": REPO}
+        with open(SPLICE_SOURCE) as handle:
+            exec(compile(handle.read(), SPLICE_SOURCE, "exec"), namespace)
+        SPLICE = namespace
+    return SPLICE
+
 
 def load_fan_module():
     """Load the four-rod fan generator, likewise without auto-building."""
@@ -153,6 +168,44 @@ def run():
 
     for part in sched["parts"]:
         generator = part.get("generator")
+
+        if generator == "splice_v1":
+            mod = load_splice_module()
+            values = {a: v for (a, v, _u, _n) in mod["INPUTS"]}
+            values["rodDiameter"] = float(part["rod_diameter"])
+            values["studDiameter"] = max(4.0, round(values["rodDiameter"] * 0.6))
+            values["pinDiameter"] = max(3.0, round(values["rodDiameter"] * 0.4))
+            geo, dims = mod["build"](values)
+            checks = mod["verify"](geo, dims, values)
+
+            doc = fresh_document(part["id"])
+            mod["populate"](doc, geo)
+            kit.write_parameters(
+                doc, None, mod["INPUTS"], values,
+                mod["derived_rows"](dims, values), mod["TITLE"],
+            )
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+
+            files = []
+            step_path, stl_path, facets = export_solid(
+                geo["ferrule"], part["id"] + "_Ferrule"
+            )
+            files.extend((step_path, stl_path))
+
+            report["built"].append({
+                "id": part["id"],
+                "kind": part["kind"],
+                "count_needed": part["count"],
+                "ferrules_needed": part["count"] * 2,
+                "rod_diameter": values["rodDiameter"],
+                "fcstd": fcstd,
+                "files": [os.path.basename(f) for f in files],
+                "mesh_facets": {"Ferrule": facets},
+                "checks": checks,
+            })
+            continue
 
         if generator == "fan_node_v2":
             fan = load_fan_module()
