@@ -91,9 +91,22 @@ def test_every_variant_names_materials_that_exist():
 
 
 def test_the_recorded_sleeve_decision_is_the_default():
-    """Steel, male-female, threaded stud. See docs/transport.md."""
+    """A steel sleeve with the rods butting inside it. docs/transport.md."""
     assert materials.DEFAULT_SLEEVE == "steel_mild"
     assert config.load("M").sleeve_material == "steel_mild"
+
+
+def test_the_sleeve_is_bought_tube_not_a_machined_part():
+    """The part is a length of tube, and the catalogue has to agree.
+
+    connectors/splice_v1.py leans on both of these: min_wall picks the wall,
+    and the wall is what lands the outside diameter on a stock size. If the
+    catalogue ever says the sleeve is machined or cast, that reasoning is
+    gone and the drawing needs revisiting.
+    """
+    steel = materials.SLEEVE[materials.DEFAULT_SLEEVE]
+    assert "tube" in steel["made_by"]
+    assert steel["min_wall_mm"] == 0.8
 
 
 def test_a_typo_in_the_config_fails_at_load_not_in_a_report():

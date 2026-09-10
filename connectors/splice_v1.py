@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Star Dome bow splice, V1 -- the ferrule that joins two transport sections.
+Star Dome bow splice, V1 -- the sleeve that joins two transport sections.
 
 WHY THIS PART EXISTS
 
@@ -11,34 +11,72 @@ D12 at seven of 2693. See docs/transport.md.
 
 WHAT IT IS
 
-**One part, used twice, with a bought stud between.** Each half is a steel
-socket: bored for the rod at the outer end, tapped at the inner end, and the
-two are pulled together by a threaded stud. The alternative -- a male half and
-a female half -- is two parts to make, two to stock and two to pick up in a
-field with cold hands, for no gain. The stud IS the male.
+**A length of tube. One per joint, and nothing else to make.** The rods enter
+from both ends and butt in the middle; one cross fastener each side holds them
+in. There is no thread, no shoulder and no stud.
 
-    rod -> [ bore, engagement ][ shoulder ][ thread ] | [ thread ][ shoulder ][ bore ] <- rod
-                                                     stud
+    rod ----->[==================|==================]<----- rod
+              o                                     o
+             bolt            they butt            bolt
 
-A cross pin through ferrule and rod carries the axial load and stops the rod
-turning; the bore is a slide fit, not an interference one, so the joint can be
-made and unmade with a punch.
+An earlier draft made this a male-female pair pulled together by a threaded
+stud. That was wrong, and the reason is worth keeping written down.
 
-THE THING THIS PART IS FIGHTING
+**The stud was carrying a load the joint does not have.** A bow is an arch:
+along its length it is in compression, and compression crosses a butted joint
+end to end through the fibreglass itself, which is the strongest thing GFRP
+does. Tension and torsion are what actually need holding, and a cross fastener
+holds both. The stud pulled two halves together against a load that is mostly
+not there.
 
-The bow is **bent everywhere**, so the ferrule carries bending continuously,
-and steel is the wrong stiffness for that: to match a GFRP rod's EI a steel
-tube would need a 0.2 mm wall, and this one needs 2 mm to hold a thread and a
-pin. That is 15.6x the rod's stiffness on M -- the joint does not share the
-curve, and the bow takes the extra bend just outside it.
+**And the thread was the only reason the wall was thick.** Tapping a hole
+needs meat round it -- 2 mm of it -- and 2 mm of steel is 15.6x the rod's
+bending stiffness on M. That is the whole problem with this part, and it was
+self-inflicted: with no thread the wall drops to the least anyone rolls, and
+the ratio drops with it.
 
-Steel is the recorded decision (docs/transport.md), so the part carries it the
-only way it can: **the outside tapers.** Full diameter at the joint face where
-the thread and the stud need meat, thinning to the least wall anyone rolls by
-the mouth where the rod leaves. That spreads the stiffness step over the
-engagement instead of standing it at one section, and it takes the ratio at
-the mouth from 15.6x down to 4.5x. verify() reports both ends, so the cost of
-turning the taper off is visible rather than assumed.
+    wall           0.8    1.0    1.2    1.5    2.0
+    EI / rod EI    4.5    6.0    7.6   10.3   15.6      (10 mm rod)
+
+The old design reached 4.5x only at the very mouth, by tapering the outside
+away from a 15.6x middle. A plain tube is 4.5x along its whole length, so the
+taper has nothing left to soften and is gone too.
+
+WHY 0.8 IS NOT AN ARBITRARY MINIMUM
+
+At 0.8 the outside diameter lands on a size tube is actually drawn in, with
+the bore coming out exactly right:
+
+    rod  8  ->  bore  8.4  ->  10 x 0.8
+    rod 10  ->  bore 10.4  ->  12 x 0.8
+    rod 12  ->  bore 12.4  ->  14 x 0.8
+
+No other wall does that. At 1.0 a 10 mm rod wants a 12.4 OD, which is not a
+size; the nearest stock is 14 x 1.0, whose bore is 12 -- 2 mm of slop on a
+10 mm rod. So the stiffness optimum and the buyable part are the same part.
+materials.SLEEVE already said as much: steel_mild is recorded as "drawn tube,
+cut to length", min_wall 0.8.
+
+THE THING THIS PART IS STILL FIGHTING
+
+4.5x is better than 15.6x and it is not 1x. To match a GFRP rod's EI, steel
+would need a 0.2 mm wall; nobody draws that. The bow is bent everywhere, so
+the sleeve carries bending continuously and does not share the curve -- the
+rod takes the extra bend just outside the mouth. That is inherent to steel and
+is the price of the recorded material decision, not a fault in the drawing.
+Whether it is acceptable is a load question, and load questions are milestone
+8. verify() reports the ratio so the price stays visible.
+
+WHAT THE FASTENER IS
+
+The part is a tube with two cross holes; what goes through them does not
+change the part. A bolt and nut is the default because it is captive and comes
+apart with a spanner. A spring pin drops into the same hole and needs no nut,
+at the cost of a hammer to remove. Either, or one of each, is a field choice.
+
+The rod is drilled through the sleeve's own hole at assembly, so the sleeve is
+its own drilling jig and the rod cannot sit short. That matches the two rods
+to that joint; they get marked as a pair.
 
     make splices                      the material comparison
     python3 -m stardome rod --all     what the sections come to
@@ -76,13 +114,20 @@ if REPO not in sys.path:
 from stardome import materials  # noqa: E402
 
 ROD_MODULUS = materials.ROD["gfrp_pultruded"]["modulus_mpa"]
-STEEL_MODULUS = materials.SLEEVE["steel_mild"]["modulus_mpa"]
-STEEL_DENSITY = materials.SLEEVE["steel_mild"]["density_kgm3"]
+STEEL = materials.SLEEVE[materials.DEFAULT_SLEEVE]
+STEEL_MODULUS = STEEL["modulus_mpa"]
+STEEL_DENSITY = STEEL["density_kgm3"]
+STEEL_MIN_WALL = STEEL["min_wall_mm"]
 
 # The tightest half-span between two crossings, from stardome's own free_spans
 # on the smallest dome that uses this part. A fact about the dome, an input
 # here. python3 -m stardome splice --all reports it.
 MIN_HALF_SPAN_MM = 200.0
+
+# Outside diameters tube is drawn in, in the range this part uses. Checked
+# against, not chosen from: the drawing follows the rod, and verify says
+# whether the result is something you can buy.
+STOCK_OD_MM = (8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0)
 
 DOC_NAME = "StarDome_Splice_V1"
 TITLE = "Star Dome bow splice V1 - parameters"
@@ -91,148 +136,117 @@ USE_SPREADSHEET_IF_PRESENT = True
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter. 8 for D3/D4, 10 for D6/D8, 12 for D10/D12 -- the whole part follows it"),
-    ("rodClearance",           0.4,  "mm",  "diametral clearance in the bore: a slide fit, so the joint can be made and unmade with a punch"),
-    ("engagementFactor",       6.0,  "-",   "how far the rod goes in, in rod diameters. The lever that trades the hard spot against the part's length"),
-    ("jointWall",              2.0,  "mm",  "wall at the joint face, where the thread and the stud need meat"),
-    ("mouthWall",              0.8,  "mm",  "wall at the mouth, where the rod leaves. The thinnest anyone rolls; this is what softens the stiffness step"),
-    ("taper",                  1.0,  "-",   "1 = taper the outside from joint to mouth, 0 = straight tube. Off costs a 3x harder step -- see verify"),
-    ("studDiameter",           6.0,  "mm",  "M6 stud between the two halves. Must clear the bore's own wall"),
-    ("threadDepth",           14.0,  "mm",  "tapped depth each side. Wants at least one diameter of thread"),
-    ("shoulderThickness",      3.0,  "mm",  "material between the bottom of the rod bore and the tapped hole; the rod butts on it"),
-    ("mouthFlare",             2.5,  "mm",  "axial length of the flared mouth. A square bore edge is a stress raiser on fibreglass"),
+    ("rodClearance",           0.4,  "mm",  "diametral clearance in the bore: a slide fit, so the joint goes together by hand and comes apart with a punch"),
+    ("engagementFactor",       6.0,  "-",   "how far each rod goes in, in rod diameters. The lever that trades the hard spot against the part's length"),
+    ("wall",                   0.8,  "mm",  "tube wall. The least steel is drawn in, which is also the softest this joint can be, which is also the wall that lands the OD on a stock size"),
+    ("buttGap",                0.0,  "mm",  "clearance between the two rod ends. 0 = they butt, so compression crosses the joint through the fibreglass and not through the bolts"),
+    ("boltDiameter",           4.0,  "mm",  "cross fastener each side: holds tension and torsion. A bolt and nut, or a spring pin in the same hole"),
+    ("boltAt",                22.0,  "mm",  "how far each cross hole sits from its own end of the sleeve"),
+    ("mouthFlare",             2.5,  "mm",  "axial length of the flared mouth. A square bore edge is a stress raiser on fibreglass, and this is where the rod bends away"),
     ("mouthFlareRise",         0.35, "mm",  "radial rise of that flare"),
-    ("pinDiameter",            4.0,  "mm",  "cross pin through ferrule and rod: carries the axial load and stops the rod turning"),
-    ("pinAt",                 22.0,  "mm",  "how far the pin sits from the mouth"),
-    ("faceChamfer",            0.6,  "mm",  "chamfer on the joint face, so two ferrules seat without a burr holding them apart"),
+    ("endChamfer",             0.4,  "mm",  "chamfer on the outside of each end, so the sleeve does not catch on the cover"),
 ]
 
 
-def _rod_bore(bore_r, length, z):
-    """The bore the rod slides into, opening at the mouth."""
-    return Part.makeCylinder(bore_r, length, App.Vector(0, 0, z),
-                             App.Vector(0, 0, 1))
-
-
-def _flare(bore_r, rise, length, z):
-    """A cone opening the mouth, so the rod does not bear on a square edge."""
+def _flare(bore_r, rise, length, z, direction):
+    """A cone opening a mouth, so the rod does not bear on a square edge."""
     return Part.makeCone(bore_r + rise, bore_r, length,
-                         App.Vector(0, 0, z), App.Vector(0, 0, 1))
+                         App.Vector(0, 0, z), App.Vector(0, 0, direction))
 
 
 def build(values):
     rod_d = values["rodDiameter"]
     clearance = values["rodClearance"]
     engagement = values["engagementFactor"] * rod_d
-    joint_wall = values["jointWall"]
-    mouth_wall = values["mouthWall"]
-    tapered = values["taper"] >= 0.5
-    stud_d = values["studDiameter"]
-    thread_depth = values["threadDepth"]
-    shoulder = values["shoulderThickness"]
+    wall = values["wall"]
+    butt_gap = values["buttGap"]
+    bolt_d = values["boltDiameter"]
+    bolt_at = values["boltAt"]
     flare_len = values["mouthFlare"]
     flare_rise = values["mouthFlareRise"]
-    pin_d = values["pinDiameter"]
-    pin_at = values["pinAt"]
-    chamfer = values["faceChamfer"]
+    chamfer = values["endChamfer"]
 
     bore_r = (rod_d + clearance) / 2.0
-    mouth_od = 2.0 * (bore_r + mouth_wall)
-    joint_od = 2.0 * (bore_r + joint_wall)
-    length = engagement + shoulder + thread_depth
+    od = 2.0 * (bore_r + wall)
+    length = 2.0 * engagement + butt_gap
 
-    # The body: mouth at z = 0, joint face at z = length. Tapered outside runs
-    # the whole way, so the section changes gradually rather than at a step.
-    if tapered:
-        body = Part.makeCone(mouth_od / 2.0, joint_od / 2.0, length,
+    # The body: a tube, bored end to end. One end at z = 0, the other at
+    # z = length, and the part is its own mirror about the middle.
+    body = Part.makeCylinder(od / 2.0, length,
                              App.Vector(0, 0, 0), App.Vector(0, 0, 1))
-    else:
-        body = Part.makeCylinder(joint_od / 2.0, length,
-                                 App.Vector(0, 0, 0), App.Vector(0, 0, 1))
-
-    # The bore for the rod, from the mouth in.
-    body = body.cut(_rod_bore(bore_r, engagement, 0.0))
-    # Flare it, so the fibreglass does not bear on a square edge.
-    body = body.cut(_flare(bore_r, flare_rise, flare_len, 0.0))
-
-    # The tapped hole, from the joint face in. Drawn at the tapping diameter:
-    # a thread is a note on a drawing, not a solid.
-    tap_r = (stud_d * 0.85) / 2.0
     body = body.cut(
-        Part.makeCylinder(tap_r, thread_depth + 0.01,
-                          App.Vector(0, 0, length - thread_depth),
-                          App.Vector(0, 0, 1))
+        Part.makeCylinder(bore_r, length + 2.0,
+                          App.Vector(0, 0, -1.0), App.Vector(0, 0, 1))
     )
 
-    # The cross pin, through everything at pin_at from the mouth.
-    pin_hole = Part.makeCylinder(
-        pin_d / 2.0, joint_od + 4.0,
-        App.Vector(0, -(joint_od + 4.0) / 2.0, pin_at),
-        App.Vector(0, 1, 0),
-    )
-    body = body.cut(pin_hole)
+    # Flare both mouths. The rod leaves the sleeve here and starts bending
+    # again, so this is the edge that would dig in.
+    body = body.cut(_flare(bore_r, flare_rise, flare_len, 0.0, 1))
+    body = body.cut(_flare(bore_r, flare_rise, flare_len, length, -1))
 
-    # Chamfer the joint face so a burr cannot hold two ferrules apart.
+    # One cross hole per side, the same distance from its own end. Drilled at
+    # right angles to each other, so neither rod loses width in the same
+    # direction as its neighbour and the two holes cannot line up.
+    through = od + 4.0
+    holes = [
+        Part.makeCylinder(bolt_d / 2.0, through,
+                          App.Vector(0, -through / 2.0, bolt_at),
+                          App.Vector(0, 1, 0)),
+        Part.makeCylinder(bolt_d / 2.0, through,
+                          App.Vector(-through / 2.0, 0, length - bolt_at),
+                          App.Vector(1, 0, 0)),
+    ]
+    for hole in holes:
+        body = body.cut(hole)
+
+    # Chamfer the outside of both ends: the sleeve sits under the cover.
     if chamfer > 0:
-        def on_face(edge):
+        def on_an_end(edge):
             try:
-                return all(abs(v.Point.z - length) < 1e-6 for v in edge.Vertexes)
+                zs = [v.Point.z for v in edge.Vertexes]
+                rs = [math.hypot(v.Point.x, v.Point.y) for v in edge.Vertexes]
             except Exception:
                 return False
+            if not zs or not rs:
+                return False
+            at_end = (all(abs(z) < 1e-6 for z in zs)
+                      or all(abs(z - length) < 1e-6 for z in zs))
+            return at_end and all(abs(r - od / 2.0) < 1e-6 for r in rs)
 
-        body, _ = kit.fillet_by_predicate(body, on_face, chamfer)
+        body, _ = kit.fillet_by_predicate(body, on_an_end, chamfer)
 
-    ferrule = body.removeSplitter()
+    sleeve = body.removeSplitter()
 
     # --- reference geometry, for the drawing rather than the part ----------
-    mirror = ferrule.copy()
-    mirror.rotate(App.Vector(0, 0, length), App.Vector(1, 0, 0), 180.0)
-    mirror.translate(App.Vector(0, 0, 0))
-
-    stud = Part.makeCylinder(
-        stud_d / 2.0, 2.0 * thread_depth,
-        App.Vector(0, 0, length - thread_depth), App.Vector(0, 0, 1),
-    )
-
-    rod_ref = Part.makeCylinder(
-        rod_d / 2.0, engagement + 60.0,
-        App.Vector(0, 0, -60.0), App.Vector(0, 0, 1),
-    )
-
-    pins = [
-        Part.makeCylinder(pin_d / 2.0, joint_od + 4.0,
-                          App.Vector(0, -(joint_od + 4.0) / 2.0, pin_at),
+    stick_out = 70.0
+    rods = [
+        Part.makeCylinder(rod_d / 2.0, engagement + stick_out,
+                          App.Vector(0, 0, -stick_out), App.Vector(0, 0, 1)),
+        Part.makeCylinder(rod_d / 2.0, engagement + stick_out,
+                          App.Vector(0, 0, length - engagement),
+                          App.Vector(0, 0, 1)),
+    ]
+    bolts = [
+        Part.makeCylinder(bolt_d / 2.0, through,
+                          App.Vector(0, -through / 2.0, bolt_at),
                           App.Vector(0, 1, 0)),
-        Part.makeCylinder(pin_d / 2.0, joint_od + 4.0,
-                          App.Vector(0, -(joint_od + 4.0) / 2.0,
-                                     2.0 * length - pin_at),
-                          App.Vector(0, 1, 0)),
+        Part.makeCylinder(bolt_d / 2.0, through,
+                          App.Vector(-through / 2.0, 0, length - bolt_at),
+                          App.Vector(1, 0, 0)),
     ]
 
-    geo = {
-        "ferrule": ferrule,
-        "mirror": mirror,
-        "stud": stud,
-        "rod": rod_ref,
-        "pins": pins,
-    }
+    geo = {"sleeve": sleeve, "rods": rods, "bolts": bolts}
     dims = {
         "rod_diameter_mm": rod_d,
         "bore_diameter_mm": 2.0 * bore_r,
         "engagement_mm": engagement,
         "length_mm": length,
-        "pair_length_mm": 2.0 * length,
-        "mouth_od_mm": mouth_od,
-        "joint_od_mm": joint_od,
-        "joint_wall_mm": joint_wall,
-        "mouth_wall_mm": mouth_wall,
-        "tapered": 1.0 if tapered else 0.0,
-        "stud_diameter_mm": stud_d,
-        "stud_length_mm": 2.0 * thread_depth,
-        "thread_depth_mm": thread_depth,
-        "shoulder_mm": shoulder,
-        "pin_diameter_mm": pin_d,
-        "pin_at_mm": pin_at,
-        "over_rod_mm": joint_od - rod_d,
+        "od_mm": od,
+        "wall_mm": wall,
+        "butt_gap_mm": butt_gap,
+        "bolt_diameter_mm": bolt_d,
+        "bolt_at_mm": bolt_at,
+        "over_rod_mm": od - rod_d,
     }
     return geo, dims
 
@@ -244,137 +258,136 @@ def _second_moment(od, bore):
     return math.pi * (od ** 4 - bore ** 4) / 64.0
 
 
+def _nearest_stock(od):
+    return min(STOCK_OD_MM, key=lambda s: abs(s - od))
+
+
 def verify(geo, dims, values):
     """Every way this part could be wrong that geometry can see."""
     problems = []
-    ferrule = geo["ferrule"]
+    sleeve = geo["sleeve"]
 
-    if not kit.ok(ferrule):
-        problems.append("the ferrule is not one sound solid")
+    if not kit.ok(sleeve):
+        problems.append("the sleeve is not one sound solid")
 
     bore = dims["bore_diameter_mm"]
     if bore <= dims["rod_diameter_mm"]:
         problems.append("the bore does not clear the rod")
 
-    # The tapped hole must leave wall at the joint end.
-    tap_d = values["studDiameter"] * 0.85
-    wall_at_thread = (dims["joint_od_mm"] - tap_d) / 2.0
-    if wall_at_thread < 1.5:
+    wall = dims["wall_mm"]
+    if wall < STEEL_MIN_WALL - 1e-9:
         problems.append(
-            f"only {wall_at_thread:.1f} mm of wall round the thread"
+            f"a {wall:.2f} mm wall is under the {STEEL_MIN_WALL:.1f} mm the "
+            f"catalogue records as the least {STEEL['label']} is drawn in"
         )
 
-    # The stud has to fit inside the rod's own bore, or it cannot be dropped
-    # in from the joint face at all.
-    if values["studDiameter"] >= bore:
+    # The point of a 0.8 wall: the OD comes out on a size you can buy.
+    stock = _nearest_stock(dims["od_mm"])
+    off_stock = abs(stock - dims["od_mm"])
+    if off_stock > 0.05:
         problems.append(
-            f"an M{values['studDiameter']:g} stud does not fit a "
-            f"{bore:.1f} mm bore"
+            f"OD {dims['od_mm']:.1f} is {off_stock:.1f} mm off the nearest "
+            f"stock tube ({stock:.0f}); it would have to be turned"
         )
 
-    # The pin must be in the engaged length, and clear of the tapped hole.
-    if dims["pin_at_mm"] >= dims["engagement_mm"]:
-        problems.append("the cross pin is past the end of the rod")
-    thread_starts = dims["length_mm"] - dims["thread_depth_mm"]
-    if dims["pin_at_mm"] + dims["pin_diameter_mm"] / 2.0 > thread_starts:
-        problems.append("the cross pin runs into the tapped hole")
+    # The cross hole must be inside the engaged rod, with rod either side of
+    # it: at the end it tears out, past the rod end it holds nothing.
+    if dims["bolt_at_mm"] >= dims["engagement_mm"]:
+        problems.append("the cross hole is past the end of the rod")
+    if dims["bolt_at_mm"] < 2.0 * dims["bolt_diameter_mm"]:
+        problems.append(
+            f"the cross hole is {dims['bolt_at_mm']:.0f} mm from the end, "
+            f"under two fastener diameters of edge distance"
+        )
 
-    # The rod must butt on the shoulder, not on the stud.
-    if dims["shoulder_mm"] <= 0:
-        problems.append("no shoulder for the rod to butt against")
+    # The two holes are at right angles, so they can only foul each other if
+    # the sleeve is short enough for them to overlap in z.
+    if dims["length_mm"] - 2.0 * dims["bolt_at_mm"] < dims["bolt_diameter_mm"]:
+        problems.append("the two cross holes run into each other")
 
-    # The point of the taper: how hard the step is at each end.
+    # What the fastener bears on, in the sleeve. A thin wall is the trade this
+    # part makes, and this is the number it is traded against.
+    bearing_mm2 = 2.0 * wall * dims["bolt_diameter_mm"]
+
+    # The stiffness step, which is now one number rather than two.
     rod_i = math.pi * dims["rod_diameter_mm"] ** 4 / 64.0
     ei_rod = ROD_MODULUS * rod_i
-    joint_ratio = STEEL_MODULUS * _second_moment(
-        dims["joint_od_mm"], bore) / ei_rod
-    mouth_ratio = STEEL_MODULUS * _second_moment(
-        dims["mouth_od_mm"], bore) / ei_rod
+    ratio = STEEL_MODULUS * _second_moment(dims["od_mm"], bore) / ei_rod
 
-    if dims["tapered"] and mouth_ratio >= joint_ratio:
-        problems.append("the taper does not soften anything")
-
-    # The whole pair has to sit in the gap between two crossings. The room is
-    # a fact about the dome, not about this part, so it is an input here.
-    if dims["pair_length_mm"] / 2.0 > MIN_HALF_SPAN_MM:
+    # The whole sleeve has to sit in the gap between two crossings. The room
+    # is a fact about the dome, not about this part, so it is an input here.
+    if dims["length_mm"] / 2.0 > MIN_HALF_SPAN_MM:
         problems.append(
-            f"half the pair is {dims['pair_length_mm'] / 2.0:.0f} mm, more "
-            f"than the {MIN_HALF_SPAN_MM:.0f} mm the tightest span leaves"
+            f"half the sleeve is {dims['length_mm'] / 2.0:.0f} mm, more than "
+            f"the {MIN_HALF_SPAN_MM:.0f} mm the tightest span leaves"
         )
 
     return {
         "problems": problems,
         "ok": not problems,
-        "ferrule_volume_cm3": round(kit.vol(ferrule) / 1000.0, 2),
-        "ferrule_mass_g": round(
-            kit.vol(ferrule) / 1000.0 * STEEL_DENSITY / 1000.0, 1
+        "sleeve_volume_cm3": round(kit.vol(sleeve) / 1000.0, 2),
+        "sleeve_mass_g": round(
+            kit.vol(sleeve) / 1000.0 * STEEL_DENSITY / 1000.0, 1
         ),
-        "stiffness_at_joint": round(joint_ratio, 1),
-        "stiffness_at_mouth": round(mouth_ratio, 1),
-        "softened_by": round(joint_ratio / mouth_ratio, 2) if mouth_ratio else None,
-        "wall_at_thread_mm": round(wall_at_thread, 2),
+        "stiffness_vs_rod": round(ratio, 1),
+        "stock_tube": f"{stock:.0f} x {wall:g}",
+        "bolt_bearing_mm2": round(bearing_mm2, 1),
+        "rod_width_lost_at_hole": round(
+            dims["bolt_diameter_mm"] / dims["rod_diameter_mm"], 2
+        ),
+        "parts_per_joint": 1,
         "key_dims": {
             "length_mm": round(dims["length_mm"], 1),
-            "pair_length_mm": round(dims["pair_length_mm"], 1),
-            "joint_od_mm": round(dims["joint_od_mm"], 1),
-            "mouth_od_mm": round(dims["mouth_od_mm"], 1),
+            "od_mm": round(dims["od_mm"], 1),
+            "bore_mm": round(bore, 2),
             "over_rod_mm": round(dims["over_rod_mm"], 1),
         },
         "note": (
             "Geometry only. Nothing here is a load check: the bending the "
-            "joint actually sees, and whether steel at this stiffness is "
-            "acceptable, is milestone 8."
+            "joint actually sees, whether steel at this stiffness is "
+            "acceptable, and what the cross hole costs the rod, are all "
+            "milestone 8."
         ),
     }
 
 
 def derived_rows(dims, values):
-    rows = [
+    stock = _nearest_stock(dims["od_mm"])
+    return [
         ("bore", round(dims["bore_diameter_mm"], 2), "mm",
-         "slide fit on the rod, so the joint comes apart with a punch"),
+         "slide fit on the rod, so the joint goes together by hand"),
         ("engagement", round(dims["engagement_mm"], 1), "mm",
-         f"{values['engagementFactor']:g} rod diameters into each half"),
-        ("length", round(dims["length_mm"], 1), "mm", "one ferrule"),
-        ("pairLength", round(dims["pair_length_mm"], 1), "mm",
-         "the whole splice; has to sit between two crossings"),
-        ("jointOD", round(dims["joint_od_mm"], 1), "mm",
-         "at the joint face, where the thread needs meat"),
-        ("mouthOD", round(dims["mouth_od_mm"], 1), "mm",
-         "at the mouth, where the rod leaves"),
+         f"{values['engagementFactor']:g} rod diameters into each end"),
+        ("length", round(dims["length_mm"], 1), "mm",
+         "the whole part; has to sit between two crossings"),
+        ("OD", round(dims["od_mm"], 1), "mm",
+         f"stock tube {stock:.0f} x {values['wall']:g}, cut to length"),
         ("overRod", round(dims["over_rod_mm"], 1), "mm",
-         "how much fatter than the rod at its widest"),
-        ("stud", f"M{values['studDiameter']:g} x "
-                 f"{dims['stud_length_mm']:.0f}", "-",
-         "bought; the male half of a male-female joint"),
-        ("pin", f"{values['pinDiameter']:g} mm at "
-                f"{values['pinAt']:g}", "-",
-         "carries the axial load and stops the rod turning"),
-        ("perSplice", 2, "-", "identical halves, one part number"),
+         "how much fatter than the rod, all the way along"),
+        ("bolt", f"{values['boltDiameter']:g} mm at "
+                 f"{values['boltAt']:g} from each end", "-",
+         "one per side, at right angles to each other; bolt or spring pin"),
+        ("perJoint", 1, "-", "one tube. Nothing else to make"),
     ]
-    return rows
 
 
 # --------------------------------------------------------------------------
 # drawing
 # --------------------------------------------------------------------------
-FERRULE_COLOUR = (0.55, 0.55, 0.58)
-STUD_COLOUR = (0.80, 0.70, 0.25)
+SLEEVE_COLOUR = (0.55, 0.55, 0.58)
 ROD_COLOUR = (0.15, 0.55, 0.95)
-PIN_COLOUR = (0.35, 0.35, 0.38)
+BOLT_COLOUR = (0.80, 0.70, 0.25)
 
 
 def populate(doc, geo):
-    for name, shape, colour in (
-        ("Ferrule", geo["ferrule"], FERRULE_COLOUR),
-        ("Ferrule_Mirror", geo["mirror"], FERRULE_COLOUR),
-        ("Stud", geo["stud"], STUD_COLOUR),
-        ("ref_Rod", geo["rod"], ROD_COLOUR),
-    ):
-        obj = doc.addObject("Part::Feature", name)
-        obj.Shape = shape
-    for i, pin in enumerate(geo["pins"], start=1):
-        obj = doc.addObject("Part::Feature", f"Pin{i}")
-        obj.Shape = pin
+    obj = doc.addObject("Part::Feature", "Sleeve")
+    obj.Shape = geo["sleeve"]
+    for i, rod in enumerate(geo["rods"], start=1):
+        obj = doc.addObject("Part::Feature", f"ref_Rod{i}")
+        obj.Shape = rod
+    for i, bolt in enumerate(geo["bolts"], start=1):
+        obj = doc.addObject("Part::Feature", f"Bolt{i}")
+        obj.Shape = bolt
     doc.recompute()
     return doc
 
@@ -384,22 +397,20 @@ def apply_view(doc):
     if not hasattr(App, "Gui"):
         return doc
     try:
-        gui = App.Gui
+        gui = App.Gui  # noqa: F841 -- its presence is the test
     except Exception:
         return doc
     for obj in doc.Objects:
         view = getattr(obj, "ViewObject", None)
         if view is None:
             continue
-        if obj.Name.startswith("Ferrule"):
-            view.ShapeColor = FERRULE_COLOUR
+        if obj.Name.startswith("Sleeve"):
+            view.ShapeColor = SLEEVE_COLOUR
             view.Transparency = 40
-        elif obj.Name.startswith("Stud"):
-            view.ShapeColor = STUD_COLOUR
         elif obj.Name.startswith("ref_Rod"):
             view.ShapeColor = ROD_COLOUR
-        elif obj.Name.startswith("Pin"):
-            view.ShapeColor = PIN_COLOUR
+        elif obj.Name.startswith("Bolt"):
+            view.ShapeColor = BOLT_COLOUR
     return doc
 
 
@@ -410,9 +421,9 @@ def run(out_dir=None, doc_path=None, rod_diameter=None):
     )
     if rod_diameter:
         values["rodDiameter"] = float(rod_diameter)
-        # Everything that scales with the rod, scales with the rod.
-        values["studDiameter"] = max(4.0, round(rod_diameter * 0.6))
-        values["pinDiameter"] = max(3.0, round(rod_diameter * 0.4))
+        # Everything that scales with the rod, scales with the rod. The wall
+        # does not: it is the least steel is drawn in, at every size.
+        values["boltDiameter"] = max(3.0, round(rod_diameter * 0.4))
 
     geo, dims = build(values)
     report = verify(geo, dims, values)

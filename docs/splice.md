@@ -108,43 +108,90 @@ end.
 
 `connectors/splice_v1.py`, built by `make clamps` like the others.
 
-**One part, used twice, with a bought stud between.** Each half is a steel
-socket: bored for the rod at the outer end, tapped at the inner, and the two
-pulled together by a stud. A male half and a female half would be two parts to
-make, two to stock and two to pick up in a field with cold hands, for no gain
-— **the stud is the male.**
+**A length of tube. One per joint, and nothing else to make.** The rods enter
+from both ends and butt in the middle; one cross fastener each side holds them
+in. No thread, no shoulder, no stud.
 
-    rod → [ bore, 6d ][ shoulder ][ thread ] | [ thread ][ shoulder ][ bore ] ← rod
-                                            stud
+    rod ────→[══════════════════╪══════════════════]←──── rod
+             o                                      o
+            bolt             they butt             bolt
 
 M, on 10 mm rod:
 
 | | |
 |---|---|
-| ferrule | 77 mm long, 40 g, 5.13 cm³ |
-| the pair | 154 mm, against 379 mm of free span |
+| sleeve | 120 mm long, 26 g, 3.31 cm³ |
+| stock | **12 × 0.8 tube, cut to length** |
+| against | 379 mm of free span |
 | bore | 10.4 mm, a slide fit |
-| engagement | 60 mm, six rod diameters |
-| joint end | 14.4 mm across, 4.65 mm of wall round the thread |
-| mouth end | 12.0 mm across |
-| over the rod | 4.4 mm at its widest |
-| stud | M6 × 28 |
-| pin | 4 mm at 22 from the mouth |
-| **per dome** | 43 joints, **86 identical ferrules** |
+| engagement | 60 mm each end, six rod diameters |
+| over the rod | 2.0 mm, all the way along |
+| fastener | 4 mm at 22 from each end, the two at right angles |
+| **per dome** | 43 joints, **43 sleeves** |
 
-**The outside tapers, and that is the whole design.** Steel needs 2 mm of wall
-at the joint to hold a thread, which is 15.6× the rod's bending stiffness —
-the joint does not share the curve and the bow takes the extra bend just
-outside it. Thinning to 0.8 mm by the mouth spreads that step over the
-engagement instead of standing it at one section, and takes the ratio there
-down to **4.5×**. The taper is a parameter; turn it off and `verify` reports
-both ends so the cost is visible rather than assumed.
+### Why it stopped being two halves and a stud
 
-The mouth is flared 0.35 mm over 2.5 mm, because a square bore edge is a
-stress raiser on fibreglass — the same rule the crossing clamp follows.
+The first draft was a male–female pair pulled together by a threaded stud.
+Two things were wrong with it, and both are worth keeping written down.
+
+**The stud carried a load the joint does not have.** A bow is an arch: along
+its length it is in compression, and compression crosses a butted joint end to
+end through the fibreglass itself, which is the strongest thing GFRP does.
+Tension and torsion are what actually need holding, and a cross fastener holds
+both.
+
+**And the thread was the only reason the wall was thick.** Tapping needs 2 mm
+of meat round the hole, and 2 mm of steel is 15.6× the rod's bending
+stiffness. That was the whole problem with the part, and it was self-inflicted:
+
+| wall | 0.8 | 1.0 | 1.2 | 1.5 | 2.0 |
+|---|---|---|---|---|---|
+| EI / rod EI | **4.5** | 6.0 | 7.6 | 10.3 | 15.6 |
+
+The old design reached 4.5× only at the very mouth, by tapering the outside
+away from a 15.6× middle. A plain tube is 4.5× along its whole length — so the
+taper had nothing left to soften and went too, along with a part number and
+two thirds of the weight per joint.
+
+### Why 0.8 is not an arbitrary minimum
+
+At 0.8 the outside diameter lands on a size tube is actually drawn in, with
+the bore coming out exactly right:
+
+| rod | bore | tube | over the rod | EI / rod EI |
+|---|---|---|---|---|
+| 8 | 8.4 | **10 × 0.8** | 2.0 | 6.1 |
+| 10 | 10.4 | **12 × 0.8** | 2.0 | 4.5 |
+| 12 | 12.4 | **14 × 0.8** | 2.0 | 3.6 |
+
+No other wall does that. At 1.0 a 10 mm rod wants a 12.4 OD, which is not a
+size; the nearest stock is 14 × 1.0, whose bore is 12 — 2 mm of slop on a
+10 mm rod. The stiffness optimum and the buyable part are the same part, and
+`materials.SLEEVE` already said so: `steel_mild` is recorded as *drawn tube,
+cut to length*, `min_wall` 0.8.
+
+The wall stays 0.8 at every size while the rod grows, so **the joint gets
+softer as the dome gets bigger** — 6.1× on D3, 3.6× on D12. The end of the
+range that needs it most is the end that gets it.
+
+The mouth is flared 0.35 mm over 2.5 mm at both ends, because a square bore
+edge is a stress raiser on fibreglass — the same rule the crossing clamp
+follows, and here it is also where the rod leaves and starts bending again.
+
+**The fastener is a field choice, not a part change.** The sleeve is a tube
+with two cross holes; what goes through them does not change it. A bolt and
+nut is captive and comes apart with a spanner; a spring pin drops into the
+same hole and needs no nut, at the cost of a hammer. Either, or one of each.
+The two holes are drilled at right angles so neither rod loses width in the
+same direction as its neighbour.
+
+The rod is drilled through the sleeve's own hole at assembly, so the sleeve is
+its own drilling jig and a rod cannot sit short of the butt. That matches the
+two rods to that joint; they get marked as a pair.
 
 Everything scales with `rodDiameter`: 8 mm for D3/D4, 10 for D6/D8, 12 for
-D10/D12, with the stud and pin following it. One script, three sizes.
+D10/D12, with the fastener following it. The wall does not scale — it is the
+least steel is drawn in at every size. One script, three sizes.
 
 ## What this does not settle
 

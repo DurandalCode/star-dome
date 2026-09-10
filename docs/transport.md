@@ -62,25 +62,34 @@ domes** — 2356, 3142, 2244, 2693.
 
 ## The joint
 
-**Decided, not computed: steel, male–female, with a threaded stud.** One
-section end carries a male spigot, the other a female socket, and a stud pulls
-them together. Field-serviceable with a spanner, no adhesive on site, and the
-same part at every joint.
+**Decided, not computed: a steel sleeve, the rods butting inside it, one cross
+fastener each side.** A length of drawn tube, cut to length — one part per
+joint and nothing to machine. Field-serviceable with a spanner, no adhesive on
+site, and the same part at every joint.
 
 The one thing already computed that bears on it: **steel at the thinnest wall
-anyone will sell is about 4.5× the rod's bending stiffness**, so the joint is a
-harder spot than the rod around it and the bow will take a little extra
-curvature just outside each ferrule. A male–female joint mitigates that where a
-plain sleeve cannot, because its stiffness is set by how far the spigot
-reaches rather than by a wall thickness that has a manufacturing floor — make
-the engagement longer and gentler rather than the wall thicker. That is a
-design lever, and it is the one to use.
+anyone will sell is about 4.5× the rod's bending stiffness** on M, so the joint
+is a harder spot than the rod around it and the bow takes a little extra
+curvature just outside each sleeve.
+
+An earlier version of this page said a male–female joint with a threaded stud
+mitigated that where a plain sleeve could not, because its stiffness would be
+set by how far the spigot reached rather than by a wall with a manufacturing
+floor. **That was wrong.** The rod is solid, so nothing goes inside it: both
+designs wrap the rod in a tube, and the wall of that tube sets the stiffness
+either way. The thread did not replace the wall — it made the wall thicker,
+2 mm instead of 0.8, which is 15.6× instead of 4.5×. The lever was real but it
+pointed the other way, and 4.5× is now the whole joint rather than its softest
+point. See [`splice.md`](splice.md).
+
+The engagement is the lever that is actually left: 6 rod diameters each side,
+120 mm overall on M, against 379 mm of free span between crossings.
 
 What is still open, and is not a calculation:
 
-- the engagement length, which trades the hard spot against the part's own size;
-- whether the steel is bonded into the GFRP or pinned through it;
-- the stud's thread and whether it is captive;
+- whether 6d of engagement is the right trade of hard spot against part length;
+- whether the cross fastener is a bolt or a spring pin, and what its hole
+  costs the rod — it takes 40% of the rod's width at that section;
 - corrosion between steel and a wet composite;
 - and creep, temperature and UV, which is why the printed alternative was left
   on the table rather than adopted.

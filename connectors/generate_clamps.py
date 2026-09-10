@@ -173,8 +173,9 @@ def run():
             mod = load_splice_module()
             values = {a: v for (a, v, _u, _n) in mod["INPUTS"]}
             values["rodDiameter"] = float(part["rod_diameter"])
-            values["studDiameter"] = max(4.0, round(values["rodDiameter"] * 0.6))
-            values["pinDiameter"] = max(3.0, round(values["rodDiameter"] * 0.4))
+            # The wall does not follow the rod: 0.8 is the least steel is
+            # drawn in at every size, and it is what makes the joint soft.
+            values["boltDiameter"] = max(3.0, round(values["rodDiameter"] * 0.4))
             geo, dims = mod["build"](values)
             checks = mod["verify"](geo, dims, values)
 
@@ -190,7 +191,7 @@ def run():
 
             files = []
             step_path, stl_path, facets = export_solid(
-                geo["ferrule"], part["id"] + "_Ferrule"
+                geo["sleeve"], part["id"] + "_Sleeve"
             )
             files.extend((step_path, stl_path))
 
@@ -198,11 +199,13 @@ def run():
                 "id": part["id"],
                 "kind": part["kind"],
                 "count_needed": part["count"],
-                "ferrules_needed": part["count"] * 2,
+                # One tube per joint, so the parts to make and the joints to
+                # make are the same number.
+                "sleeves_needed": part["count"],
                 "rod_diameter": values["rodDiameter"],
                 "fcstd": fcstd,
                 "files": [os.path.basename(f) for f in files],
-                "mesh_facets": {"Ferrule": facets},
+                "mesh_facets": {"Sleeve": facets},
                 "checks": checks,
             })
             continue

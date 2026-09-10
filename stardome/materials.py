@@ -123,8 +123,9 @@ SLEEVE = {
         made_by="cast from a printed pattern",
     ),
 }
-# The recorded decision: steel, male-female, with a threaded stud. See
-# docs/transport.md.
+# The recorded decision: a steel sleeve, the rods butting inside it, a cross
+# fastener each side. Note the made_by above -- "drawn tube, cut to length" is
+# the whole of the manufacture. See docs/transport.md.
 DEFAULT_SLEEVE = "steel_mild"
 
 
