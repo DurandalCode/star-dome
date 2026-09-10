@@ -1,303 +1,244 @@
-# Roadmap
+# Дорожная карта
 
-This roadmap is intentionally prototype-first. The project should prove geometry, assembly, and connector behavior on smaller variants before treating XL variants as buildable structures.
+Карта намеренно построена «сначала прототип»: геометрию, сборку и поведение коннекторов нужно доказать на малых вариантах, прежде чем считать XL-варианты строимыми конструкциями.
 
-## Milestone 0 — Workspace and toolchain
+## Этап 0 — Рабочее место и инструменты
 
-**Goal:** establish a reproducible local workflow with no required paid CAD services.
+**Цель:** воспроизводимый локальный процесс без платных CAD-сервисов.
 
-- [x] Repository skeleton.
-- [x] Tool responsibilities documented: OpenSCAD / FreeCAD / Blender.
-- [x] Agent guidance in `AGENTS.md`.
-- [ ] Confirm working MCP setup for OpenSCAD.
-- [ ] Confirm working MCP setup for FreeCAD.
-- [ ] Confirm working MCP setup for Blender.
-- [ ] Document local setup on macOS.
+- [x] Скелет репозитория.
+- [x] Роли инструментов описаны: OpenSCAD / FreeCAD / Blender.
+- [x] Инструкции для агентов в `AGENTS.md`.
+- [x] Все три инструмента запускаются локально без GUI и управляются из `Makefile`: OpenSCAD 2021.01 (`make scad`), FreeCAD 1.1.3 через `freecadcmd` (`make clamps`), Blender 5.2.1 через `--background` (`make blender`, `make site`). Пути к бинарникам — переменные `OPENSCAD`, `FREECADCMD`, `BLENDER` в начале соответствующих секций `Makefile`.
+- [ ] Описать локальную установку под macOS.
 
-**Exit criterion:** an agent can generate/edit geometry in all three applications locally.
-
-## Milestone 1 — Reference Star Dome geometry
-
-**Goal:** reproduce the baseline Takekawa-style Star Dome as a parametric model.
-
-- [x] Implement the base Star Dome topology in OpenSCAD.
-- [x] Parameterize dome diameter and rod diameter.
-- [x] Generate the D6 reference variant first.
-- [x] Identify and name arcs, base points, and crossing points.
-- [x] Add simple geometry checks and derived dimensions.
-- [x] Generate D4, D8, and D12 research variants from the same model.
+**Критерий завершения:** агент может создавать и править геометрию во всех трёх приложениях локально. **Выполнен** — через `Makefile`, а не через MCP.
 
-**Exit criterion:** all named variants are generated from one source model without hand-editing geometry. **Met.** See [`dome/README.md`](../dome/README.md).
-
-The 15 bows resolve into three families of 5: family G at tilt `atan(2)` (the icosidodecahedron's equatorial decagons, marked in fifths) and families U and L at 79.1877 deg and 37.3774 deg (marked in thirds), giving 3 rod ends at each of the 10 base points and 10 tied nodes of 4 rods each. Symmetry group D5.
-
-Two results matter for later milestones:
-
-- **Four rods meet at every tied crossing**, not two. Milestone 3's crossing connector has to handle that, at three distinct crossing angles. Verify against photographs and a physical mock-up before designing the part.
-- **Every bow is bent to a radius equal to the dome radius** (2000 mm for D4 up to 6000 mm for D12), so minimum bend radius is a direct constraint on rod selection, not an afterthought.
-
-An engineering geometry report is generated from the same model by
-`tools/export_geometry.py` into `exports/geometry/` (JSON + CSV): every rod-to-rod
-crossing with coordinates, tangents, angles, inclinations, over/under and symmetry
-class. The exporter contains no geometry of its own; OpenSCAD stays the single
-source of truth.
-
-Rod diameters in `configs/variants.scad` remain provisional engineering assumptions. Nothing structural has been validated.
-
-## Milestone 1.5 — Geometry core and data contract
-
-**Goal:** give Milestones 2 and 3 something machine-readable to consume, and put the geometry somewhere it can be unit-tested.
-
-- [x] Move the geometry to a dependency-free Python package, `stardome/`.
-- [x] Move variant configuration to `configs/variants.toml`.
-- [x] Emit schema `star_dome_geometry/1` as `model.json` plus flat CSV views.
-- [x] Turn the `dome/README.md` validation table into executable invariants (`stardome verify`).
-- [x] Commit one small golden summary per variant under `tests/golden/`.
-- [x] Cross-check the Python and OpenSCAD producers field for field.
-- [x] Freeze `dome/star_dome.scad` as a reference implementation and run the cross-check in CI on every push.
-- [x] Add a `blender/` scene builder that reads `model.json`.
-- [x] Add a FreeCAD clamp generator that reads `crossing_types`.
-- [x] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other. Generated, by `python3 -m stardome scad-config`, and CI fails on any drift — see `.github/workflows/check.yml`, "Generated config is up to date". `variants.toml` is the only place a variant is defined.
-
-**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Met.** OpenSCAD, FreeCAD and Blender all consume the generated model; none of them recompute geometry.
-
-`dome/star_dome.scad` deliberately keeps computing its own geometry: that independence is the whole value of the cross-check. It is frozen rather than converted into a data consumer, so the baseline topology stays under permanent two-implementation verification while all new work goes into `stardome/` alone. See [`docs/architecture.md`](architecture.md), "The reference-implementation policy".
-
-Why this milestone exists: the geometry here is analytic, and the deliverables that Milestones 2 and 3 actually need — node IDs, tangents, crossing angles, symmetry classes, exported as JSON — are the things OpenSCAD cannot produce without a text-scraping layer. Two of the three consumers are already Python. See [`docs/architecture.md`](architecture.md).
-
-The two producers agree exactly on all four variants for every rod, node, crossing and `meta` field. The one deliberate divergence is `crossing_types.family_a`/`family_b` in the two L/U classes, where the OpenSCAD exporter's labels and its angle columns refer to different rods; the Python output is self-consistent. Connector generation reads those fields, so this matters.
-
-## Milestone 2 — Blender integration and human-scale composition
-
-**Goal:** use real generated structural geometry for spatial planning.
-
-- [x] Export/import the generated dome geometry into Blender at 1:1 scale. `blender/build_scene.py`, `make blender`.
-- [x] Keep individual arcs/crossings identifiable where practical. Objects carry their model IDs and are split into per-role collections.
-- [x] Add reusable human scale figures. A 1.75 m figure, placed inside the dome.
-- [ ] Add basic fabric-cover representation.
-- [x] Build an entrance-clearance inspection workflow. `stardome/entrance.py`, `make entrances`, see [`entrance.md`](entrance.md). Computed, not eyeballed: the dome is unrolled to azimuth x height and the largest empty rectangle solved exactly.
-- [ ] Build a simple covered-corridor generator / placement workflow.
-- [x] Create a composition scene with multiple instances. `blender/build_site.py`, `make site` for all six variants and `make sizes` for the four named ones -- each turned so its doorway faces the camera, with a 1.75 m figure standing in that doorway.
-- [x] Choose and draw the doorway itself. `stardome/doorway.py`, `make doorways`, see [`doorway.md`](doorway.md). Not just "a door fits somewhere" but which bay, framed by which rods and which node, exported as a closed 3D outline the scene builders draw.
-
-**Exit criterion:** entrances and corridors can be positioned against the actual rod layout and inspected from human eye level.
-
-**And the interior result changes which variant to build.** The number that
-decides a room is how much of the floor you can stand up in, and a bare dome
-wastes most of it: D4 has 12.6 m2 of floor and 2.4 m2 you can stand in, 19%.
-A skirt is the cheapest fix by a wide margin -- D3 on a 1 m skirt has more than
-twice the standing room of a bare D4, on a smaller footprint and less rod. The
-whole price is wind: the tip index is 0.424 for a bare dome at any size and
-rises to 0.74 at D3 with 1 m of skirt. **D6 + 760 mm of skirt** -- the skirt a
-walk-in door needs anyway -- takes it from 64% to 88% of floor usable and is
-probably what the reference prototype should be. See [`interior.md`](interior.md).
-
-**The entrance result changes the size question.** The tallest unobstructed spot
-at the base ring is 0.2549 x diameter, the same fraction for every variant
-because the topology is fixed. So a walk-in door does not exist below D10:
-D6's best opening is 497 mm wide at 1200 mm high, and D3 and D4 have no 1200 mm
-opening at all. A 1800 x 700 mm door needs 760 mm of skirt on D6, 1320 mm on D4
-and 1600 mm on D3 -- which for D3 means a 3.07 m structure over a 3 m footprint.
-D6 wants a skirt; D3 wants a crawl entrance or a different size. See
-[`entrance.md`](entrance.md).
-
-**And then the doorway result softens it again.** Those figures fit a
-*rectangle*, and neither a person nor the opening is one. Each of the five
-tall bays is a lancet -- two G bows meeting at a lashed four-rod node, feet on
-two base points -- so fitting a person-shaped silhouette into a person-shaped
-hole needs less skirt than the rectangle said: 1240 mm on D4 rather than 1320,
-700 on D6 rather than 760, 190 on D8, none on D10. The opening costs nothing --
-no rod cut, no joint invented, and there are five of them. See
-[`doorway.md`](doorway.md).
-
-**The sizes settled at S = D4 + 1350 mm, M = D6 bare, L = D8 bare, XL = D10
-bare.** M and L are bare by choice, and the middle of the range pays for it:
-a bare D6 is 497 mm wide at 1200 mm, so you go in on all fours, and a bare D8
-gives 908 mm at 1400, so you duck. Only at 10 m does the lancet alone clear a
-standing person. `door` in the config records what each dome admits rather
-than what would be nice, and the model lists every silhouette that gets
-through. The one that separates the sizes is a 2.2 m costumed character:
-**XL takes it bare by 31 mm**, and nothing smaller takes it at all.
-
-## Milestone 3 — First printable crossing connector
-
-**Goal:** replace rope/lashing at a representative crossing with a fast reusable printed connector.
-
-- [ ] Choose reference fiberglass rod diameter(s), initially 8 and/or 10 mm.
-- [ ] Measure real rod tolerance and surface behavior.
-- [x] Design a crossing clip/clamp in FreeCAD. V1 two-piece bolted clamp, see `docs/crossing-clamp-v1.md`.
-- [x] Avoid sharp contact edges and point loading on fiberglass. Flared mouths, 180 deg saddles; rod-on-rod contact at the crossing is still to be validated.
-- [x] Make clearance, rod diameter, wall thickness, and fastener dimensions parametric. 8/10/12 mm variants generate from one parameter set.
-- [ ] Print and test repeated assembly/disassembly.
-- [ ] Record failure modes and revise.
-- [ ] Reconcile the clamp with the generated crossing geometry (see below).
-
-**Geometry constraints the connector has to meet.** From the Milestone 1 model,
-regenerate with `tools/export_geometry.py`:
-
-- There are **40 distinct crossing points**, not 20: 10 where **four** rods pass
-  through one point and 30 where two do. Clamp V1 is a two-rod part.
-- There are **90 rod-to-rod contacts** in **12 symmetry-distinct geometries**, at
-  **five distinct crossing angles**: 37.3774, 41.8103, 63.4349, 70.5288 and
-  79.1877 deg. A part that assumes one angle will not fit.
-- The 60 lashed contacts use four of those angles; all 30 unlashed contacts are at
-  70.5288 deg = `acos(1/3)`.
-- Rod inclination at a crossing ranges from 4.7 to 65.4 deg above horizontal, so
-  the clamp cannot assume the rod pair sits in a convenient plane.
-
-**The four-rod node is confirmed.** It was a reconstruction; it has now been
-checked against the reference's own construction diagram. Panel 1 rings 5
-junctions of the blue pentagram, each with two blue bows crossing; panel 2 adds
-the green bows and the same 5 rings carry two blue plus two green. Four rods,
-in the pattern the model predicts. See [`tied-node.md`](tied-node.md) and
-[`references.md`](references.md).
-
-Two things the same source changes, though:
-
-- The reference **ties those junctions pairwise**, with two or three cable ties
-  clustered over a short span, not as one four-rod bundle. A rigid fan part is
-  a departure from its practice, so a short stack of two-rod clamps stays a
-  legitimate alternative — and one that keeps a single part family.
-- The bamboo model has ties at **many more crossings than the ten marked ones**.
-  So the reference's authority does not support dropping the 30 two-rod clamps;
-  that call belongs to the D4 prototype.
-
-**What the connector schedule says.** `python3 -m stardome connectors D6` groups
-every crossing into the part that would serve it, and the answer is awkward:
-
-- The 30 unlashed crossings are two-rod contacts at **one** angle, so a single
-  clamp geometry covers all of them. `connectors/generate_clamps.py` builds it
-  from the model data and exports STEP + STL.
-- The 10 lashed nodes join four rods and are **not covered at all** by the V1
-  architecture.
-
-So V1 currently solves the crossings the reference leaves alone, and does not
-solve the ones it ties. Closing that is the real content of this milestone.
-
-- [ ] Decide whether the 30 unlashed crossings want clamps at all, or whether effort belongs entirely at the four-rod nodes.
-- [x] Decide the radial stacking order at a four-rod node. **Fan order, 1-2-3-4.** See [`docs/tied-node.md`](tied-node.md).
-- [x] Check whether one global over/under assignment is consistent across all 90 contacts at once. **It is**, for every stacking order, and it needs no radial room beyond the stack's own height.
-- [x] Design the four-rod fan connector. **V2** in `connectors/fan_node_v2.py`, see [`fan-node-v2.md`](fan-node-v2.md): a stack of five plates, every rod in a real channel, no rod-on-rod contact. Stack pitch 10.00 mm: the rods bear on each other at the crossing and each plate is a cross with a hole at the middle, so the stack is exactly as tall as V1 while every rod sits in a channel. All five print without supports. V1 ([`fan-node-v1.md`](fan-node-v1.md)) clamped the rods as a bundle and did not locate the middle two at all; kept as a record. Nothing tested in plastic.
-- [ ] Decide between the fan part and a stack of two-rod clamps, on printed samples.
-
-**The four-rod node turned out to be the easy case.** All four rods at a lashed
-node are coplanar — a great circle's tangent lies in the sphere's tangent plane
-— so the node is a flat four-armed fan with the rods stacked along the radius,
-not a three-dimensional tangle. All ten nodes are the same fan: gaps of
-37.3774, 41.8103, 37.3774 and 63.4349 deg, summing to 180. The five high nodes
-read G-U-U-G and the five low ones L-G-G-L, but as geometry they are one shape.
-
-So the whole dome needs **two connector geometries**: one four-rod fan (10 off)
-and one two-rod clamp (30 off, and optional). Not twelve.
-
-Stacking order chosen as fan order, 1-2-3-4: it puts the three shallowest
-angles into rod-on-rod contact, needs two distinct saddle angles rather than
-three, is palindromic, and states as one sentence in the field. Its cost is
-that G and L rods change level between nodes, which measures out as a 1.6%
-slope — not a constraint. Stack height is three rod diameters.
-
-**The weave closes.** Routing rods straight between their lashed-node offsets
-leaves 15 of the 30 unlashed crossings interpenetrating, so the naive answer is
-wrong — but a consistent route does exist, for every stacking order, and it
-stays inside the radial band the four-rod stack already occupies (±1.5 rod
-diameters). A rod leaves its great circle by about one degree. The weave gets
-easier as the dome grows, so **D4 is the tight case, not D12**.
-
-One consequence for the part: a rod arrives at a node with up to ~1.2° of
-radial tilt, generally different on each side, so a channel bored exactly
-tangent will pre-stress it.
-
-**Exit criterion:** one connector can be assembled repeatedly in the field without damaging the rod or requiring fiddly hardware.
-
-## Milestone 4 — D4/D6 physical prototype
-
-**Goal:** validate the basic system before scaling up.
-
-- [ ] Build a partial full-scale star / crossing mockup.
-- [ ] Build D4 or D6 complete frame.
-- [ ] Measure assembly time and crew size.
-- [ ] Check shape repeatability and connector movement under load.
-- [ ] Test cover fit and entrance placement.
-- [ ] Test base restraint / anchoring concept under controlled conditions.
-- [ ] Feed measured geometry and problems back into CAD.
-
-**Exit criterion:** a complete small/reference dome can be assembled, covered, dismantled, and reassembled predictably.
-
-## Milestone 5 — Connector family and interfaces
-
-**Goal:** keep field assembly simple while supporting a complete temporary structure.
-
-- [ ] Base / ground connector.
-- [ ] Crossing connector family for chosen rod sizes.
-- [ ] Belt / tension-member attachment.
-- [ ] Cover attachment that does not concentrate load on one printed part.
-- [ ] Entrance / corridor interface connector.
-- [ ] Labeling or keying system for field assembly.
-
-**Exit criterion:** the structure needs only a small, understandable family of repeated printed parts.
-
-## Milestone 6 — D8 large variant
-
-**Goal:** find the practical upper range of the mostly-classic Star Dome system.
-
-- [ ] Select rod/tube size from measured prototype behavior rather than simple geometric scaling.
-- [ ] Analyze free spans and deformation.
-- [ ] Evaluate lower perimeter tension belt.
-- [ ] Evaluate one additional circumferential / stabilizing belt.
-- [ ] Validate anchoring strategy and cover load paths.
-- [ ] Build only after structural assumptions have been reviewed and tested appropriately.
-
-**Exit criterion:** determine whether D8 is viable with the baseline topology plus minimal repeated reinforcement.
-
-## Milestone 7 — XL topology research: D10–D12
-
-**Goal:** explore how far the fast-assembly concept can scale without pretending the baseline design scales directly.
-
-Candidate reinforcement strategies to compare:
-
-- perimeter tension ring / belt;
-- one or more circumferential stabilizing belts;
-- additional repeated reinforcement arcs;
-- denser secondary Star Dome lattice;
-- partial double lattice;
-- fiberglass tube instead of solid rod;
-- dedicated entrance/corridor framing;
-- distributed cover webbing that transfers wind loads to anchor points.
-
-For every candidate, compare:
-
-- part count;
-- number of unique part types;
-- field assembly actions;
-- assembly time;
-- transport volume/length;
-- largest unsupported span;
-- likely failure modes;
-- anchoring demands;
-- interaction with entrances and corridors.
-
-**Exit criterion:** select one XL concept worth detailed engineering, or establish a practical size ceiling below 10–12 m.
-
-## Milestone 8 — Structural validation and field rules
-
-**Goal:** turn promising prototypes into a documented temporary-structure system.
-
-- [ ] Define material properties from actual supplier data / testing.
-- [ ] Establish load cases, especially wind and cover loads.
-- [ ] Validate rods/tubes, connectors, belts, base points, and anchors.
-- [ ] Define weather / wind operating limits.
-- [ ] Define inspection and retirement criteria for fiberglass and printed parts.
-- [ ] Write assembly, anchoring, evacuation, and dismantling instructions.
-
-**Exit criterion:** build/no-build decisions are based on explicit engineering limits rather than visual confidence.
-
-## Near-term priority
-
-The next concrete path is:
-
-1. finish MCP/local-tool setup;
-2. generate the baseline D6 Star Dome in OpenSCAD;
-3. import that exact geometry into Blender;
-4. inspect entrance locations with a human-scale figure;
-5. design and print one representative crossing connector;
-6. only then make decisions about rod diameter and XL reinforcement from measured behavior.
+Про MCP отдельно. Изначально этот этап требовал «подтвердить рабочую настройку MCP» для каждого из трёх приложений, но проект пошёл другим путём, и это оказалось правильным: MCP годится для интерактивного разглядывания, а всё, что должно быть воспроизводимым, запускается скриптом из репозитория. Правило записано в [`architecture.md`](architecture.md): если результат нельзя пересобрать одной командой из чистого клона — это не результат. Поэтому MCP здесь необязателен и в критерий завершения не входит.
+
+## Этап 1 — Эталонная геометрия Star Dome
+
+**Цель:** воспроизвести базовый Star Dome в духе Такэкавы как параметрическую модель.
+
+- [x] Реализовать базовую топологию Star Dome в OpenSCAD.
+- [x] Параметризовать диаметр купола и диаметр стержня.
+- [x] Сначала получить эталонный вариант D6.
+- [x] Определить и назвать дуги, опорные точки и точки пересечения.
+- [x] Добавить простые геометрические проверки и производные размеры.
+- [x] Получить исследовательские варианты D4, D8 и D12 из той же модели.
+
+**Критерий завершения:** все именованные варианты получаются из одной исходной модели без ручной правки геометрии. **Выполнен.** См. [`dome/README.md`](../dome/README.md).
+
+15 дуг раскладываются на три семейства по 5: семейство G с наклоном `atan(2)` (экваториальные десятиугольники икосододекаэдра, размечаются по пятым долям), семейства U и L с наклонами 79.1877° и 37.3774° (размечаются по третям). В итоге в каждой из 10 опорных точек сходятся 3 конца стержней, а связанных узлов по 4 стержня — 10. Группа симметрии D5.
+
+Два результата важны для следующих этапов:
+
+- **В каждом связанном перекрестье сходятся четыре стержня**, а не два. Коннектор этапа 3 обязан это выдержать, причём на трёх разных углах пересечения. Проверить по фотографиям и физическому макету до проектирования детали.
+- **Каждая дуга согнута по радиусу, равному радиусу купола** (от 2000 мм для D4 до 6000 мм для D12), так что минимальный радиус изгиба — прямое ограничение на выбор стержня, а не примечание.
+
+Инженерный отчёт по геометрии генерируется из той же модели скриптом `tools/export_geometry.py` в `exports/geometry/` (JSON + CSV): каждое пересечение стержней с координатами, касательными, углами, наклонами, признаком «сверху/снизу» и классом симметрии. Сам экспортёр геометрии не содержит — источник истины остаётся один.
+
+Диаметры стержней в `configs/variants.toml` остаются предварительными инженерными допущениями. Ничего структурного не проверено.
+
+## Этап 1.5 — Геометрическое ядро и контракт данных
+
+**Цель:** дать этапам 2 и 3 машиночитаемые данные и вынести геометрию туда, где её можно покрыть юнит-тестами.
+
+- [x] Перенести геометрию в Python-пакет без зависимостей, `stardome/`.
+- [x] Перенести конфигурацию вариантов в `configs/variants.toml`.
+- [x] Выдавать схему `star_dome_geometry/1` как `model.json` плюс плоские CSV-представления.
+- [x] Превратить таблицу проверок из `dome/README.md` в исполняемые инварианты (`stardome verify`).
+- [x] Закоммитить по одному компактному эталонному срезу на вариант в `tests/golden/`.
+- [x] Сверить Python- и OpenSCAD-производители поле за полем.
+- [x] Заморозить `dome/star_dome.scad` как эталонную реализацию и гонять сверку в CI на каждом пуше.
+- [x] Добавить сборщик сцены `blender/`, читающий `model.json`.
+- [x] Добавить генератор зажимов для FreeCAD, читающий `crossing_types`.
+- [x] Убрать `configs/variants.scad` в пользу `configs/variants.toml` или генерировать один из другого. Генерируется командой `python3 -m stardome scad-config`, CI падает при любом расхождении — см. `.github/workflows/check.yml`, шаг «Generated config is up to date». `variants.toml` — единственное место, где определяется вариант.
+
+**Критерий завершения:** каждый инструмент ниже по течению читает геометрию из `model.json` и никто её не пересчитывает. **Выполнен.** OpenSCAD, FreeCAD и Blender потребляют сгенерированную модель; никто из них геометрию не пересчитывает.
+
+`dome/star_dome.scad` намеренно продолжает считать свою геометрию сам: в этой независимости и есть вся ценность перекрёстной сверки. Он заморожен, а не превращён в потребителя данных, поэтому базовая топология остаётся под постоянной проверкой двумя реализациями, а вся новая работа идёт только в `stardome/`. См. [`architecture.md`](architecture.md), раздел про политику эталонной реализации.
+
+Зачем этот этап нужен: геометрия здесь аналитическая, а то, что реально требуется этапам 2 и 3 — идентификаторы узлов, касательные, углы пересечения, классы симметрии, выгруженные в JSON, — это ровно то, чего OpenSCAD не умеет без слоя выскребания текста. Два потребителя из трёх и так на Python. См. [`architecture.md`](architecture.md).
+
+Оба производителя совпадают точно на всех вариантах по каждому стержню, узлу, пересечению и полю `meta`. Единственное намеренное расхождение — `crossing_types.family_a`/`family_b` в двух классах L/U, где подписи OpenSCAD-экспортёра и его же колонки углов относятся к разным стержням; вывод Python самосогласован. Генерация коннекторов читает именно эти поля, так что это существенно.
+
+## Этап 2 — Интеграция с Blender и композиция в человеческом масштабе
+
+**Цель:** использовать реальную сгенерированную геометрию для пространственного планирования.
+
+- [x] Выгрузить/загрузить сгенерированную геометрию купола в Blender в масштабе 1:1. `blender/build_scene.py`, `make blender`.
+- [x] Сохранить опознаваемость отдельных дуг и пересечений. Объекты несут свои идентификаторы из модели и разложены по коллекциям под роль.
+- [x] Добавить переиспользуемые фигуры человеческого масштаба. Фигура 1.75 м, поставлена внутри купола.
+- [ ] Добавить базовое представление тканевой обшивки.
+- [x] Построить процесс проверки габарита входа. `stardome/entrance.py`, `make entrances`, см. [`entrance.md`](entrance.md). Считается, а не прикидывается на глаз: купол разворачивается в координаты «азимут × высота», и наибольший пустой прямоугольник решается точно.
+- [ ] Построить простой генератор/размещение крытого коридора.
+- [x] Создать композиционную сцену с несколькими экземплярами. `blender/build_site.py`, `make site` для всех шести вариантов и `make sizes` для четырёх именованных — каждый развёрнут дверным проёмом к камере, с фигурой 1.75 м в этом проёме.
+- [x] Выбрать и отрисовать сам дверной проём. `stardome/doorway.py`, `make doorways`, см. [`doorway.md`](doorway.md). Не просто «дверь куда-то влезает», а какой пролёт, какими стержнями и каким узлом он обрамлён, выгруженный замкнутым 3D-контуром, который рисуют сборщики сцены.
+
+**Критерий завершения:** входы и коридоры можно расположить относительно реальной раскладки стержней и осмотреть с высоты человеческих глаз.
+
+**И результат по интерьеру меняет то, какой вариант строить.** Комнату определяет не диаметр и не высота в коньке, а **сколько квадратных метров пола, на которых можно встать в полный рост**, — и голый купол тратит большую их часть впустую: у D4 12.6 м² пола и 2.4 м², где можно выпрямиться, то есть 19%. Юбка — самое дешёвое лекарство с большим отрывом: D3 на метровой юбке даёт больше чем вдвое больше места в рост, чем голый D4, на меньшем пятне и меньшем метраже стержня. Вся цена — ветер: индекс опрокидывания 0.424 для голого купола любого размера и растёт до 0.74 у D3 с метровой юбкой. **D6 + 760 мм юбки** — та самая юбка, которая всё равно нужна для двери в рост, — поднимает долю полезного пола с 64% до 88% и, видимо, и есть то, чем должен быть эталонный прототип. См. [`interior.md`](interior.md).
+
+**Результат по входу меняет вопрос о размере.** Самое высокое место без препятствий у опорного кольца — 0.2549 × диаметр, и доля одна и та же для любого варианта, потому что топология фиксирована. Значит, двери в рост не существует ниже D10: лучший проём D6 — 497 мм шириной на высоте 1200 мм, а у D3 и D4 проёма высотой 1200 мм нет вообще. Двери 1800 × 700 мм нужно 760 мм юбки на D6, 1320 мм на D4 и 1600 мм на D3 — что для D3 означает конструкцию 3.07 м над пятном 3 м. D6 просит юбку; D3 просит вход ползком или другой размер. См. [`entrance.md`](entrance.md).
+
+**А результат по дверному проёму снова всё смягчает.** Те цифры вписывают *прямоугольник*, а ни человек, ни проём прямоугольником не являются. Каждый из пяти высоких пролётов — стрельчатая арка: две дуги G, сходящиеся в связанном четырёхстержневом узле, с опорами в двух опорных точках. Вписать силуэт формы человека в отверстие формы человека дешевле, чем говорил прямоугольник: 1240 мм на D4 вместо 1320, 700 на D6 вместо 760, 190 на D8 и ноль на D10. Проём не стоит ничего — ни реза стержня, ни выдуманного соединения, — и таких пролётов пять. См. [`doorway.md`](doorway.md).
+
+**Размеры устоялись как S = D4 + 1350 мм, M = D6 без юбки, L = D8 без юбки, XL = D10 без юбки.** M и L голые по выбору, и середина диапазона за это платит: у голого D6 497 мм на высоте 1200 мм, то есть входить на четвереньках, а голый D8 даёт 908 мм на 1400, то есть пригнувшись. Только на 10 метрах одна лишь стрельчатая арка пропускает человека в рост. Поле `door` в конфиге фиксирует, что купол реально пропускает, а не что хотелось бы, и модель перечисляет каждый силуэт, который проходит. Разделяет размеры именно костюмированный персонаж 2.2 м: **XL берёт его голым с запасом 31 мм**, и ничто меньшее не берёт вовсе.
+
+## Этап 3 — Первый печатный коннектор перекрестья
+
+**Цель:** заменить верёвку/вязку в характерном перекрестье быстрым переиспользуемым печатным коннектором.
+
+- [x] Выбрать эталонные диаметры стеклопластикового стержня, изначально 8 и/или 10 мм. Зафиксировано в `configs/variants.toml`: 8 мм для D3/D4, 10 мм для D6/D8, 12 мм для D10/D12; эталонный прототип D6 — 10 мм. Это выбор, а не измерение: подтверждение по реальному прутку — следующий пункт, и он открыт.
+- [ ] Измерить реальный допуск стержня и поведение поверхности.
+- [x] Спроектировать зажим перекрестья во FreeCAD. V1, двухсоставный на болтах, см. [`crossing-clamp-v1.md`](crossing-clamp-v1.md).
+- [x] Избежать острых кромок контакта и точечной нагрузки на стеклопластик. Раструбы на входах, сёдла 180°; контакт «стержень по стержню» в перекрестье ещё предстоит подтвердить.
+- [x] Сделать параметрическими зазор, диаметр стержня, толщину стенки и размеры крепежа. Варианты 8/10/12 мм получаются из одного набора параметров.
+- [ ] Напечатать и проверить многократную сборку-разборку.
+- [ ] Зафиксировать режимы отказа и переделать.
+- [x] Согласовать зажим со сгенерированной геометрией перекрестья. `connectors/generate_clamps.py` читает расписание, которое `stardome` выводит из модели, и строит каждую деталь на её настоящем угле пересечения и диаметре стержня — он не считает никакой геометрии купола сам.
+
+**Геометрические ограничения, которым обязан соответствовать коннектор.** Из модели этапа 1:
+
+- Точек пересечения **40**, а не 20: 10, где через одну точку проходят **четыре** стержня, и 30, где два. Зажим V1 — деталь на два стержня.
+- Контактов «стержень-стержень» **90**, в **12 симметрично различных геометриях**, на **пяти разных углах пересечения**: 37.3774, 41.8103, 63.4349, 70.5288 и 79.1877°. Деталь, предполагающая один угол, не подойдёт.
+- 60 связанных контактов используют четыре из этих углов; все 30 несвязанных — на 70.5288° = `acos(1/3)`.
+- Наклон стержня в перекрестье меняется от 4.7 до 65.4° над горизонтом, так что зажим не может рассчитывать, что пара стержней лежит в удобной плоскости.
+
+**Четырёхстержневой узел подтверждён.** Это была реконструкция; теперь она сверена с монтажной схемой самого первоисточника. На панели 1 обвязаны 5 стыков синей пентаграммы, в каждом пересекаются две синие дуги; на панели 2 добавлены зелёные дуги, и те же 5 обвязок держат две синие плюс две зелёные. Четыре стержня, в том рисунке, который предсказывает модель. См. [`tied-node.md`](tied-node.md) и [`references.md`](references.md).
+
+Но два момента тот же источник меняет:
+
+- Первоисточник **вяжет эти стыки попарно**, двумя-тремя стяжками, собранными на коротком участке, а не как один пучок из четырёх стержней. Жёсткая веерная деталь — отход от его практики, так что короткая стопка двухстержневых зажимов остаётся законной альтернативой, и притом сохраняющей одно семейство деталей.
+- В бамбуковой модели обвязок **намного больше, чем десять размеченных**. То есть авторитет первоисточника не даёт оснований отказаться от 30 двухстержневых зажимов; это решение за прототипом D4.
+
+**Что говорит расписание коннекторов.** `python3 -m stardome connectors D6` раскладывает каждое пересечение по детали, которая его обслужит. На сегодня для D6 это шесть типов деталей, 107 штук на купол:
+
+| деталь | шт. | генератор |
+|---|---|---|
+| `FAN4-10-37.3774` — веер на 4 стержня | 10 | `fan_node_v2` |
+| `CL2-10-70.5288` — зажим на 2 стержня | 30 | `crossing_clamp_v1` |
+| `BASE3-10` — опорный хаб на 3 конца | 10 | `base_hub_v1` |
+| `STAKE-BASE` — забивной стальной уголок | 10 | железка, её надо выбрать, а не проектировать |
+| `TERM-10` — окончание разрезанной дуги | 2 | ничего нет |
+| `SPLICE-10` — стык дуги по длине | 45 | ничего нет |
+
+50 деталей генерируются прямо сейчас, 10 — покупная железка, 47 ждут генератора. Пробел закрыт наполовину: когда этот пункт писался, четырёхстержневые узлы не покрывались **вообще ничем**, и в этом было всё содержание этапа. Сейчас их строит `fan_node_v2`, а опорные точки — `base_hub_v1`. Осталось то, что появляется от разреза и от транспортировки: `TERM` и `SPLICE`, оба относятся к этапу 5.
+
+- [ ] Решить, нужны ли 30 несвязанным пересечениям зажимы вообще, или усилия целиком принадлежат четырёхстержневым узлам.
+- [x] Выбрать радиальный порядок укладки в четырёхстержневом узле. **Веерный порядок, 1-2-3-4.** См. [`tied-node.md`](tied-node.md).
+- [x] Проверить, согласуется ли одно глобальное назначение «сверху/снизу» на всех 90 контактах сразу. **Согласуется**, для любого порядка укладки, и не требует радиального места сверх собственной высоты стопки.
+- [x] Спроектировать веерный коннектор на четыре стержня. **V2** в `connectors/fan_node_v2.py`, см. [`fan-node-v2.md`](fan-node-v2.md): стопка из пяти плит, каждый стержень в настоящем канале, контакта «стержень по стержню» нет. Шаг стопки 10.00 мм: стержни опираются друг на друга в перекрестье, а каждая плита — крест с отверстием посередине, так что стопка ровно такой же высоты, как у V1, но каждый стержень лежит в канале. Все пять печатаются без поддержек. V1 ([`fan-node-v1.md`](fan-node-v1.md)) зажимал стержни пучком и средние два не фиксировал вовсе; оставлен как запись. В пластике ничего не проверено.
+- [ ] Выбрать между веерной деталью и стопкой двухстержневых зажимов — по напечатанным образцам.
+
+**Четырёхстержневой узел оказался лёгким случаем.** Все четыре стержня в связанном узле компланарны — касательная к большой окружности лежит в касательной плоскости сферы, — так что узел это плоский четырёхлучевой веер со стержнями, уложенными по радиусу, а не трёхмерный клубок. Все десять узлов — один и тот же веер: зазоры 37.3774, 41.8103, 37.3774 и 63.4349°, в сумме 180. Пять верхних узлов читаются как G-U-U-G, пять нижних как L-G-G-L, но геометрически это одна форма.
+
+Значит, всему куполу нужны **две геометрии коннектора**: один веер на четыре стержня (10 шт.) и один зажим на два (30 шт., и необязательный). Не двенадцать.
+
+Порядок укладки выбран веерный, 1-2-3-4: он выводит три самых пологих угла в контакт «стержень по стержню», требует двух различных углов седла вместо трёх, палиндромен и формулируется в поле одной фразой. Его цена в том, что стержни G и L меняют уровень между узлами, что выражается уклоном 1.6% — не ограничение. Высота стопки — три диаметра стержня.
+
+**Плетение сходится.** Если вести стержни прямо между их смещениями в связанных узлах, 15 из 30 несвязанных пересечений начинают проникать друг в друга, то есть наивный ответ неверен, — но согласованный маршрут существует, для любого порядка укладки, и он остаётся внутри радиальной полосы, которую и так занимает четырёхстержневая стопка (±1.5 диаметра стержня). Стержень сходит со своей большой окружности примерно на градус. С ростом купола плетение становится проще, так что **тесный случай — D4, а не D12**.
+
+Одно следствие для детали: стержень приходит в узел с радиальным наклоном до ~1.2°, вообще говоря разным с каждой стороны, так что канал, просверленный строго по касательной, создаст в нём предварительное напряжение.
+
+**Критерий завершения:** один коннектор можно многократно собирать в поле, не повреждая стержень и не требуя возни с крепежом.
+
+## Этап 4 — Физический прототип D4/D6
+
+**Цель:** проверить базовую систему до масштабирования вверх.
+
+- [ ] Собрать частичный полноразмерный макет звезды/перекрестья.
+- [ ] Собрать полный каркас D4 или D6.
+- [ ] Замерить время сборки и размер бригады.
+- [ ] Проверить повторяемость формы и подвижность коннекторов под нагрузкой.
+- [ ] Проверить посадку обшивки и размещение входа.
+- [ ] Проверить концепцию удержания/анкеровки основания в контролируемых условиях.
+- [ ] Вернуть измеренную геометрию и найденные проблемы обратно в CAD.
+
+**Критерий завершения:** малый/эталонный купол собирается, накрывается, разбирается и пересобирается предсказуемо.
+
+## Этап 5 — Семейство коннекторов и интерфейсы
+
+**Цель:** сохранить простоту полевой сборки при полноценной временной конструкции.
+
+- [x] Опорный/грунтовый коннектор. `connectors/base_hub_v1.py`, см. расписание выше (`BASE3-10`): плоский веер из трёх лучей, та же стопка плит, что у узла, минус один луч, со сквозной прорезью под забивной стальной уголок в пустом секторе. Спроектирован и генерируется из модели; **в пластике не проверен**.
+- [x] Семейство перекрёстных коннекторов под выбранные размеры стержня. Две геометрии — веер на четыре стержня и зажим на два, — обе параметрические по 8/10/12 мм из одного набора параметров. Спроектированы и генерируются; **в пластике не проверены**.
+- [ ] Крепление пояса/растянутого элемента.
+- [ ] Крепление обшивки, не концентрирующее нагрузку на одной печатной детали.
+- [ ] Интерфейсный коннектор входа/коридора.
+- [ ] Система маркировки или ключей для полевой сборки. Заготовка есть: у деталей осмысленные идентификаторы (`FAN4-10-37.3774`, `CL2-10-70.5288`, `BASE3-10`), а плиты стопки названы по позиции (`Bottom`, `Mid1`, `Mid2`, `Mid3`, `Cap`). Чего нет — физической маркировки на детали и защиты от сборки не в том порядке.
+- [ ] Стык дуги по длине (`SPLICE`, 45 шт. на D6). Дуга длиной 9425 мм, а везётся секциями по 2400 мм. Соединение обязано держать изгиб, потому что дуга согнута везде, и обязано не попадать в перекрестья.
+- [ ] Окончание разрезанной дуги (`TERM`, 2 шт.). Дуга теперь начинается в перекрестье, а не проходит сквозь него; зажим там держит конец стержня против стержня, а не два стержня друг против друга.
+
+**Критерий завершения:** конструкции хватает небольшого понятного семейства повторяющихся печатных деталей.
+
+## Этап 6 — Большой вариант D8
+
+**Цель:** нащупать практический верхний предел почти классической системы Star Dome.
+
+- [ ] Выбрать размер стержня/трубы по измеренному поведению прототипа, а не простым геометрическим масштабированием.
+- [ ] Проанализировать свободные пролёты и деформации.
+- [ ] Оценить нижний периметральный пояс натяжения.
+- [ ] Оценить один дополнительный кольцевой стабилизирующий пояс.
+- [ ] Проверить стратегию анкеровки и пути передачи нагрузки от обшивки.
+- [ ] Строить только после того, как структурные допущения проверены и испытаны надлежащим образом.
+
+**Критерий завершения:** определить, жизнеспособен ли D8 на базовой топологии плюс минимальном повторяющемся усилении.
+
+## Этап 7 — Исследование XL-топологии: D10–D12
+
+**Цель:** выяснить, насколько далеко масштабируется идея быстрой сборки, не притворяясь, что базовая конструкция масштабируется напрямую.
+
+Кандидатные стратегии усиления для сравнения:
+
+- периметральное кольцо/пояс натяжения;
+- один или несколько кольцевых стабилизирующих поясов;
+- дополнительные повторяющиеся усиливающие дуги;
+- более плотная вторичная решётка Star Dome;
+- частичная двойная решётка;
+- стеклопластиковая труба вместо сплошного стержня;
+- выделенный каркас входа/коридора;
+- распределённая обвязка обшивки, передающая ветровые нагрузки на анкеры.
+
+Для каждого кандидата сравнить:
+
+- количество деталей;
+- количество уникальных типов деталей;
+- количество действий при полевой сборке;
+- время сборки;
+- транспортный объём/длину;
+- наибольший неподкреплённый пролёт;
+- вероятные режимы отказа;
+- требования к анкеровке;
+- взаимодействие со входами и коридорами.
+
+**Критерий завершения:** выбрать одну XL-концепцию, достойную детальной инженерной проработки, либо установить практический потолок размера ниже 10–12 м.
+
+## Этап 8 — Структурная проверка и полевые правила
+
+**Цель:** превратить перспективные прототипы в документированную систему временных конструкций.
+
+- [ ] Определить свойства материалов по реальным данным поставщика и испытаниям.
+- [ ] Установить расчётные случаи нагружения, прежде всего ветер и нагрузку от обшивки.
+- [ ] Проверить стержни/трубы, коннекторы, пояса, опорные точки и анкеры.
+- [ ] Определить погодные/ветровые эксплуатационные пределы.
+- [ ] Определить критерии осмотра и вывода из эксплуатации для стеклопластика и печатных деталей.
+- [ ] Написать инструкции по сборке, анкеровке, эвакуации и разборке.
+
+**Критерий завершения:** решения «строить / не строить» опираются на явные инженерные пределы, а не на зрительную уверенность.
+
+## Ближайший приоритет
+
+Всё, что можно было решить расчётом, решено: геометрия, плетение, дверной проём, интерьер, расписание коннекторов, три спроектированные детали. Дальше почти всё упирается в одно — **в пластике не проверено ничего**.
+
+Конкретный путь:
+
+1. напечатать по одному образцу веерного узла, зажима перекрестья и опорного хаба;
+2. купить пруток и измерить реальный допуск и поведение поверхности — единственный оставшийся невыполненный пункт этапа 3, который ни от чего больше не зависит;
+3. на образцах выбрать между веерной деталью и стопкой двухстержневых зажимов, и заодно решить, нужны ли 30 несвязанным пересечениям зажимы вообще;
+4. закрыть найденное проверкой печатаемости: у нижней плиты опорного хаба 2643 мм² грани с худшим свесом 0.0°, то есть плоский потолок вниз — вероятно, крыша прорези под уголок и отсутствие конуса на гнёздах под гайки;
+5. спроектировать `SPLICE` — 45 штук на купол, самая массовая недостающая деталь, и без неё дугу не довезти;
+6. и только потом собирать каркас D4 или D6 целиком (этап 4).
+
+Пункты 1–3 нужно делать по порядку; 4 и 5 независимы и могут идти параллельно.
