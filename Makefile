@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors rods wind clamps blender site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors rods splices wind clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -29,6 +29,7 @@ help:
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make camp       five domes joined by corridors, laid out and drawn"
 	@echo "make rods       how much rod, in what lengths, and what it costs"
+	@echo "make splices    SCREENING what the section ferrule should be made of"
 	@echo "make wind       SCREENING sail area and hold-down; not a check"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
@@ -100,6 +101,9 @@ ROD_PRICE ?=
 
 rods:
 	@$(PYTHON) -m stardome rod S M L XL --stock $(STOCK) $(if $(ROD_PRICE),--price $(ROD_PRICE),)
+
+splices:
+	@$(PYTHON) -m stardome splice S M L XL
 
 wind:
 	@$(PYTHON) -m stardome wind --all --fabric $(FABRIC) --cf $(CF)

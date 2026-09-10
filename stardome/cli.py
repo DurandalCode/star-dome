@@ -27,6 +27,7 @@ from . import (
     interior,
     model,
     rod,
+    splice,
     verify,
     weave,
     wind,
@@ -395,6 +396,17 @@ def cmd_rod(args) -> int:
     return 0
 
 
+def cmd_splice(args) -> int:
+    """Which material the section ferrule wants to be."""
+    for name in _variant_names(args):
+        data = model.build(config.load(name, args.config), weave_mode="layered")
+        print(splice.format_comparison(
+            data, clearance_mm=args.clearance, engagement_d=args.engagement
+        ))
+        print()
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -442,6 +454,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("camp", cmd_camp, "several domes joined by corridors, and where they may stand"),
         ("wind", cmd_wind, "SCREENING ONLY: sail area, drag and what has to hold it down"),
         ("rod", cmd_rod, "how much rod, in what lengths, and what it costs"),
+        ("splice", cmd_splice, "SCREENING: what the section ferrule should be made of"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -573,6 +586,15 @@ def build_parser() -> argparse.ArgumentParser:
                 type=float,
                 default=corridor.DEFAULT_BRACE_LEG_MM,
                 help="knee-brace leg, mm; portal only",
+            )
+        if name == "splice":
+            p.add_argument(
+                "--clearance", type=float, default=splice.DEFAULT_CLEARANCE_MM,
+                help="bore clearance over the rod, mm",
+            )
+            p.add_argument(
+                "--engagement", type=float, default=splice.DEFAULT_ENGAGEMENT_D,
+                help="grip each side of the joint, in rod diameters",
             )
         if name == "rod":
             p.add_argument(
