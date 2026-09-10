@@ -181,6 +181,35 @@ MCP is for interactive inspection. Anything that must be reproducible runs as
 a script from the repository: if a result cannot be rebuilt with one command
 from a clean clone, it is not a result.
 
+### What the generators share, and what they must not
+
+`connectors/kit.py` holds the CAD primitives every part needs — rod and plate
+solids, hex sockets, edge filleting, the printability check, the parameter
+spreadsheet, STEP/STL export. `blender/kit.py` does the same for the two scene
+builders. Neither knows anything about the dome: geometry reaches them as
+numbers `stardome/` derived.
+
+What stays in each part is the part — `build`, `verify`, `derived_rows`,
+`populate`, and the channel and plate shapes that give a connector its
+character. Those share names across the generators but only 2–40% of their
+text, and merging them would trade a hundred lines for the ability to read any
+one part start to finish.
+
+Extraction is not mechanical, because a shared name is not a shared meaning.
+Three of the base hub's helpers looked like the fan node's and were not: its
+fan is open, so *n* gaps give *n*+1 arms where the node's closes on itself; its
+bows *end* at the hub, so the solid is a ray rather than a centred cylinder;
+and its validity check asks "did these two things meet at all", where
+intersecting a rod with a plate legitimately lands two or three lumps, not one
+solid. Each pair is two names in the kit rather than one function with a flag.
+
+**`connectors/fan_node_v1.py` imports none of this.** It is frozen as a record
+of the superseded bundle-clamp design, for the same reason
+`dome/star_dome.scad` is frozen as a reference implementation: a later change
+to the kit must not be able to rewrite what an earlier design actually was.
+A superseded part is documentation, and documentation that silently follows
+the current code is not a record of anything.
+
 ## 4. Composition and ergonomics — Blender
 
 Blender is the assembly and site-layout environment, never the geometric

@@ -57,9 +57,9 @@ Rod diameters in `configs/variants.scad` remain provisional engineering assumpti
 - [x] Freeze `dome/star_dome.scad` as a reference implementation and run the cross-check in CI on every push.
 - [x] Add a `blender/` scene builder that reads `model.json`.
 - [x] Add a FreeCAD clamp generator that reads `crossing_types`.
-- [ ] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other.
+- [x] Retire `configs/variants.scad` in favour of `configs/variants.toml`, or generate one from the other. Generated, by `python3 -m stardome scad-config`, and CI fails on any drift — see `.github/workflows/check.yml`, "Generated config is up to date". `variants.toml` is the only place a variant is defined.
 
-**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Met**, apart from retiring the duplicate `.scad` preset file. OpenSCAD, FreeCAD and Blender all consume the generated model; none of them recompute geometry.
+**Exit criterion:** every downstream tool reads geometry from `model.json` and none of them recompute it. **Met.** OpenSCAD, FreeCAD and Blender all consume the generated model; none of them recompute geometry.
 
 `dome/star_dome.scad` deliberately keeps computing its own geometry: that independence is the whole value of the cross-check. It is frozen rather than converted into a data consumer, so the baseline topology stays under permanent two-implementation verification while all new work goes into `stardome/` alone. See [`docs/architecture.md`](architecture.md), "The reference-implementation policy".
 
