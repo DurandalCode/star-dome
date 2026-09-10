@@ -66,6 +66,25 @@ DEFAULT_CLEARANCE_MM = 0.4
 # is an input here rather than a result.
 DEFAULT_ENGAGEMENT_D = 6.0
 
+# How far a connector reaches along the rod from the crossing it sits on --
+# half its channel length.
+#
+# A splice cannot be inside that AS THE PARTS STAND, because the sleeve is
+# fatter than the rod and the channel is bored for the rod. That is a fact
+# about the current connectors, not a law: a channel opened out to take a
+# ferrule, or a connector and a splice made as one part, would change it.
+# Nobody has designed either, so the reach is treated as occupied.
+#
+# From the parts as they stand: fan_node_v2's channel is 88.0 mm long, so it
+# reaches 44 mm; crossing_clamp_v1's is 55 mm, so 27.5. The four-rod node is
+# the governing one and is the default here. These are design outputs of
+# connectors/, not constants of the dome -- change the part and change this.
+CONNECTOR_REACH_MM = {
+    "fan_node_v2": 44.0,
+    "crossing_clamp_v1": 27.5,
+}
+DEFAULT_CONNECTOR_REACH_MM = 44.0
+
 # name: (E MPa, allowable MPa, density kg/m3, minimum wall mm, how it is made)
 MATERIALS = {
     "aluminium_6061": (69000.0, 150.0, 2700.0, 0.8, "drawn tube, cut to length"),
@@ -203,7 +222,8 @@ def per_dome(data: dict, row: dict, splices: int | None = None) -> dict:
 
 
 def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
-                    limit_mm: float | None = None) -> dict:
+                    limit_mm: float | None = None,
+                    connector_reach_mm: float = DEFAULT_CONNECTOR_REACH_MM) -> dict:
     """How close a section joint comes to a crossing, and whether that is enough.
 
     The project has required from the start that a splice miss the crossings;
@@ -211,6 +231,13 @@ def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
     at fixed fractions of its 180 degrees -- and whether those fractions
     collide with the crossing pattern is a fact about the topology, not a
     matter of care on site.
+
+    **Missing the crossing POINT is not enough.** Two things have length. The
+    connector reaches along the rod from the crossing it sits on -- 44 mm for
+    the four-rod node -- and the sleeve reaches back from the joint. Neither
+    can be inside the other, because the sleeve is fatter than the rod and the
+    connector's channel is bored for the rod. So what has to fit between them
+    is the sum.
     """
     from . import rod as _rod
 
@@ -239,8 +266,9 @@ def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
 
     gap_deg = worst[0]
     gap_mm = math.radians(gap_deg) * radius
-    need = (sleeve_length_mm if sleeve_length_mm is not None
-            else 2.0 * DEFAULT_ENGAGEMENT_D * meta["rod_diameter"]) / 2.0
+    half_sleeve = (sleeve_length_mm if sleeve_length_mm is not None
+                   else 2.0 * DEFAULT_ENGAGEMENT_D * meta["rod_diameter"]) / 2.0
+    need = half_sleeve + connector_reach_mm
 
     return {
         "joints_per_bow": len(joints),
@@ -250,7 +278,9 @@ def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
         "on_bow": worst[1],
         "joint_deg": round(worst[2], 2),
         "crossing_deg": round(worst[3], 2),
-        "half_sleeve_mm": round(need, 1),
+        "half_sleeve_mm": round(half_sleeve, 1),
+        "connector_reach_mm": round(connector_reach_mm, 1),
+        "need_mm": round(need, 1),
         "clears": gap_mm >= need,
         "spare_mm": round(gap_mm - need, 1),
         "note": (
@@ -262,7 +292,8 @@ def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
 
 
 def choose_sections(data: dict, sleeve_length_mm: float | None = None,
-                    limit_mm: float | None = None, most: int = 16) -> dict:
+                    limit_mm: float | None = None, most: int = 24,
+                    connector_reach_mm: float = DEFAULT_CONNECTOR_REACH_MM) -> dict:
     """The fewest sections whose joints clear every crossing.
 
     The transport limit sets a MINIMUM count. It does not follow that the
@@ -300,7 +331,8 @@ def choose_sections(data: dict, sleeve_length_mm: float | None = None,
     floor = max(1, math.ceil(bow / limit)) if limit > 0 else 1
     for count in range(floor, most + 1):
         clear = joint_clearance(
-            data, need, limit_mm=bow / count + 1e-9
+            data, need, limit_mm=bow / count + 1e-9,
+            connector_reach_mm=connector_reach_mm,
         )
         if clear["clears"]:
             return {
@@ -312,6 +344,8 @@ def choose_sections(data: dict, sleeve_length_mm: float | None = None,
                 "length_mm": round(bow / count, 1),
                 "clearance_mm": clear["closest_mm"],
                 "clearance_deg": clear["closest_deg"],
+                "need_mm": clear["need_mm"],
+                "connector_reach_mm": clear["connector_reach_mm"],
                 "note": (
                     "The transport minimum lands a joint on a crossing"
                     if count > floor else
@@ -321,6 +355,191 @@ def choose_sections(data: dict, sleeve_length_mm: float | None = None,
     raise ValueError(
         f"no section count up to {most} keeps the joints off the crossings"
     )
+
+
+def free_spans(data: dict, margin_mm: float,
+               family: str | None = None) -> dict:
+    """Where a bow has room, expressed as intervals of its own parameter.
+
+    The crossings are not evenly spaced and the families do not agree. G is
+    crossed at 36, 72, 108, 144 -- five equal spans. U and L are crossed at
+    eight places in an alternating rhythm, 22.24 then 15.52 degrees, so their
+    spans come in two sizes.
+
+    ``margin_mm`` is what has to stay clear each side of a splice: half the
+    ferrule plus however far the connector reaches along the rod. The second
+    half of that is an assumption about the parts as they stand rather than a
+    law -- see CONNECTOR_REACH_MM.
+    """
+    meta = data["meta"]
+    radius = meta["dome_radius"]
+    margin_deg = math.degrees(margin_mm / radius)
+
+    positions: dict = {}
+    for crossing in data["crossings"]:
+        for fam_key, t_key in (("family_a", "t_a_deg"), ("family_b", "t_b_deg")):
+            positions.setdefault(crossing[fam_key], set()).add(
+                round(crossing[t_key], 6)
+            )
+
+    out = {}
+    for fam, marks in positions.items():
+        if family and fam != family:
+            continue
+        edges = [0.0] + sorted(marks) + [180.0]
+        spans = []
+        for lo, hi in zip(edges, edges[1:]):
+            # The bow's own ends are held by a base hub, not crossed, so the
+            # margin there is the hub's grip rather than a crossing's reach.
+            start = lo + (margin_deg if lo > 0 else margin_deg)
+            end = hi - (margin_deg if hi < 180.0 else margin_deg)
+            if end > start:
+                spans.append((round(start, 4), round(end, 4)))
+        out[fam] = {
+            "crossings_deg": sorted(marks),
+            "usable_deg": spans,
+            "widest_gap_deg": round(
+                max(hi - lo for lo, hi in zip(edges, edges[1:])), 4
+            ),
+            "narrowest_gap_deg": round(
+                min(hi - lo for lo, hi in zip(edges, edges[1:])), 4
+            ),
+            "narrowest_half_mm": round(
+                math.radians(
+                    min(hi - lo for lo, hi in zip(edges, edges[1:])) / 2.0
+                ) * radius, 1
+            ),
+        }
+    return out
+
+
+def place_splices(data: dict, max_section_mm: float,
+                  sleeve_length_mm: float | None = None,
+                  connector_reach_mm: float = DEFAULT_CONNECTOR_REACH_MM) -> dict:
+    """Splices in the gaps between crossings, as few as the length limit allows.
+
+    The even division asks the wrong question. It divides the bow by a number
+    and then checks whether the joints happen to miss the crossings; half the
+    time they do not, and when they do it is luck. This asks the right one:
+    the crossings leave gaps, a splice has to sit inside one with room each
+    side, and no section may be longer than a vehicle.
+
+    Greedy from the foot: each splice goes as far along as the length limit
+    allows while still landing in a gap. That is the fewest splices.
+    """
+    meta = data["meta"]
+    radius = meta["dome_radius"]
+    margin = ((sleeve_length_mm if sleeve_length_mm is not None
+               else 2.0 * DEFAULT_ENGAGEMENT_D * meta["rod_diameter"]) / 2.0
+              + connector_reach_mm)
+    max_deg = math.degrees(max_section_mm / radius)
+    spans = free_spans(data, margin)
+
+    result = {}
+    for fam, info in spans.items():
+        usable = info["usable_deg"]
+        cuts = []
+        at = 0.0
+        while 180.0 - at > max_deg + 1e-9:
+            reach = at + max_deg
+            best = None
+            for lo, hi in usable:
+                if lo > reach + 1e-9 or hi <= at + 1e-9:
+                    continue
+                candidate = min(hi, reach)
+                if candidate > at + 1e-9 and (best is None or candidate > best):
+                    best = candidate
+            if best is None:
+                raise ValueError(
+                    f"family {fam}: no gap within {max_section_mm:.0f} mm of "
+                    f"{math.radians(at) * radius:.0f} mm along the bow"
+                )
+            cuts.append(round(best, 4))
+            at = best
+        lengths = [
+            round(math.radians(b - a) * radius, 1)
+            for a, b in zip([0.0] + cuts, cuts + [180.0])
+        ]
+        result[fam] = {
+            "cuts_deg": cuts,
+            "sections": len(cuts) + 1,
+            "splices_per_bow": len(cuts),
+            "section_lengths_mm": lengths,
+            "longest_section_mm": max(lengths),
+            "equal": len(set(lengths)) == 1,
+        }
+
+    bows_per_family = {}
+    for r in data["rods"]:
+        bows_per_family[r["family"]] = bows_per_family.get(r["family"], 0) + 1
+
+    total = sum(
+        result[f]["splices_per_bow"] * bows_per_family.get(f, 0) for f in result
+    )
+    return {
+        "max_section_mm": max_section_mm,
+        "margin_mm": round(margin, 1),
+        "by_family": result,
+        "splices_total": total,
+        "cut_lists": len({tuple(v["section_lengths_mm"]) for v in result.values()}),
+        "note": (
+            "Sections are UNEQUAL, and the families do not share a cut list. "
+            "That is the price of putting the joints where the room is."
+        ),
+    }
+
+
+def transport_needed(data: dict, sleeve_length_mm: float | None = None,
+                     connector_reach_mm: float = DEFAULT_CONNECTOR_REACH_MM,
+                     most: int = 40) -> dict:
+    """The shortest section -- and so the shortest vehicle -- that works.
+
+    Two constraints pull against each other. Transport wants MANY sections,
+    because each is shorter. Clearance wants FEW, because more joints means
+    more chances to land on a crossing, and the counts that clear are sparse:
+    nothing divisible by 3 or 5, and of what is left only some clear by more
+    than a sleeve plus a connector.
+
+    So the useful question is not "how many sections" but "how long a section
+    may be", which is a decision about the van rather than the dome.
+    """
+    from . import rod as _rod
+
+    meta = data["meta"]
+    bow = _rod.bows(data)["length_mm"]
+    need = (sleeve_length_mm if sleeve_length_mm is not None
+            else 2.0 * DEFAULT_ENGAGEMENT_D * meta["rod_diameter"])
+
+    workable = []
+    for count in range(2, most + 1):
+        clear = joint_clearance(data, need, limit_mm=bow / count + 1e-9,
+                                connector_reach_mm=connector_reach_mm)
+        if clear["clears"]:
+            workable.append({
+                "sections": count,
+                "length_mm": round(bow / count, 1),
+                "clearance_mm": clear["closest_mm"],
+            })
+    if not workable:
+        raise ValueError("no section count clears at all")
+
+    # The fewest sections is the longest section, so it needs the longest
+    # vehicle; the shortest section is the most splices. Report both ends.
+    fewest = min(workable, key=lambda w: w["sections"])
+    return {
+        "options": workable,
+        "fewest_sections": fewest["sections"],
+        "longest_section_mm": fewest["length_mm"],
+        "splices_at_fewest": (fewest["sections"] - 1) * meta["rod_count"],
+        "current_limit_mm": meta.get("section_length"),
+        "fits_current": (
+            fewest["length_mm"] <= (meta.get("section_length") or 0.0)
+        ),
+        "note": (
+            "Fewest sections means the longest piece and the fewest splices. "
+            "Whether it fits is a question about the vehicle."
+        ),
+    }
 
 
 def format_comparison(data: dict, clearance_mm: float = DEFAULT_CLEARANCE_MM,

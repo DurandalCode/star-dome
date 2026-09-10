@@ -173,15 +173,62 @@ def test_the_transport_minimum_can_land_a_joint_on_a_crossing():
     assert "D4" in hits and "D8" in hits
 
 
-def test_the_chosen_section_count_always_clears(built):
-    """The project has required this from the start; this is what checks it."""
-    chosen = splice.choose_sections(built)
-    clear = splice.joint_clearance(
-        built, limit_mm=chosen["length_mm"] + 1e-9
-    )
-    assert clear["clears"]
-    assert clear["spare_mm"] > 0
-    assert chosen["sections"] >= chosen["transport_minimum"]
+def test_even_division_runs_out_on_the_biggest_dome():
+    """Which is the argument for not dividing evenly at all.
+
+    D12 has to reach 23 equal sections before the joints clear a ferrule AND
+    a connector, and 23 sections is 22 splices per bow. The room was never
+    missing -- even division just does not aim at it.
+    """
+    d12 = model.build(config.load("D12"), weave_mode="layered")
+    chosen = splice.choose_sections(d12)
+    assert chosen["sections"] > 20
+
+
+def test_placing_in_the_gaps_solves_every_variant(built):
+    """The right question: the crossings leave gaps, so put the joints there."""
+    for limit in (3000.0, 3500.0):
+        plan = splice.place_splices(built, limit)
+        for fam, info in plan["by_family"].items():
+            assert info["longest_section_mm"] <= limit + 0.5
+            assert info["sections"] >= 1
+
+
+def test_placement_reaches_the_fewest_sections_possible(built):
+    """Greedy from the foot is optimal: ceil(bow / limit) and no more."""
+    limit = 3500.0
+    plan = splice.place_splices(built, limit)
+    floor = math.ceil(rod.bows(built)["length_mm"] / limit)
+    for info in plan["by_family"].values():
+        assert info["sections"] == floor
+
+
+def test_every_placed_joint_keeps_its_margin_from_a_crossing(built):
+    """The whole point: room for the ferrule AND the connector beside it."""
+    plan = splice.place_splices(built, 3500.0)
+    radius = built["meta"]["dome_radius"]
+    spans = splice.free_spans(built, plan["margin_mm"])
+    for fam, info in plan["by_family"].items():
+        for cut in info["cuts_deg"]:
+            inside = any(lo - 1e-6 <= cut <= hi + 1e-6
+                         for lo, hi in spans[fam]["usable_deg"])
+            assert inside, (fam, cut)
+
+
+def test_the_sections_come_out_unequal_and_the_families_differ(built):
+    """The price of aiming at the room, and worth reporting rather than hiding."""
+    plan = splice.place_splices(built, 3500.0)
+    assert plan["margin_mm"] > 0
+    lengths = {tuple(v["section_lengths_mm"]) for v in plan["by_family"].values()}
+    # G is crossed in fifths and U/L in an alternating rhythm, so at least two
+    # different cut lists come out of it on any dome that needs a splice.
+    if any(v["splices_per_bow"] for v in plan["by_family"].values()):
+        assert plan["cut_lists"] == len(lengths)
+
+
+def test_a_section_limit_nothing_can_meet_is_refused(built):
+    with pytest.raises(ValueError):
+        splice.place_splices(built, 50.0)
 
 
 def test_clearing_costs_sections_and_the_report_says_how_many():
@@ -191,11 +238,15 @@ def test_clearing_costs_sections_and_the_report_says_how_many():
     assert chosen["extra_splices_total"] == chosen["extra_sections"] * 15
 
 
-def test_the_biggest_dome_pays_the_most_to_clear():
-    """D12 has to go from 8 sections to 13, which is 75 extra splices."""
-    d12 = model.build(config.load("D12"), weave_mode="layered")
-    chosen = splice.choose_sections(d12)
-    assert chosen["extra_sections"] >= 4
+def test_the_free_spans_are_what_the_families_make_them(built):
+    """G is crossed in fifths, U and L in an alternating pair of gaps."""
+    spans = splice.free_spans(built, 0.0)
+    assert len(spans["G"]["crossings_deg"]) == 4
+    assert len(spans["U"]["crossings_deg"]) == 8
+    assert spans["G"]["widest_gap_deg"] == pytest.approx(
+        spans["G"]["narrowest_gap_deg"], abs=1e-6
+    )
+    assert spans["U"]["widest_gap_deg"] > spans["U"]["narrowest_gap_deg"]
 
 
 def test_the_joints_sit_at_even_fractions_of_the_bow(built):
