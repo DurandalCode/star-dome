@@ -57,6 +57,8 @@ single interchange format every other tool reads — see
 - Crossing clamp V1: [`docs/crossing-clamp-v1.md`](docs/crossing-clamp-v1.md)
 - The doorway: [`docs/doorway.md`](docs/doorway.md)
 - How much room you get: [`docs/interior.md`](docs/interior.md)
+- The fabric cover: [`docs/cover.md`](docs/cover.md)
+- The covered corridor: [`docs/corridor.md`](docs/corridor.md)
 
 ## Sizes
 

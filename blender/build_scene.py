@@ -64,6 +64,8 @@ SKIRT_COLOUR = (0.72, 0.72, 0.70, 1.0)
 BRACE_COLOUR = (0.35, 0.62, 0.78, 1.0)   # tension diagonals, not rod
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
 GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
+COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)     # fabric: off-white, not a rod colour
+CORRIDOR_COLOUR = (0.62, 0.72, 0.58, 1.0)  # corridor hoops, distinct from dome rods
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
 
 # Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
@@ -110,6 +112,11 @@ def parse_args(argv):
     p.add_argument("--out", default=None, help="write a .blend here")
     p.add_argument("--render", default=None, help="render a preview PNG here")
     p.add_argument("--no-human", action="store_true", help="omit the scale figure")
+    p.add_argument(
+        "--cover",
+        action="store_true",
+        help="draw the fabric cover; needs a model built with --polylines",
+    )
     p.add_argument("--no-ground", action="store_true", help="omit the ground plane")
     p.add_argument(
         "--untied-nodes",
@@ -289,6 +296,67 @@ def add_humans(radius_m, collection, facing_deg=None):
     return made
 
 
+def add_cover(cover, collection, lift):
+    """The fabric, as the model exported it.
+
+    Translucent, because an opaque cover hides the entire structure and the
+    whole reason for the scene is to look at the structure through it.
+    """
+    data = cover.get("mesh")
+    if not data:
+        return None
+    verts = [(x * MM, y * MM, z * MM + lift) for x, y, z in data["vertices"]]
+    mesh = bpy.data.meshes.new("Cover")
+    mesh.from_pydata(verts, [], [f[:] for f in data["faces"]])
+    mesh.update()
+    obj = bpy.data.objects.new("Cover", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    mat = make_transparent(make_material("Cover", COVER_COLOUR), 0.28)
+    obj.data.materials.append(mat)
+    return move_to(obj, collection)
+
+
+def add_corridor(corridor, rod_radius_m, collection, lift):
+    """Hoops as tubes and the skin over them, both straight from the model."""
+    drawing = corridor.get("drawing")
+    if not drawing:
+        return None
+
+    # A corridor the model says will not pass its own doorway still gets
+    # drawn -- seeing why it fails is the point -- but in the colour this
+    # scene already uses for "this is not really there".
+    fits = corridor.get("through_doorway", {}).get("fits", True)
+    colour = CORRIDOR_COLOUR if fits else GHOST_COLOUR
+    hoop_mat = make_material("Corridor_Hoop" if fits else "Corridor_TooBig", colour)
+    for i, hoop in enumerate(drawing["hoops"], start=1):
+        curve = bpy.data.curves.new(f"Corridor_Hoop_{i}", "CURVE")
+        curve.dimensions = "3D"
+        spline = curve.splines.new("POLY")
+        spline.points.add(len(hoop) - 1)
+        for point, (x, y, z) in zip(spline.points, hoop):
+            point.co = (x * MM, y * MM, z * MM + lift, 1.0)
+        curve.bevel_depth = rod_radius_m
+        curve.bevel_resolution = 3
+        obj = bpy.data.objects.new(f"Corridor_Hoop_{i}", curve)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(hoop_mat)
+        move_to(obj, collection)
+
+    skin = drawing["skin"]
+    verts = [(x * MM, y * MM, z * MM + lift) for x, y, z in skin["vertices"]]
+    mesh = bpy.data.meshes.new("Corridor_Skin")
+    mesh.from_pydata(verts, [], [f[:] for f in skin["faces"]])
+    mesh.update()
+    obj = bpy.data.objects.new("Corridor_Skin", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(
+        make_transparent(
+            make_material("Corridor_Skin", COVER_COLOUR if fits else colour), 0.30
+        )
+    )
+    return move_to(obj, collection)
+
+
 def add_doorway(door, rod_radius_m, collection, lift):
     """Draw the chosen opening: its outline, its frame, and the hole itself.
 
@@ -374,18 +442,20 @@ def label_node(name, xyz_mm, size_m, material, collection, lift=0.0):
     return move_to(obj, collection)
 
 
-def add_camera_and_light(scene, radius_m, height_m, facing_deg=None):
+def add_camera_and_light(scene, radius_m, height_m, facing_deg=None,
+                         framing_m=None):
     cam_data = bpy.data.cameras.new("Camera")
     cam_data.lens = 35.0
     cam = bpy.data.objects.new("Camera", cam_data)
     scene.collection.objects.link(cam)
+    framing_m = radius_m if framing_m is None else framing_m
     if facing_deg is None:
-        cam.location = (radius_m * 2.1, -radius_m * 2.3, height_m * 1.15)
+        cam.location = (framing_m * 2.1, -framing_m * 2.3, height_m * 1.15)
     else:
         # Stand off along the door's own azimuth, so the opening is not hidden
         # behind the far side of the dome.
         a = math.radians(facing_deg)
-        distance = radius_m * 3.1
+        distance = framing_m * 3.1
         cam.location = (
             math.cos(a) * distance,
             math.sin(a) * distance,
@@ -653,12 +723,29 @@ def build(args):
         add_doorway(door, rod_radius_m, door_coll, lift)
         facing = door_azimuth_deg(door)
 
+    if data.get("cover", {}).get("mesh") and args.cover:
+        add_cover(data["cover"], new_collection("Cover", root), lift)
+
+    if data.get("corridor", {}).get("present"):
+        add_corridor(
+            data["corridor"], rod_radius_m, new_collection("Corridor", root), lift
+        )
+
     if not args.no_ground:
         add_ground(radius_m * 2.0, site_coll)
     if not args.no_human:
         add_humans(radius_m, site_coll, facing)
 
-    default_cam, _ = add_camera_and_light(scene, radius_m, height_m, facing)
+    # A corridor comes straight out of the doorway, which is straight at the
+    # camera. Framing on the dome alone crops it off the bottom of the frame,
+    # so the stand-off grows by what is hanging off the front.
+    framing_m = radius_m
+    corridor = data.get("corridor") or {}
+    if corridor.get("present") and corridor.get("drawing"):
+        framing_m += corridor["length_mm"] * MM
+
+    default_cam, _ = add_camera_and_light(scene, radius_m, height_m, facing,
+                                          framing_m)
     data["_shot_cameras"] = shot_cameras(scene, radius_m, height_m, facing)
     data["_default_camera"] = default_cam
 

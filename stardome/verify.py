@@ -549,5 +549,65 @@ def check(data: dict) -> list:
                 "the head cut should open the bay past its old head node",
             )
 
+    # --- the fabric cover ---------------------------------------------------
+    cover_data = data.get("cover")
+    if cover_data:
+        rc = cover_data["radius_mm"]
+        want(
+            rc > radius,
+            f"the cover must lie outside the nominal sphere, got {rc} vs {radius}",
+        )
+        # It rests on the outermost rod, so it can never be further out than
+        # that rod's surface -- a cover floating clear of the frame is a bug
+        # in the radius, not a design.
+        outer = meta["max_diameter_woven"] / 2.0
+        want(
+            abs(rc - outer) < 1e-6,
+            f"cover radius {rc} should be the woven outer radius {outer}",
+        )
+        areas = cover_data["areas"]
+        want(
+            areas["total_m2"] <= areas["gross_m2"] + 1e-9,
+            "cutting the doorway out cannot make the cover bigger",
+        )
+        # A hemisphere is 2*pi*R^2 and nothing else; this catches a factor of
+        # two or a radius read in the wrong units at a glance.
+        expect = 2.0 * math.pi * rc * rc / 1e6
+        want(
+            abs(areas["dome_m2"] - expect) < 0.02,
+            f"dome fabric should be 2*pi*R^2 = {expect:.2f} m2, "
+            f"got {areas['dome_m2']}",
+        )
+        gores = cover_data["gores"]
+        want(
+            gores["gore_width_mm"] <= gores["roll_width_mm"] + 1e-6,
+            "the gore has to fit across the roll it is cut from",
+        )
+
+    # --- a corridor, when one is attached -----------------------------------
+    corridor_data = data.get("corridor")
+    if corridor_data and corridor_data.get("present"):
+        m = corridor_data["mouth"]
+        if m["fits_on_dome"]:
+            rc = cover_data["radius_mm"]
+            ground = meta.get("ground_z", 0.0) or 0.0
+            for p in m["points"]:
+                x, y, z = p
+                # On the sphere above the base ring, on the skirt cylinder
+                # below it. Either way the mouth must lie ON the cover: a
+                # point off it is a corridor joined to thin air.
+                got = (
+                    math.sqrt(x * x + y * y + z * z) if z >= -1e-9
+                    else math.hypot(x, y)
+                )
+                if abs(got - rc) > 0.5:
+                    problems.append(
+                        f"corridor mouth point {p} is {got:.1f} mm from the "
+                        f"centre, not on the cover at {rc:.1f}"
+                    )
+                    break
+                if z < ground - 1e-6:
+                    problems.append(f"corridor mouth point {p} is below ground")
+                    break
 
     return problems
