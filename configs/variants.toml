@@ -36,7 +36,12 @@ rod_segments = 48
 skirt_height = 0
 # Nominal transport section length for the sectional rod concept, mm.
 # Joints are placed away from structural crossings; see docs/roadmap.md M5.
-section_length = 2400
+# Transport section limit, mm. 3500 is the recorded decision: it is the
+# shortest length at which every dome divides into EQUAL sections that
+# clear the crossings, and it halves the splice count against 3000.
+# See docs/transport.md. Below 3000 the equal division breaks and
+# sections have to be placed unequally instead.
+section_length = 3500
 # Shell spacing for the "layered" drawing convention, as a multiple of rod
 # diameter. A drawing convention only -- NOT a build instruction.
 weave_gap = 1.0

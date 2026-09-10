@@ -243,8 +243,14 @@ def joint_clearance(data: dict, sleeve_length_mm: float | None = None,
 
     meta = data["meta"]
     radius = meta["dome_radius"]
-    sec = _rod.sections(data, limit_mm)
-    per_bow = sec["per_bow"]
+    # The naive ceil, deliberately: this is a probe, and it has to be able to
+    # answer for the divisions that DO land on a mark as well as the ones that
+    # do not. rod.sections skips those, which is right for a cut list and
+    # wrong for a check.
+    bow = _rod.bows(data)["length_mm"]
+    limit = (limit_mm if limit_mm is not None
+             else meta.get("section_length") or 0.0)
+    per_bow = max(1, math.ceil(bow / limit)) if limit > 0 else 1
     if per_bow < 2:
         return {"joints_per_bow": 0, "clears": True,
                 "note": "the bow travels whole, so there is no joint to clear"}
@@ -354,6 +360,73 @@ def choose_sections(data: dict, sleeve_length_mm: float | None = None,
             }
     raise ValueError(
         f"no section count up to {most} keeps the joints off the crossings"
+    )
+
+
+def clean_count(count: int) -> bool:
+    """Does this many equal sections keep every joint off a crossing?
+
+    Divisible by three and the joints land on the thirds, where U and L are
+    marked; divisible by five and they land on the fifths, where G is. Any
+    other count clears. See choose_sections for why.
+    """
+    return count % 3 != 0 and count % 5 != 0
+
+
+def equal_sections(data: dict, limit_mm: float, most: int = 40,
+                   sleeve_length_mm: float | None = None,
+                   connector_reach_mm: float = DEFAULT_CONNECTOR_REACH_MM) -> dict:
+    """The fewest EQUAL sections no longer than the limit that clear the marks.
+
+    This is the recommended division and it is the simple one: take the
+    smallest count that is divisible by neither three nor five, gives a
+    section short enough to carry, AND leaves room beside each joint.
+
+    Clean is not the same as clear. Eight sections on D12 miss the marks by
+    0.26 degrees, which on a six metre radius is 27 mm -- no collision, and
+    nowhere near enough for a ferrule and a connector. Both tests have to
+    pass. Because the count is clean, the even
+    division already lands every joint in a gap -- there is nothing to nudge,
+    every section is the same piece, and one cut list serves all fifteen bows.
+
+    Aiming instead at the middle of each gap gives slightly more clearance and
+    costs unequal sections and a cut list per family; ``place_splices`` does
+    that, and this does not.
+    """
+    from . import rod as _rod
+
+    meta = data["meta"]
+    bow = _rod.bows(data)["length_mm"]
+    for count in range(2, most + 1):
+        if not clean_count(count):
+            continue
+        length = bow / count
+        if length > limit_mm:
+            continue
+        room = joint_clearance(data, sleeve_length_mm,
+                               limit_mm=length + 1e-9,
+                               connector_reach_mm=connector_reach_mm)
+        if room["clears"]:
+            return {
+                "clearance_mm": room["closest_mm"],
+                "need_mm": room["need_mm"],
+                "sections": count,
+                "length_mm": round(length, 1),
+                "splices_per_bow": count - 1,
+                "splices_total": (count - 1) * meta["rod_count"],
+                "equal": True,
+                "cut_lists": 1,
+                "limit_mm": limit_mm,
+                "note": (
+                    f"{count} is divisible by neither 3 nor 5, so the even "
+                    "division already misses every mark. One length, "
+                    f"{count * meta['rod_count']} pieces per dome."
+                ),
+            }
+    raise ValueError(
+        f"no equal division up to {most} sections is both under "
+        f"{limit_mm:.0f} mm and clear of the crossings -- use place_splices, "
+        "which allows unequal sections, or carry a longer piece"
     )
 
 

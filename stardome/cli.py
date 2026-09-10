@@ -400,6 +400,20 @@ def cmd_splice(args) -> int:
     """Which material the section ferrule wants to be."""
     for name in _variant_names(args):
         data = model.build(config.load(name, args.config), weave_mode="layered")
+        if args.transport:
+            meta = data["meta"]
+            label = meta.get("alias") or meta["variant"]
+            try:
+                plan = splice.equal_sections(data, args.transport)
+                print(
+                    f"{label:<8} {plan['sections']}x{plan['length_mm']:.0f} mm"
+                    f"   {plan['splices_total']:>3} splices"
+                    f"   {plan['clearance_mm']:.0f} mm clear"
+                    f"  (needs {plan['need_mm']:.0f})"
+                )
+            except ValueError as problem:
+                print(f"{label:<8} no equal division: {problem}")
+            continue
         print(splice.format_comparison(
             data, clearance_mm=args.clearance, engagement_d=args.engagement
         ))
@@ -595,6 +609,11 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument(
                 "--engagement", type=float, default=splice.DEFAULT_ENGAGEMENT_D,
                 help="grip each side of the joint, in rod diameters",
+            )
+            p.add_argument(
+                "--transport", type=float, default=None, metavar="MM",
+                help="instead: the equal section division for this vehicle "
+                     "length; see docs/transport.md",
             )
         if name == "rod":
             p.add_argument(

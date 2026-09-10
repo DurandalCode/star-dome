@@ -161,28 +161,32 @@ def test_divisible_by_three_or_five_hits_and_nothing_else_does():
         assert (clear["closest_deg"] < 1e-6) is collides, count
 
 
-def test_the_transport_minimum_can_land_a_joint_on_a_crossing():
-    """The finding. Dividing a bow into three puts joints at 60 and 120 deg,
-    and the star has crossings at exactly 60 and 120."""
+def test_the_naive_ceil_can_land_a_joint_on_a_crossing():
+    """The finding, and the reason rod.sections no longer takes the ceil.
+
+    At a 2400 mm limit -- what the config carried before this was worked out
+    -- D4 divides into three and D8 into six, and both put joints at 60 and
+    120 degrees, dead on the thirds.
+    """
     hits = []
     for name in VARIANTS:
         data = model.build(config.load(name), weave_mode="layered")
-        if not splice.joint_clearance(data)["clears"]:
+        if not splice.joint_clearance(data, limit_mm=2400.0)["clears"]:
             hits.append(name)
-    assert hits, "the whole point of choose_sections is that this happens"
     assert "D4" in hits and "D8" in hits
 
 
-def test_even_division_runs_out_on_the_biggest_dome():
-    """Which is the argument for not dividing evenly at all.
+def test_a_short_vehicle_breaks_the_even_division_on_the_biggest_dome():
+    """Which is why 3500 mm is the recorded limit and 2500 is not.
 
-    D12 has to reach 23 equal sections before the joints clear a ferrule AND
-    a connector, and 23 sections is 22 splices per bow. The room was never
-    missing -- even division just does not aim at it.
+    Held to 2.5 m, D12 has to reach 23 equal sections before the joints clear
+    a ferrule AND a connector -- 22 splices per bow. The room was never
+    missing; even division at that length just cannot aim at it.
     """
     d12 = model.build(config.load("D12"), weave_mode="layered")
-    chosen = splice.choose_sections(d12)
-    assert chosen["sections"] > 20
+    assert splice.equal_sections(d12, 2500.0)["sections"] > 20
+    # At the recorded limit it is seven.
+    assert splice.equal_sections(d12, 3500.0)["sections"] == 7
 
 
 def test_placing_in_the_gaps_solves_every_variant(built):
@@ -231,11 +235,13 @@ def test_a_section_limit_nothing_can_meet_is_refused(built):
         splice.place_splices(built, 50.0)
 
 
-def test_clearing_costs_sections_and_the_report_says_how_many():
+def test_clearing_costs_sections_when_the_vehicle_is_short():
+    """At 2400 mm D4 had to go from three sections to four; at 3500 it does not."""
     d4 = model.build(config.load("D4"), weave_mode="layered")
-    chosen = splice.choose_sections(d4)
-    assert chosen["extra_sections"] >= 1
-    assert chosen["extra_splices_total"] == chosen["extra_sections"] * 15
+    tight = splice.choose_sections(d4, limit_mm=2400.0)
+    assert tight["extra_sections"] >= 1
+    assert tight["extra_splices_total"] == tight["extra_sections"] * 15
+    assert splice.choose_sections(d4)["extra_sections"] == 0
 
 
 def test_the_free_spans_are_what_the_families_make_them(built):
@@ -251,7 +257,11 @@ def test_the_free_spans_are_what_the_families_make_them(built):
 
 def test_the_joints_sit_at_even_fractions_of_the_bow(built):
     clear = splice.joint_clearance(built)
-    per_bow = rod.sections(built)["per_bow"]
+    # The naive ceil, which is what the probe answers for -- rod.sections
+    # skips the counts that land on a mark, and the probe must not.
+    per_bow = math.ceil(
+        rod.bows(built)["length_mm"] / built["meta"]["section_length"]
+    )
     assert clear["joints_per_bow"] == per_bow - 1
     for i, joint in enumerate(clear["joints_deg"], start=1):
         assert joint == pytest.approx(180.0 * i / per_bow, abs=0.01)
@@ -266,3 +276,63 @@ def test_a_bow_that_travels_whole_has_no_joint_to_clear(built):
     clear = splice.joint_clearance(built, limit_mm=0.0)
     assert clear["joints_per_bow"] == 0
     assert clear["clears"]
+
+
+# --- the recorded transport decision --------------------------------------
+def test_equal_sections_need_both_clean_and_clear(built):
+    """Clean is no exact hit; clear is enough room. Both, or it is not usable."""
+    plan = splice.equal_sections(built, 3500.0)
+    assert splice.clean_count(plan["sections"])
+    assert plan["clearance_mm"] >= plan["need_mm"]
+    assert plan["length_mm"] <= 3500.0
+    assert plan["equal"] and plan["cut_lists"] == 1
+
+
+def test_eight_sections_on_d12_is_clean_but_not_clear():
+    """The case that forced the second test: 0.26 deg is 27 mm on that radius."""
+    d12 = model.build(config.load("D12"), weave_mode="layered")
+    assert splice.clean_count(8)
+    room = splice.joint_clearance(
+        d12, limit_mm=rod.bows(d12)["length_mm"] / 8 + 1e-9
+    )
+    assert not room["clears"]
+    assert room["closest_mm"] < 50.0
+
+
+def test_thirty_five_hundred_divides_the_whole_family_equally():
+    """The recorded decision, and the reason for it."""
+    total = 0
+    for name in sorted(config.load_all()):
+        data = model.build(config.load(name), weave_mode="layered")
+        plan = splice.equal_sections(data, 3500.0)
+        total += plan["splices_total"]
+    assert total == 300
+
+
+def test_three_metres_costs_seventy_five_more_splices():
+    total = 0
+    for name in sorted(config.load_all()):
+        data = model.build(config.load(name), weave_mode="layered")
+        total += splice.equal_sections(data, 3000.0)["splices_total"]
+    assert total == 375
+
+
+def test_below_three_metres_the_equal_division_breaks():
+    """D12 falls to 23 sections and D10 has no answer at all at 2 m."""
+    d12 = model.build(config.load("D12"), weave_mode="layered")
+    assert splice.equal_sections(d12, 2500.0)["sections"] > 20
+    d10 = model.build(config.load("D10"), weave_mode="layered")
+    with pytest.raises(ValueError):
+        splice.equal_sections(d10, 2000.0)
+
+
+def test_unequal_placement_rescues_what_equal_division_cannot():
+    """place_splices reaches the floor where equal_sections gives up."""
+    d12 = model.build(config.load("D12"), weave_mode="layered")
+    plan = splice.place_splices(d12, 2500.0)
+    for info in plan["by_family"].values():
+        assert info["sections"] == 8
+
+
+def test_the_config_records_the_decision():
+    assert config.load("M").section_length == 3500.0

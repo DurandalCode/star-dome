@@ -49,12 +49,39 @@ from __future__ import annotations
 
 import math
 
+from . import geometry
+
 # Nominal GFRP density, kg/m3, for the mass figure. Same assumption the wind
 # screening makes; confirm against the supplier before it matters.
 GFRP_DENSITY = 1900.0
 
 # A coil rather than a bar: no cutting waste, because you unroll what you need.
 COIL = None
+
+
+def _mark_divisors() -> tuple:
+    """The section counts that land joints on the rod marks.
+
+    A bow spans 180 degrees. The G family is marked in fifths and U and L in
+    thirds, so the first mark of each set gives the divisor directly --
+    derived rather than written down, so it stays true if the marking moves.
+    """
+    out = set()
+    for marks in (geometry.MARKS_THIRDS, geometry.MARKS_FIFTHS):
+        out.add(round(180.0 / min(marks)))
+    return tuple(sorted(out))
+
+
+MARK_DIVISORS = _mark_divisors()
+
+
+def misses_the_marks(count: int) -> bool:
+    """Does dividing a bow into this many equal pieces miss every mark?
+
+    The crossings sit on the marks, so a count divisible by 3 or by 5 puts
+    joints dead on them. See docs/splice.md.
+    """
+    return all(count % d != 0 for d in MARK_DIVISORS)
 
 
 def bows(data: dict) -> dict:
@@ -85,9 +112,13 @@ def bows(data: dict) -> dict:
 def sections(data: dict, limit_mm: float | None = None) -> dict:
     """Transport sections: how a nine-metre bow is carried.
 
-    Divided evenly rather than cut to the limit with a stub left over. Equal
-    sections splice with one part instead of two, and they stack without
-    anyone sorting them.
+    Divided evenly rather than cut to the limit with a stub left over: equal
+    sections splice with one part instead of two, and stack without sorting.
+
+    And the count skips anything divisible by 3 or 5, because those put the
+    joints on the rod marks, where the crossings are. Whether the remaining
+    counts leave enough ROOM beside a joint is a separate question that needs
+    the ferrule and the connector -- see ``splice.equal_sections``.
     """
     meta = data["meta"]
     bow = bows(data)
@@ -103,6 +134,8 @@ def sections(data: dict, limit_mm: float | None = None) -> dict:
         }
 
     per_bow = max(1, math.ceil(bow["length_mm"] / limit))
+    while not misses_the_marks(per_bow):
+        per_bow += 1
     length = bow["length_mm"] / per_bow
     return {
         "per_bow": per_bow,
@@ -112,8 +145,9 @@ def sections(data: dict, limit_mm: float | None = None) -> dict:
         "splices_per_bow": per_bow - 1,
         "splices_total": (per_bow - 1) * bow["count"],
         "note": (
-            f"{per_bow} equal sections of {length:.0f} mm rather than "
-            f"{per_bow - 1} at the {limit:.0f} mm limit and a stub."
+            f"{per_bow} equal sections of {length:.0f} mm. Counts divisible "
+            f"by {' or '.join(str(d) for d in MARK_DIVISORS)} are skipped: "
+            "they put the joints on the rod marks, where the crossings are."
         ),
     }
 

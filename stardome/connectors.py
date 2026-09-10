@@ -240,12 +240,24 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         cut_spans = {}
         if door and door.get("cut"):
             cut_spans = door["cut"]["spans"]
+        from . import rod as _rod
+
         total = 0
         for rod in data["rods"]:
-            length = rod["length_drawn"]
-            for lo, hi in cut_spans.get(rod["name"], ()):
+            # The NOMINAL length: length_drawn is the layered drawing's, and
+            # fifteen bows come out fifteen slightly different lengths there.
+            length = meta["rod_length_nominal"]
+            cut = cut_spans.get(rod["name"], ())
+            for lo, hi in cut:
                 length -= (hi - lo) / 180.0 * math.pi * meta["dome_radius"]
-            total += max(0, math.ceil(length / section) - 1)
+            count = max(1, math.ceil(length / section))
+            if not cut:
+                # A whole bow's joints land on the rod marks unless the count
+                # dodges them; a cut one is no longer a full 180 degrees, so
+                # the rule does not apply and the ceil stands.
+                while not _rod.misses_the_marks(count):
+                    count += 1
+            total += count - 1
         if total:
             parts.append(
                 {
