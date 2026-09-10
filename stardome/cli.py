@@ -26,6 +26,7 @@ from . import (
     export,
     interior,
     model,
+    rod,
     verify,
     weave,
     wind,
@@ -372,6 +373,28 @@ def cmd_wind(args) -> int:
     return 0
 
 
+def cmd_rod(args) -> int:
+    """The rod half of the shopping list: bows, sections, stock and cost."""
+    names = _variant_names(args)
+    if args.sweep:
+        for name in names:
+            data = model.build(config.load(name, args.config),
+                               weave_mode=args.weave_mode)
+            print(rod.format_stock_sweep(
+                data, limit_mm=args.section, price_per_m=args.price
+            ))
+            print()
+        return 0
+
+    rows = []
+    for name in names:
+        data = model.build(config.load(name, args.config),
+                           weave_mode=args.weave_mode)
+        rows.append(rod.summary_row(data, args.stock, args.section, args.price))
+    print(rod.format_summary(rows, args.stock, args.price))
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -418,6 +441,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
         ("camp", cmd_camp, "several domes joined by corridors, and where they may stand"),
         ("wind", cmd_wind, "SCREENING ONLY: sail area, drag and what has to hold it down"),
+        ("rod", cmd_rod, "how much rod, in what lengths, and what it costs"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -549,6 +573,33 @@ def build_parser() -> argparse.ArgumentParser:
                 type=float,
                 default=corridor.DEFAULT_BRACE_LEG_MM,
                 help="knee-brace leg, mm; portal only",
+            )
+        if name == "rod":
+            p.add_argument(
+                "--stock",
+                type=float,
+                default=None,
+                metavar="MM",
+                help="bar length; omit for coil, which has no cutting waste",
+            )
+            p.add_argument(
+                "--section",
+                type=float,
+                default=None,
+                metavar="MM",
+                help="transport limit per section; default is the variant's own",
+            )
+            p.add_argument(
+                "--price",
+                type=float,
+                default=None,
+                metavar="PER_M",
+                help="price per metre of rod",
+            )
+            p.add_argument(
+                "--sweep",
+                action="store_true",
+                help="compare bar lengths instead of sizes",
             )
         if name == "wind":
             p.add_argument(
