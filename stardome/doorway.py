@@ -374,21 +374,26 @@ def opening_outline(
     }
 
 
-def fit(
+def fit_shape(
     data: dict,
-    template_name: str = DEFAULT_TEMPLATE,
+    template: list,
+    label: str = "shape",
     env: dict | None = None,
     clearance_mm: float = 0.0,
     skirt_mm: float | None = None,
 ) -> dict:
-    """Does the chosen person-shape pass, and with how much room to spare.
+    """Does this cross-section pass, and with how much room to spare.
+
+    ``template`` is a silhouette as ``(height, half_width)`` pairs, the same
+    shape ``entrance.TEMPLATES`` holds. Taking the list rather than a name is
+    what lets something that is not a person -- a corridor's tunnel section,
+    say -- be measured against the same opening by the same rules.
 
     ``spare_mm`` is how much taller the same silhouette could be and still
     get through -- the difference between "it fits" and "it fits, and you can
     put a hat on".
     """
     env = env or entrance.door_envelope(data, clearance_mm=clearance_mm)
-    template = entrance.TEMPLATES[template_name]
     meta = data["meta"]
     skirt = meta.get("skirt_height", 0.0) if skirt_mm is None else skirt_mm
     bay_width = _bay_width(meta, clearance_mm)
@@ -410,7 +415,7 @@ def fit(
         spare = lo
 
     return {
-        "template": template_name,
+        "template": label,
         "height_mm": max(h for h, _ in template),
         "width_mm": max(w for _, w in template) * 2.0,
         "skirt_mm": skirt,
@@ -419,6 +424,24 @@ def fit(
         "places": _places(env, centres) if centres else [],
         "spare_mm": round(spare, 1),
     }
+
+
+def fit(
+    data: dict,
+    template_name: str = DEFAULT_TEMPLATE,
+    env: dict | None = None,
+    clearance_mm: float = 0.0,
+    skirt_mm: float | None = None,
+) -> dict:
+    """Does the chosen person-shape pass, and with how much room to spare."""
+    return fit_shape(
+        data,
+        entrance.TEMPLATES[template_name],
+        template_name,
+        env,
+        clearance_mm,
+        skirt_mm,
+    )
 
 
 def skirt_for_template(

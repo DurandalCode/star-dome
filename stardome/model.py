@@ -254,6 +254,7 @@ def build(
     variant: Variant,
     weave_mode: str = "flat",
     include_polylines: bool = False,
+    corridor_spec: dict | None = None,
 ) -> dict:
     """Compute the complete model for one variant.
 
@@ -408,6 +409,16 @@ def build(
 
     length_classes = sorted({r["length_drawn"] for r in rods})
     max_drawn_radius = max(radius + o for o in offsets.values())
+
+    # What the fabric actually rests on. The weave is a fact about the built
+    # dome, not a drawing convention -- a rod really does sit further out than
+    # its neighbour -- so this is taken from the layered offsets whatever mode
+    # was asked for. Reading the flat figure instead understates D6's cover by
+    # 5% of its area, which is 5% of the wind load with it.
+    woven_offsets = topology._radial_offsets(
+        bows, variant.rod_diameter, "layered", variant.weave_gap
+    )
+    max_woven_radius = max(radius + o for o in woven_offsets.values())
     tilt_u = geometry.family_tilts()["U"]
     height_measured = max(
         (radius + offsets[b.name]) * math.sin(math.radians(b.tilt_deg)) for b in bows
@@ -438,6 +449,7 @@ def build(
         "dome_height_measured": _r(height_measured),
         "max_diameter_measured": _r(2.0 * max_drawn_radius),
         "max_diameter_incl_rod": _r(2.0 * max_drawn_radius + variant.rod_diameter),
+        "max_diameter_woven": _r(2.0 * max_woven_radius + variant.rod_diameter),
         "base_edge_arc": _r(2.0 * math.pi * radius / geometry.BASE_POINT_COUNT),
         "base_edge_chord": _r(2.0 * radius * math.sin(math.radians(18.0))),
         "alias": variant.alias,
@@ -520,4 +532,19 @@ def build(
                 spans = cut["spans"].get(rod["name"])
                 if spans:
                     rod["cut_spans_deg"] = spans
+
+    # The fabric and anything hung off the doorway come last, for the same
+    # reason the doorway does: they read the finished model back rather than
+    # rediscovering it. The cover summary is small enough to carry always;
+    # its mesh rides with the other drawable geometry.
+    from . import cover as _cover
+
+    out["cover"] = _cover.analyse(out)
+    if include_polylines:
+        out["cover"]["mesh"] = _cover.mesh(out)
+
+    if corridor_spec is not None:
+        from . import corridor as _corridor
+
+        out["corridor"] = _corridor.place(out, **corridor_spec)
     return out

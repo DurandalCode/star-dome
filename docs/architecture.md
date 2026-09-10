@@ -82,6 +82,9 @@ be an input to an engineering decision.
 | `nodes` | 40 distinct crossing points: 10 four-rod, 30 two-rod |
 | `crossings` | 90 rod-to-rod contacts: point, tangents, angle, inclination, over/under |
 | `crossing_types` | 12 symmetry-distinct crossing geometries |
+| `doorway` | the chosen bay, its frame, and the opening's outline |
+| `cover` | the fabric: radius, areas, gore layout; its mesh with `--polylines` |
+| `corridor` | with `--corridor`: a tunnel on the doorway, and whether it fits |
 
 Three rules keep the pipeline honest:
 

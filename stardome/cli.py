@@ -18,6 +18,8 @@ from pathlib import Path
 from . import (
     config,
     connectors,
+    corridor,
+    cover,
     doorway,
     entrance,
     export,
@@ -39,10 +41,14 @@ def _variant_names(args) -> list:
 def cmd_build(args) -> int:
     for name in _variant_names(args):
         variant = config.load(name, args.config)
+        spec = None
+        if args.corridor:
+            spec = {"include_geometry": args.polylines}
         data = model.build(
             variant,
             weave_mode=args.weave_mode,
             include_polylines=args.polylines,
+            corridor_spec=spec,
         )
         paths = export.write_all(data, args.out)
         print(f"{name}: {len(paths)} files -> {args.out}")
@@ -192,6 +198,38 @@ def cmd_interior(args) -> int:
     return 0
 
 
+def cmd_cover(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        if args.skirt is not None:
+            variant = config.load(
+                name, args.config, skirt_height=float(args.skirt)
+            )
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(cover.format_analysis(data, roll_width_mm=args.roll))
+    return 0
+
+
+def cmd_corridor(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        if args.skirt is not None:
+            variant = config.load(
+                name, args.config, skirt_height=float(args.skirt)
+            )
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(
+            corridor.format_analysis(
+                data,
+                width=args.width,
+                height=args.height,
+                length=args.length,
+                pitch=args.pitch,
+            )
+        )
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -234,6 +272,8 @@ def build_parser() -> argparse.ArgumentParser:
         ("entrance", cmd_entrance, "where a doorway fits, and how big it can be"),
         ("doorway", cmd_doorway, "the chosen door: which bay, framed by what"),
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
+        ("cover", cmd_cover, "fabric area, and how few gores it sews from"),
+        ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -250,13 +290,18 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument(
                 "--polylines",
                 action="store_true",
-                help="include sampled rod centrelines (large)",
+                help="include sampled rod centrelines and the cover mesh (large)",
+            )
+            p.add_argument(
+                "--corridor",
+                action="store_true",
+                help="attach a corridor to the doorway and carry it in the model",
             )
         if name == "snapshot":
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
         if name == "scad-config":
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
-        if name in ("interior", "doorway"):
+        if name in ("interior", "doorway", "cover", "corridor"):
             p.add_argument(
                 "--skirt",
                 type=float,
@@ -295,6 +340,18 @@ def build_parser() -> argparse.ArgumentParser:
                 metavar=("HEIGHT", "WIDTH"),
                 help="also solve for the skirt a door of this size would need",
             )
+        if name == "cover":
+            p.add_argument(
+                "--roll",
+                type=float,
+                default=cover.DEFAULT_ROLL_WIDTH_MM,
+                help="fabric roll width, mm; sets the gore count",
+            )
+        if name == "corridor":
+            p.add_argument("--width", type=float, default=corridor.DEFAULT_WIDTH_MM)
+            p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
+            p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
+            p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

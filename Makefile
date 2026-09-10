@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors clamps blender site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -25,6 +25,8 @@ help:
 	@echo "make camp       one S, one M and one L round a yard, doors cut open"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
+	@echo "make covers     fabric area, and how few gores it sews from"
+	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make site       one scene with every variant side by side, at 1:1"
@@ -75,6 +77,21 @@ doorways:
 interiors:
 	@$(PYTHON) -m stardome interior --all
 
+# Fabric area and how few gores it sews from. ROLL is the fabric roll width.
+ROLL ?= 1500
+
+covers:
+	@$(PYTHON) -m stardome cover --all --roll $(ROLL)
+
+# A covered corridor on the doorway. CORRIDOR is width, height, length in mm.
+CORRIDOR ?= 900 1950 3000
+
+corridors:
+	@$(PYTHON) -m stardome corridor --all \
+		--width $(word 1,$(CORRIDOR)) \
+		--height $(word 2,$(CORRIDOR)) \
+		--length $(word 3,$(CORRIDOR))
+
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
 	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(V)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
@@ -90,7 +107,7 @@ V ?= D6
 v = $(shell echo $(V) | tr A-Z a-z)
 
 blender:
-	$(PYTHON) -m stardome build $(V) --polylines --weave-mode layered -o $(OUT)
+	$(PYTHON) -m stardome build $(V) --polylines --corridor --weave-mode layered -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_scene.py -- \
 		--model $(OUT)/star_dome_$(v).json \
 		--out exports/blender/star_dome_$(v).blend \
