@@ -21,18 +21,36 @@ Architecture (see docs/crossing-clamp-v1.md for the reasoning):
 Both halves print flat-on-bed with every rod groove facing up (print the cap
 upside down). No supports required.
 
-Run:  exec(open('/Users/danilaorehov/star-dome/connectors/crossing_clamp_v1.py').read())
-inside FreeCAD, or via the FreeCAD MCP bridge.
+Run:  exec(open('<repo>/connectors/crossing_clamp_v1.py').read())
+inside FreeCAD, or via the FreeCAD MCP bridge, or `make clamps`.
 """
 
 import math
 import os
+import sys
 
 import FreeCAD as App
 import Part
 
+# REPO is overridable from the calling namespace before exec(), which is how
+# the MCP bridge and a worktree checkout point this at the right tree --
+# exec'd source has no __file__ to fall back on. Same contract as
+# generate_clamps.py; `make clamps` passes it.
+try:
+    REPO
+except NameError:
+    try:
+        REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    except NameError:
+        REPO = os.path.expanduser("~/star-dome")
+
+if os.path.join(REPO, "connectors") not in sys.path:
+    sys.path.insert(0, os.path.join(REPO, "connectors"))
+import kit  # noqa: E402  -- needs the path set above
+
 DOC_NAME = "StarDome_CrossingClamp_V1"
-OUT_DIR = "/Users/danilaorehov/star-dome/connectors"
+TITLE = "Star Dome crossing clamp V1 - parameters"
+OUT_DIR = os.path.join(REPO, "connectors")
 SAVE_PATH = os.path.join(OUT_DIR, "star_dome_crossing_clamp_v1.FCStd")
 
 # If the document already carries a Parameters spreadsheet, its values win over
@@ -68,17 +86,11 @@ INPUTS = [
     ("boltMargin",             0.0,  "mm",  "extra radial margin pushing the bolts away from the rods"),
 ]
 
-DERIVED_NOTE = "derived - overwritten by the generator"
 
 
 # --------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------
-def axis_dir(angle_deg):
-    a = math.radians(angle_deg)
-    return App.Vector(math.cos(a), math.sin(a), 0.0)
-
-
 def capsule_prism(length, half_width, z_lo, z_hi, angle_deg):
     """Stadium/capsule footprint extruded between two z levels, rotated in plan."""
     h = z_hi - z_lo
@@ -93,12 +105,6 @@ def capsule_prism(length, half_width, z_lo, z_hi, angle_deg):
     return s
 
 
-def rod_cylinder(radius, length, angle_deg, z):
-    d = axis_dir(angle_deg)
-    base = App.Vector(-d.x * length / 2.0, -d.y * length / 2.0, z)
-    return Part.makeCylinder(radius, length, base, d)
-
-
 def rod_slot(half_width, length, angle_deg, z_lo, z_hi):
     """Prismatic slot straight above a rod channel, so the rod can be lifted out."""
     h = z_hi - z_lo
@@ -111,7 +117,7 @@ def rod_slot(half_width, length, angle_deg, z_lo, z_hi):
 
 def entrance_flare(radius, angle_deg, z, channel_length, flare_len, slope, overrun):
     """Two cones, one per channel end, opening the mouth into a shallow trumpet."""
-    d = axis_dir(angle_deg)
+    d = kit.direction(angle_deg)
     cones = []
     for sign in (1.0, -1.0):
         dd = App.Vector(d.x * sign, d.y * sign, 0)
@@ -122,143 +128,10 @@ def entrance_flare(radius, angle_deg, z, channel_length, flare_len, slope, overr
     return cones[0].fuse(cones[1])
 
 
-def hex_prism(across_flats, height, base):
-    r = across_flats / (2.0 * math.cos(math.radians(30.0)))
-    pts = []
-    for i in range(6):
-        a = math.radians(60.0 * i)
-        pts.append(App.Vector(base.x + r * math.cos(a), base.y + r * math.sin(a), base.z))
-    pts.append(pts[0])
-    face = Part.Face(Part.makePolygon(pts))
-    return face.extrude(App.Vector(0, 0, height))
-
-
 def dist_point_to_line(px, py, angle_deg):
     """Perpendicular distance in plan from a point to a line through the origin."""
     a = math.radians(angle_deg)
     return abs(-math.sin(a) * px + math.cos(a) * py)
-
-
-def _ok(s):
-    try:
-        return s.isValid() and len(s.Solids) == 1 and s.Volume > 0
-    except Exception:
-        return False
-
-
-def fillet_by_predicate(shape, pred, radius, max_pass=2):
-    """Fillet every edge matching pred. Falls back to per-edge filleting, and
-    silently skips edges that cannot take the radius."""
-    if radius <= 0:
-        return shape, 0
-    edges = [e for e in shape.Edges if pred(e)]
-    if not edges:
-        return shape, 0
-    for r in (radius, radius * 0.7, radius * 0.45):
-        try:
-            s = shape.makeFillet(r, edges).removeSplitter()
-            if _ok(s):
-                return s, len(edges)
-        except Exception:
-            pass
-    # per-edge fallback: re-find matching edges after every successful fillet
-    out = shape
-    done = set()
-    applied = 0
-    for _ in range(len(edges) * max_pass):
-        target = None
-        for e in out.Edges:
-            if not pred(e):
-                continue
-            key = tuple(round(c, 3) for c in
-                        (e.CenterOfMass.x, e.CenterOfMass.y, e.CenterOfMass.z))
-            if key in done:
-                continue
-            target = (e, key)
-            break
-        if target is None:
-            break
-        e, key = target
-        done.add(key)
-        for r in (radius, radius * 0.7, radius * 0.45, radius * 0.25):
-            try:
-                s = out.makeFillet(r, [e]).removeSplitter()
-                if _ok(s):
-                    out = s
-                    applied += 1
-                    break
-            except Exception:
-                pass
-    return out, applied
-
-
-# --------------------------------------------------------------------------
-# document / spreadsheet
-# --------------------------------------------------------------------------
-def fresh_document():
-    if DOC_NAME in App.listDocuments():
-        doc = App.getDocument(DOC_NAME)
-    else:
-        doc = App.newDocument(DOC_NAME)
-    return doc
-
-
-def read_or_build_parameters(doc):
-    sheet = None
-    for o in doc.Objects:
-        if o.Name == "Parameters" or o.Label == "Parameters":
-            sheet = o
-            break
-    values = {a: v for (a, v, _u, _n) in INPUTS}
-    if sheet is not None and USE_SPREADSHEET_IF_PRESENT:
-        for alias in list(values.keys()):
-            try:
-                got = sheet.get(alias)
-                values[alias] = float(got)
-            except Exception:
-                pass
-    return sheet, values
-
-
-def write_parameters(doc, sheet, values, derived):
-    if sheet is None:
-        sheet = doc.addObject("Spreadsheet::Sheet", "Parameters")
-        sheet.Label = "Parameters"
-    sheet.clearAll()
-    sheet.set("A1", "Star Dome crossing clamp V1 - parameters")
-    sheet.set("A2", "INPUT")
-    sheet.set("B2", "value")
-    sheet.set("C2", "unit")
-    sheet.set("D2", "note")
-    row = 3
-    for alias, _default, unit, note in INPUTS:
-        sheet.set("A%d" % row, alias)
-        sheet.set("B%d" % row, repr(float(values[alias])))
-        sheet.set("C%d" % row, unit)
-        sheet.set("D%d" % row, note)
-        try:
-            sheet.setAlias("B%d" % row, alias)
-        except Exception:
-            pass
-        row += 1
-
-    row += 1
-    sheet.set("A%d" % row, "DERIVED")
-    sheet.set("B%d" % row, "value")
-    sheet.set("C%d" % row, "unit")
-    sheet.set("D%d" % row, DERIVED_NOTE)
-    row += 1
-    for alias, val, unit, note in derived:
-        sheet.set("A%d" % row, alias)
-        sheet.set("B%d" % row, repr(round(float(val), 4)))
-        sheet.set("C%d" % row, unit)
-        sheet.set("D%d" % row, note)
-        try:
-            sheet.setAlias("B%d" % row, alias)
-        except Exception:
-            pass
-        row += 1
-    return sheet
 
 
 # --------------------------------------------------------------------------
@@ -309,8 +182,8 @@ def build(values):
     big = max(L, bolt_offset * 2.0) * 4.0
 
     # ---- shared cutting tools -------------------------------------------
-    cyl_a = rod_cylinder(R, big, angA, zA)
-    cyl_b = rod_cylinder(R, big, angB, zB)
+    cyl_a = kit.rod_solid(R, big, angA, zA)
+    cyl_b = kit.rod_solid(R, big, angB, zB)
     flare_a = entrance_flare(R, angA, zA, L, flare_len, flare_slope, 6.0)
     flare_b = entrance_flare(R, angB, zB, L, flare_len, flare_slope, 6.0)
     slot_b = rod_slot(R, big, angB, zB, z_top + 10.0)
@@ -333,7 +206,7 @@ def build(values):
     bottom = bottom.cut(flare_a).cut(flare_b)
     bottom = bottom.cut(bolt_cut)
     for p in bolt_pts:
-        nut = hex_prism(nut_af, nut_depth, App.Vector(p.x, p.y, z_bottom - 0.001))
+        nut = kit.hex_prism(nut_af, nut_depth, App.Vector(p.x, p.y, z_bottom - 0.001))
         cone = Part.makeCone(nut_af / (2.0 * math.cos(math.radians(30.0))),
                              (fd + bolt_clr) / 2.0, nut_cone_h,
                              App.Vector(p.x, p.y, z_bottom + nut_depth - 0.001))
@@ -395,13 +268,13 @@ def build(values):
         return pred
 
     stats = {}
-    bottom, n1 = fillet_by_predicate(bottom, vertical_edge, er)
-    bottom, n2 = fillet_by_predicate(bottom, horizontal_at(z_seat), er / 2.0)
+    bottom, n1 = kit.fillet_by_predicate(bottom, vertical_edge, er)
+    bottom, n2 = kit.fillet_by_predicate(bottom, horizontal_at(z_seat), er / 2.0)
     n3 = 0  # bottom face stays sharp: bed adhesion + flat seating
     stats["bottom_fillets"] = (n1, n2, n3)
 
-    cap, m1 = fillet_by_predicate(cap, vertical_edge, er)
-    cap, m2 = fillet_by_predicate(cap, horizontal_at(z_top), er / 2.0)
+    cap, m1 = kit.fillet_by_predicate(cap, vertical_edge, er)
+    cap, m2 = kit.fillet_by_predicate(cap, horizontal_at(z_top), er / 2.0)
     m3 = 0  # cap parting face stays flat
     stats["cap_fillets"] = (m1, m2, m3)
 
@@ -422,8 +295,8 @@ def build(values):
 
     # ---- reference rods --------------------------------------------------
     rod_len = L + 60.0
-    rodA = rod_cylinder(D / 2.0, rod_len, angA, zA)
-    rodB = rod_cylinder(D / 2.0, rod_len, angB, zB)
+    rodA = kit.rod_solid(D / 2.0, rod_len, angA, zA)
+    rodB = kit.rod_solid(D / 2.0, rod_len, angB, zB)
 
     # ---- reference bolts -------------------------------------------------
     bolts = []
@@ -619,8 +492,8 @@ def derived_rows(dims, values):
 
 
 def run():
-    doc = fresh_document()
-    sheet, values = read_or_build_parameters(doc)
+    doc = kit.document(DOC_NAME)
+    sheet, values = kit.read_or_build_parameters(doc, INPUTS, USE_SPREADSHEET_IF_PRESENT)
 
     # enforce the 2-piece drop-in constraint
     forced = None
@@ -630,7 +503,7 @@ def run():
         values["verticalSeparation"] = need
 
     geo, dims = build(values)
-    write_parameters(doc, sheet, values, derived_rows(dims, values))
+    kit.write_parameters(doc, sheet, INPUTS, values, derived_rows(dims, values), TITLE)
     populate(doc, geo)
     doc.recompute()
     doc.saveAs(SAVE_PATH)
