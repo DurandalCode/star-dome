@@ -69,10 +69,7 @@ thing to be doing in a field with cold hands.
 The price of a slide fit is that the channel locates the rod and holds it
 against nothing, so each arm carries a cross pin through arm and rod together.
 
-Helpers are copied from fan_node_v2.py rather than shared, as that file says:
-all three connector scripts are exec'd standalone inside FreeCAD, so sharing
-needs a path loader in each, and that refactor is worth doing once the family
-settles.
+Helpers come from connectors/kit.py, shared with the other live generators.
 
 Run:  exec(open('.../connectors/base_hub_v1.py').read()) inside FreeCAD, or
 through connectors/generate_clamps.py, which drives it from the model data.
@@ -80,11 +77,27 @@ through connectors/generate_clamps.py, which drives it from the model data.
 
 import math
 import os
+import sys
 
 import FreeCAD as App
 import Part
 
+# REPO is overridable from the calling namespace before exec(); exec'd source
+# has no __file__ to fall back on. Same contract as generate_clamps.py.
+try:
+    REPO
+except NameError:
+    try:
+        REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    except NameError:
+        REPO = os.path.expanduser("~/star-dome")
+
+if os.path.join(REPO, "connectors") not in sys.path:
+    sys.path.insert(0, os.path.join(REPO, "connectors"))
+import kit  # noqa: E402  -- needs the path set above
+
 DOC_NAME = "StarDome_BaseHub_V1"
+TITLE = "Star Dome base hub V1 - parameters"
 USE_SPREADSHEET_IF_PRESENT = True
 
 # Gaps between the three arms, in fan order. Overridden from the model by
@@ -92,9 +105,6 @@ USE_SPREADSHEET_IF_PRESENT = True
 DEFAULT_FAN_GAPS = [41.810315, 37.377368]
 
 PLATE_NAMES = ["Bottom", "Mid1", "Mid2", "Cap"]
-
-OVERHANG_LIMIT_DEG = 45.0
-NEGLIGIBLE_FACE_MM2 = 5.0
 
 INPUTS = [
     # alias,                 value,  unit,  note
@@ -132,21 +142,6 @@ INPUTS = [
 # --------------------------------------------------------------------------
 # geometry helpers
 # --------------------------------------------------------------------------
-def azimuths_from_gaps(gaps, start=0.0):
-    """Arm directions in the fan plane, measured from horizontal.
-
-    ``start`` is the first arm's rise above horizontal, which is what ties the
-    part's own frame to the ground: with it, +X is horizontal, -Y is straight
-    down, and a Top view shows the part exactly as it stands. Without it the
-    frame is arbitrary and the stake comes out at whatever angle the drawing
-    happens to be rotated to.
-    """
-    out = [start]
-    for gap in gaps:
-        out.append(out[-1] + gap)
-    return out
-
-
 def widest_arm_gap(azimuths):
     """The bisector of the widest gap *between two arms*, and its size.
 
@@ -179,22 +174,6 @@ def empty_sector(azimuths):
         if best is None or size > best[1]:
             best = (a, size)
     return best
-
-
-def direction(azimuth_deg):
-    r = math.radians(azimuth_deg)
-    return App.Vector(math.cos(r), math.sin(r), 0.0)
-
-
-def rod_solid(radius, length, azimuth_deg, z, reach_back):
-    """The rod itself: it ends at the hub, so it only runs one way.
-
-    ``reach_back`` is how far it is drawn past the centre, which is only for
-    interference checking -- the real rod stops there.
-    """
-    d = direction(azimuth_deg)
-    start = App.Vector(-d.x * reach_back, -d.y * reach_back, z)
-    return Part.makeCylinder(radius, length + reach_back, start, d)
 
 
 def rod_channel(radius, length, azimuth_deg, z, tilt_deg, reach_back, steps=2):
@@ -244,15 +223,6 @@ def angle_profile(leg, thickness, length, azimuth_deg, clearance=0.0):
     return solid
 
 
-def arm(length, width, height, z, azimuth_deg):
-    """A rectangular arm running out along one azimuth from the hub."""
-    box = Part.makeBox(
-        length, width, height, App.Vector(0.0, -width / 2.0, z)
-    )
-    box.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), azimuth_deg)
-    return box
-
-
 def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
                 azimuths, stake_azimuth, stake_reach, bolt_points=()):
     """Hub disc, one arm per rod, a tail to the stake slot, and a boss per bolt.
@@ -267,10 +237,10 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
         hub_radius, height, App.Vector(0, 0, z_lo), App.Vector(0, 0, 1)
     )
     for az in azimuths:
-        body = body.fuse(arm(arm_length, arm_width, height, z_lo, az))
+        body = body.fuse(kit.arm(arm_length, arm_width, height, z_lo, az))
     # The tail: material out to and around the stake slot, in the empty sector.
     body = body.fuse(
-        arm(stake_reach, boss_radius * 2.0, height, z_lo, stake_azimuth)
+        kit.arm(stake_reach, boss_radius * 2.0, height, z_lo, stake_azimuth)
     )
     for point in bolt_points:
         boss = Part.makeCylinder(
@@ -281,28 +251,18 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
         reach = math.hypot(point.x, point.y)
         az = math.degrees(math.atan2(point.y, point.x))
         body = body.fuse(boss).fuse(
-            arm(reach, boss_radius, height, z_lo, az)
+            kit.arm(reach, boss_radius, height, z_lo, az)
         )
     return body.removeSplitter()
 
 
-def _ok(shape):
-    try:
-        return shape is not None and shape.isValid() and shape.Volume > 0.0
-    except Exception:
-        return False
-
-
-# --------------------------------------------------------------------------
-# build
-# --------------------------------------------------------------------------
 def build(values, fan_gaps=None):
     gaps = list(fan_gaps or DEFAULT_FAN_GAPS)
     if len(gaps) != 2:
         raise ValueError(
             f"a three-arm fan has two gaps, got {len(gaps)}: {gaps}"
         )
-    azimuths = azimuths_from_gaps(gaps, values["firstArmRise"])
+    azimuths = kit.azimuths_from_gaps(gaps, values["firstArmRise"])
 
     rod_d = values["rodDiameter"]
     channel_r = rod_d / 2.0 + values["rodClearance"] / 2.0
@@ -394,7 +354,7 @@ def build(values, fan_gaps=None):
 
     bolt_points = [
         App.Vector(
-            direction(az).x * bolt_offset, direction(az).y * bolt_offset, 0.0
+            kit.direction(az).x * bolt_offset, kit.direction(az).y * bolt_offset, 0.0
         )
         for az in bolt_azimuths
     ]
@@ -406,7 +366,7 @@ def build(values, fan_gaps=None):
     # channels stay at the working length; only the rods are long.
     ref_len = max(length, values["refRodLength"])
     rods = [
-        rod_solid(rod_d / 2.0, ref_len, azimuths[k], levels[k], reach_back)
+        kit.rod_from_hub(rod_d / 2.0, ref_len, azimuths[k], levels[k], reach_back)
         for k in range(3)
     ]
     channels = [
@@ -422,8 +382,8 @@ def build(values, fan_gaps=None):
     # merely located can walk out of its own accord.
     pins = []
     for k in range(3):
-        along = direction(azimuths[k]).multiply(values["rodPinAt"])
-        across = direction(azimuths[k] + 90.0)
+        along = kit.direction(azimuths[k]).multiply(values["rodPinAt"])
+        across = kit.direction(azimuths[k] + 90.0)
         span = arm_w + 8.0
         pins.append(
             Part.makeCylinder(
@@ -462,8 +422,8 @@ def build(values, fan_gaps=None):
     )
     slot.translate(
         App.Vector(
-            -direction(stake_azimuth).x * through,
-            -direction(stake_azimuth).y * through,
+            -kit.direction(stake_azimuth).x * through,
+            -kit.direction(stake_azimuth).y * through,
             slot_centre_z,
         )
     )
@@ -471,8 +431,8 @@ def build(values, fan_gaps=None):
     # And a cross bolt through it, perpendicular to the blade and in the fan
     # plane, which is what stops the hub lifting off the stake.
     cross_at = bolt_offset * 0.55
-    cross_dir = direction(stake_azimuth + 90.0)
-    cross_centre = direction(stake_azimuth).multiply(cross_at)
+    cross_dir = kit.direction(stake_azimuth + 90.0)
+    cross_centre = kit.direction(stake_azimuth).multiply(cross_at)
     cross = Part.makeCylinder(
         values["stakeBoltDiameter"] / 2.0,
         (slot_half + boss_r + wall) * 2.0 + 4.0,
@@ -502,7 +462,7 @@ def build(values, fan_gaps=None):
         solid = solid.cut(slot)
         solid = solid.cut(cross)
         solid = solid.removeSplitter()
-        if not _ok(solid):
+        if not kit.has_volume(solid):
             raise RuntimeError(f"plate {PLATE_NAMES[i]} came out invalid")
         plates.append(solid)
 
@@ -521,8 +481,8 @@ def build(values, fan_gaps=None):
     )
     stake.translate(
         App.Vector(
-            -direction(stake_azimuth).x * protrude,
-            -direction(stake_azimuth).y * protrude,
+            -kit.direction(stake_azimuth).x * protrude,
+            -kit.direction(stake_azimuth).y * protrude,
             slot_centre_z,
         )
     )
@@ -534,7 +494,7 @@ def build(values, fan_gaps=None):
             channel_r + wall,
             arm_len,
             App.Vector(0.0, 0.0, levels[k]),
-            direction(azimuths[k]),
+            kit.direction(azimuths[k]),
         )
         for k in range(3)
     ]
@@ -593,20 +553,13 @@ def build(values, fan_gaps=None):
 # --------------------------------------------------------------------------
 # verification
 # --------------------------------------------------------------------------
-def _vol(shape):
-    try:
-        return shape.Volume
-    except Exception:
-        return 0.0
-
-
 def verify(geo, dims, values):
     """Checks that would have caught the mistakes V1 of the fan node made."""
     problems = []
     plates = geo["plates"]
 
     for name, plate in zip(PLATE_NAMES, plates):
-        if not _ok(plate):
+        if not kit.has_volume(plate):
             problems.append(f"{name}: not a valid solid")
 
     # No plate may eat into a rod.
@@ -614,7 +567,7 @@ def verify(geo, dims, values):
     for name, plate in zip(PLATE_NAMES, plates):
         for i, rod in enumerate(geo["rods"]):
             common = plate.common(rod)
-            v = _vol(common)
+            v = kit.vol(common)
             if v > 0.5:
                 interference += v
                 problems.append(
@@ -627,7 +580,7 @@ def verify(geo, dims, values):
     for i in range(len(geo["rods"])):
         below = plates[i]
         above = plates[i + 1]
-        engaged.append(_ok(below) and _ok(above))
+        engaged.append(kit.has_volume(below) and kit.has_volume(above))
     if not all(engaged):
         problems.append(f"rods not enclosed by a pair of plates: {engaged}")
 
@@ -660,7 +613,7 @@ def verify(geo, dims, values):
     # And the plates must not eat into it either.
     if geo.get("stake") is not None:
         for name, plate in zip(PLATE_NAMES, plates):
-            v = _vol(plate.common(geo["stake"]))
+            v = kit.vol(plate.common(geo["stake"]))
             if v > 0.5:
                 problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
 
@@ -669,7 +622,7 @@ def verify(geo, dims, values):
     # it looks exactly the same in a render.
     for name, plate in zip(PLATE_NAMES, plates):
         for i, probe in enumerate(geo.get("bolt_probes", [])):
-            v = _vol(plate.common(probe))
+            v = kit.vol(plate.common(probe))
             if v < 1.0:
                 problems.append(
                     f"{name} has no material round bolt {i + 1}: the hole is "
@@ -682,7 +635,7 @@ def verify(geo, dims, values):
     # remove.
     if geo.get("slot") is not None:
         for i, keepout in enumerate(geo.get("keepouts", [])):
-            v = _vol(geo["slot"].common(keepout))
+            v = kit.vol(geo["slot"].common(keepout))
             if v > 1.0:
                 problems.append(
                     f"the stake slot cuts {v:.1f} mm3 out of the wall around "
@@ -700,11 +653,19 @@ def verify(geo, dims, values):
                 f"{separation:.1f} deg from the arm at {az:.1f}"
             )
 
+    # The cap prints flipped so its channel faces up; every other plate prints
+    # with its upward channel up. Same convention as the four-rod node.
+    printability = {
+        name: kit.printability(plate, flipped=(name == "Cap"))
+        for name, plate in zip(PLATE_NAMES, plates)
+    }
+
     return {
         "problems": problems,
         "ok": not problems,
+        "printability": printability,
         "rod_interference_mm3": round(interference, 2),
-        "plate_volumes_mm3": [round(_vol(p), 1) for p in plates],
+        "plate_volumes_mm3": [round(kit.vol(p), 1) for p in plates],
         "stack_height_mm": round(dims["stack_height_mm"], 2),
         "arm_azimuths_deg": [round(a, 4) for a in dims["arm_azimuths_deg"]],
         "stake_azimuth_deg": round(dims["stake_azimuth_deg"], 4),
@@ -833,46 +794,6 @@ def apply_view(doc):
         pass
 
 
-def write_parameters(doc, sheet, values, derived):
-    if sheet is None:
-        return
-    sheet.clearAll()
-    sheet.set("A1", "alias")
-    sheet.set("B1", "value")
-    sheet.set("C1", "unit")
-    sheet.set("D1", "note")
-    row = 2
-    for alias, value, unit, note in INPUTS:
-        sheet.set(f"A{row}", alias)
-        sheet.set(f"B{row}", str(values.get(alias, value)))
-        sheet.set(f"C{row}", unit)
-        sheet.set(f"D{row}", note)
-        row += 1
-    row += 1
-    sheet.set(f"A{row}", "DERIVED")
-    row += 1
-    for alias, value, unit, note in derived:
-        sheet.set(f"A{row}", alias)
-        sheet.set(f"B{row}", str(value))
-        sheet.set(f"C{row}", unit)
-        sheet.set(f"D{row}", note)
-        row += 1
-    doc.recompute()
-
-
-def read_or_build_parameters(doc):
-    values = {alias: value for alias, value, _, _ in INPUTS}
-    sheet = None
-    if USE_SPREADSHEET_IF_PRESENT:
-        for obj in doc.Objects:
-            if obj.TypeId == "Spreadsheet::Sheet":
-                sheet = obj
-                break
-        if sheet is None:
-            sheet = doc.addObject("Spreadsheet::Sheet", "Parameters")
-    return sheet, values
-
-
 def run(fan_gaps=None, out_dir=None, doc_path=None, rod_diameter=None):
     if doc_path and os.path.exists(doc_path):
         doc = App.openDocument(doc_path)
@@ -880,14 +801,14 @@ def run(fan_gaps=None, out_dir=None, doc_path=None, rod_diameter=None):
         doc = App.getDocument(DOC_NAME)
     else:
         doc = App.newDocument(DOC_NAME)
-    sheet, values = read_or_build_parameters(doc)
+    sheet, values = kit.read_or_build_parameters(doc, INPUTS, USE_SPREADSHEET_IF_PRESENT)
     if rod_diameter:
         values["rodDiameter"] = float(rod_diameter)
     geo, dims = build(values, fan_gaps)
     report = verify(geo, dims, values)
     populate(doc, geo)
     apply_view(doc)
-    write_parameters(doc, sheet, values, derived_rows(dims, values))
+    kit.write_parameters(doc, sheet, INPUTS, values, derived_rows(dims, values), TITLE)
     doc.recompute()
     path = doc_path or (
         os.path.join(out_dir, "star_dome_base_hub_v1.FCStd") if out_dir else None

@@ -11,7 +11,7 @@ geometry of its own -- see docs/architecture.md.
 
 Run inside FreeCAD:
 
-    exec(open('/Users/danilaorehov/star-dome/connectors/generate_clamps.py').read())
+    exec(open('<repo>/connectors/generate_clamps.py').read())
 
 Optionally set VARIANT beforehand to pick a dome:
 
@@ -31,6 +31,7 @@ reported rather than silently skipped.
 
 import json
 import os
+import sys
 
 import FreeCAD as App
 import Part
@@ -51,6 +52,10 @@ try:
 except NameError:
     VARIANT = "D6"
 
+if os.path.join(REPO, "connectors") not in sys.path:
+    sys.path.insert(0, os.path.join(REPO, "connectors"))
+import kit  # noqa: E402  -- needs the path set above
+
 CLAMP_SOURCE = os.path.join(REPO, "connectors", "crossing_clamp_v1.py")
 OUT_DIR = os.path.join(REPO, "exports", "connectors")
 
@@ -64,7 +69,7 @@ SCHEDULE_PATH = os.path.join(
 
 def load_clamp_module():
     """Load the V1 generator's functions without letting it auto-build."""
-    namespace = {"SUPPRESS_AUTORUN": True, "__file__": CLAMP_SOURCE}
+    namespace = {"SUPPRESS_AUTORUN": True, "__file__": CLAMP_SOURCE, "REPO": REPO}
     with open(CLAMP_SOURCE) as handle:
         exec(compile(handle.read(), CLAMP_SOURCE, "exec"), namespace)
     return namespace
@@ -78,7 +83,7 @@ def load_fan_module():
     """Load the four-rod fan generator, likewise without auto-building."""
     global FAN
     if FAN is None:
-        namespace = {"SUPPRESS_AUTORUN": True, "__file__": FAN_SOURCE}
+        namespace = {"SUPPRESS_AUTORUN": True, "__file__": FAN_SOURCE, "REPO": REPO}
         with open(FAN_SOURCE) as handle:
             exec(compile(handle.read(), FAN_SOURCE, "exec"), namespace)
         FAN = namespace
@@ -133,28 +138,9 @@ def build_part(clamp, part):
     return geo, dims, values
 
 
-# Mesh deflection for the printable export. Shape.exportStl() tessellates at a
-# default fine enough to produce ~24 MB for a 48 mm part, which is useless to a
-# slicer; 0.02 mm linear is well under any FDM nozzle's resolution and lands
-# around 1 MB.
-LINEAR_DEFLECTION = 0.02
-ANGULAR_DEFLECTION = 0.5
-
-
 def export_solid(shape, stem):
-    import MeshPart
-
-    step_path = os.path.join(OUT_DIR, stem + ".step")
-    stl_path = os.path.join(OUT_DIR, stem + ".stl")
-    shape.exportStep(step_path)
-    mesh = MeshPart.meshFromShape(
-        Shape=shape,
-        LinearDeflection=LINEAR_DEFLECTION,
-        AngularDeflection=ANGULAR_DEFLECTION,
-        Relative=False,
-    )
-    mesh.write(stl_path)
-    return step_path, stl_path, mesh.CountFacets
+    """kit.export_solid, bound to this run's output directory."""
+    return kit.export_solid(shape, stem, OUT_DIR)
 
 
 def run():
@@ -174,7 +160,10 @@ def run():
 
             doc = fresh_document(part["id"])
             fan["populate"](doc, geo)
-            fan["write_parameters"](doc, None, values, fan["derived_rows"](dims, values))
+            kit.write_parameters(
+                doc, None, fan["INPUTS"], values,
+                fan["derived_rows"](dims, values), fan["TITLE"],
+            )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
             doc.saveAs(fcstd)
@@ -248,8 +237,9 @@ def run():
             App.closeDocument(doc_name)
         doc = App.newDocument(doc_name)
         clamp["populate"](doc, geo)
-        clamp["write_parameters"](
-            doc, None, values, clamp["derived_rows"](dims, values)
+        kit.write_parameters(
+            doc, None, clamp["INPUTS"], values,
+            clamp["derived_rows"](dims, values), clamp["TITLE"],
         )
         doc.recompute()
 
