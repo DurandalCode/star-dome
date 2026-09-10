@@ -51,17 +51,23 @@ def direction(azimuth_deg):
     return App.Vector(math.cos(a), math.sin(a), 0.0)
 
 
-def rod_solid(radius, length, azimuth_deg, z, reach_back=None):
-    """A rod lying at `azimuth_deg`, at height `z`.
+def rod_solid(radius, length, azimuth_deg, z):
+    """A rod passing through the node: centred on the hub axis."""
+    d = direction(azimuth_deg)
+    base = App.Vector(-d.x * length / 2.0, -d.y * length / 2.0, z)
+    return Part.makeCylinder(radius, length, base, d)
 
-    By default it is centred on the hub axis, which is what a rod passing
-    through a crossing does. `reach_back` instead starts it that far behind
-    the axis, for a rod that ends at the node rather than passing through.
+
+def rod_from_hub(radius, length, azimuth_deg, z, reach_back):
+    """A rod that ENDS at the node, running one way only.
+
+    A base hub's bows stop there rather than crossing, so the rod is a ray,
+    not a line. `reach_back` draws it that far past the centre anyway, which
+    is only for interference checking -- the real rod stops at the hub.
     """
     d = direction(azimuth_deg)
-    back = length / 2.0 if reach_back is None else reach_back
-    base = App.Vector(-d.x * back, -d.y * back, z)
-    return Part.makeCylinder(radius, length, base, d)
+    start = App.Vector(-d.x * reach_back, -d.y * reach_back, z)
+    return Part.makeCylinder(radius, length + reach_back, start, d)
 
 
 def hex_prism(across_flats, height, base):
@@ -85,14 +91,18 @@ def arm(length, width, height, z, azimuth_deg):
 
 
 def azimuths_from_gaps(gaps, start=0.0):
-    """Running sum of the gaps between arms, as absolute azimuths.
+    """Running sum of the gaps between arms: n gaps give n+1 azimuths.
 
-    n gaps describe n+1 arms when the fan is open (a base hub's three rods,
-    two gaps) and n arms when it closes on itself, so callers pass the gap
-    list they mean and take as many azimuths as they have arms.
+    `start` is where the first arm sits, which is what ties a part's frame to
+    the ground. A base hub passes its first arm's rise above horizontal, so
+    +X is horizontal and a Top view shows the part as it stands; without it
+    the frame is whatever the drawing happened to be rotated to.
+
+    A fan that closes on itself has one more gap than it has arms -- the last
+    one runs back to the first -- so those callers pass `gaps[:-1]`.
     """
     out = [start]
-    for gap in gaps[:-1]:
+    for gap in gaps:
         out.append(out[-1] + gap)
     return out
 
@@ -104,6 +114,19 @@ def ok(shape):
     """One sound solid with volume -- what every boolean here must return."""
     try:
         return shape.isValid() and len(shape.Solids) == 1 and shape.Volume > 0
+    except Exception:
+        return False
+
+
+def has_volume(shape):
+    """A sound shape with material in it -- however many solids that is.
+
+    The looser sibling of `ok`. Intersecting a rod with a plate can land two
+    or three separate lumps in one shape, and for "did these two things meet
+    at all" that is a yes, not a malformed result.
+    """
+    try:
+        return shape is not None and shape.isValid() and shape.Volume > 0.0
     except Exception:
         return False
 

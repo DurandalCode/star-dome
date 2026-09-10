@@ -241,7 +241,7 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi, azim
 
 def build(values, fan_gaps=None):
     gaps = list(fan_gaps or DEFAULT_FAN_GAPS)
-    azimuths = kit.azimuths_from_gaps(gaps)
+    azimuths = kit.azimuths_from_gaps(gaps[:-1])
 
     rod_d = values["rodDiameter"]
     channel_r = rod_d / 2.0 + values["rodClearance"] / 2.0
