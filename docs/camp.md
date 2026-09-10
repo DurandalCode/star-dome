@@ -62,6 +62,30 @@ the shared ground rather than in either dome's frame.
 That is why `camp.geometry` emits **world** coordinates: a corridor belongs to
 two domes at once and has no frame of its own.
 
+## Landing on a bay is not passing through it
+
+The layout solves **bearings**. Whether the corridor's section also fits
+through the bay it lands on is a separate question, and the report answers
+both because saying only the first would be true and misleading at once.
+
+```bash
+make camp CAMP_KIND=portal
+```
+
+The same camp on 1800 mm timber portals: it lays out fine, spacing tightens
+slightly (the wider mouth reaches less far up the sphere, so centres come
+0.2–0.3 m closer), 85.7 m of board in 12 frames — and **8 junctions out of 8
+do not pass.** The portal is wider than every bay in the family, so its posts
+come down on the bows rather than inside the opening.
+
+That is not the corridor being wrong. A person walks through every one of
+those doors — L's admits all six silhouettes including the 2.2 m character.
+What it means is that each junction needs the entrance/corridor interface
+from milestone 5, or a narrower corridor.
+
+For comparison, the hoop camp at 900 × 1950 fails 4 of 8 — the ends at bare M
+and bare L — and passes at every S, because S stands on a skirt.
+
 ## What is checked
 
 - every corridor lands in a bay at both ends;

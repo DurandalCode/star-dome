@@ -319,6 +319,7 @@ def cmd_camp(args) -> int:
     camp.geometry(plan, built)
     overlaps = camp.clashes(plan, built)
     plan["clashes"] = overlaps
+    plan["junctions"] = camp.junctions(plan, built)
 
     if args.json:
         path = Path(args.out) / "star_dome_camp.json"

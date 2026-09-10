@@ -206,6 +206,38 @@ def solve(domes: dict, links: list, spec: dict | None = None) -> dict:
     }
 
 
+def junctions(plan: dict, domes: dict) -> list:
+    """For every end of every corridor: does the section pass that bay?
+
+    Landing on a bay's AZIMUTH is what the layout solves. Whether the section
+    also passes THROUGH that bay is a separate question, and for a wide timber
+    portal the answer is usually no -- its posts come down on the bows rather
+    than inside the opening. Saying "every corridor lands in a bay" without
+    this would be true and misleading in the same breath.
+    """
+    spec = plan["corridor_spec"]
+    shape = _corridor.section_for(
+        spec.get("kind", "hoop"),
+        spec["width"],
+        spec["height"],
+        spec.get("samples", _corridor.ARC_SAMPLES),
+        spec.get("brace_leg", _corridor.DEFAULT_BRACE_LEG_MM),
+    )
+    out = []
+    for link in plan["corridors"]:
+        for end in ("from", "to"):
+            label = link[end]
+            data = domes[label]
+            fit = doorway.fit_shape(data, shape, "corridor")
+            out.append({
+                "corridor": f"{link['from']}->{link['to']}",
+                "end": label,
+                "passes": bool(fit["fits"]),
+                "doorway_admits": (data.get("doorway") or {}).get("admits", []),
+            })
+    return out
+
+
 def _cover_reach(radius: float, lift: float, v: float, z: float) -> float:
     """Horizontal distance from a dome's axis to its cover, at ``(v, z)``.
 
@@ -398,8 +430,41 @@ def format_plan(plan: dict) -> str:
         f"{(max(ys) - min(ys)) / 1000.0:.1f} m between dome centres",
         f"  corridor        {t['corridor_length_m']:.1f} m in {t['corridor_count']} runs, "
         f"{t['ribs']} ribs, {t['rib_material_m']:.1f} m of {t['material']}",
+    ]
+
+    joints = plan.get("junctions")
+    if joints is not None:
+        bad = [j for j in joints if not j["passes"]]
+        lines += ["", "  junctions"]
+        if not bad:
+            lines.append(
+                f"    all {len(joints)} pass: the section goes through the bay "
+                "at every end"
+            )
+        else:
+            lines.append(
+                f"    {len(bad)} of {len(joints)} do NOT pass: the corridor is "
+                "bigger than the bay it lands on, so its"
+            )
+            lines.append(
+                "    sides come down on the bows rather than inside the "
+                "opening. Every one needs the"
+            )
+            lines.append(
+                "    entrance/corridor interface from roadmap milestone 5 -- "
+                "or a narrower corridor."
+            )
+            for j in bad:
+                lines.append(
+                    f"      {j['corridor']:<12} at {j['end']:<4} "
+                    f"(that door still admits "
+                    + (", ".join(j["doorway_admits"]) or "nothing") + ")"
+                )
+
+    lines += [
         "",
-        "  Every corridor lands in a tall bay at both ends; a dome has five,",
-        "  72 degrees apart, so the camp's angles are not free.",
+        "  The bearings are solved: a dome has five bays 72 degrees apart, so",
+        "  the camp's angles are not free. Whether the section fits through",
+        "  the bay it lands on is the separate question above.",
     ]
     return "\n".join(lines)

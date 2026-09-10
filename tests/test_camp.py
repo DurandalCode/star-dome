@@ -158,3 +158,30 @@ def test_totals_count_every_run(plan):
         len(LINKS) * plan["corridor_spec"]["length"] / 1000.0, rel=1e-6
     )
     assert t["rib_material_m"] > 0
+
+
+# --- the junctions --------------------------------------------------------
+def test_landing_on_a_bay_is_not_the_same_as_passing_through_it(domes):
+    """The layout solves bearings. Whether the section fits is separate.
+
+    A wide timber portal lands on every bay's azimuth and passes through none
+    of them, and a report that said only the first half would be true and
+    misleading at once.
+    """
+    solved = camp.solve(domes, LINKS, {"kind": "portal", "width": 1800.0,
+                                       "height": 2100.0, "pitch": 1200.0})
+    joints = camp.junctions(solved, domes)
+    assert len(joints) == 2 * len(LINKS)
+    assert not any(j["passes"] for j in joints)
+    # And a person still gets through every one of those doors.
+    for j in joints:
+        assert j["doorway_admits"]
+
+
+def test_a_narrow_corridor_passes_junctions_a_wide_portal_cannot(domes):
+    narrow = camp.solve(domes, LINKS, {"kind": "hoop", "width": 700.0,
+                                       "height": 1200.0})
+    wide = camp.solve(domes, LINKS, {"kind": "portal", "width": 1800.0,
+                                     "height": 2100.0})
+    passing = sum(j["passes"] for j in camp.junctions(narrow, domes))
+    assert passing > sum(j["passes"] for j in camp.junctions(wide, domes))
