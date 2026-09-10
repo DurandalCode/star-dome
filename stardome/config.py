@@ -39,6 +39,12 @@ class Variant:
     # severs two bows and leaves the head node with nothing passing through
     # it. See doorway.CUT_LEVELS.
     door_cut: str = "none"
+    # WHICH material, not what it is made of: the properties live in
+    # materials.py, so two domes on different rod diameters can share one
+    # density without writing it twice.
+    rod_material: str = "gfrp_pultruded"
+    cover_fabric: str = "oxford_600d"
+    sleeve_material: str = "steel_mild"
 
     @property
     def radius(self) -> float:
@@ -84,6 +90,21 @@ def _cut_level(value) -> str:
     return text
 
 
+def _material(catalogue: str, body: dict, defaults: dict, fallback: str,
+              key: str | None = None) -> str:
+    """A variant's chosen material, checked against the catalogue now.
+
+    Checked at load rather than at use, so a typo in the config fails on the
+    first command instead of somewhere deep in a report.
+    """
+    from . import materials
+
+    key = key or f"{catalogue}_material"
+    name = str(body.get(key, defaults.get(key, fallback)))
+    materials.get(catalogue, name)  # raises with the list if it is wrong
+    return name
+
+
 def load_all(path=None) -> dict:
     """Load every named variant, with ``[defaults]`` folded in."""
     path = Path(path) if path is not None else DEFAULT_CONFIG
@@ -105,6 +126,15 @@ def load_all(path=None) -> dict:
             weave_gap=float(body.get("weave_gap", defaults.get("weave_gap", 1.0))),
             skirt_height=float(
                 body.get("skirt_height", defaults.get("skirt_height", 0.0))
+            ),
+            rod_material=_material(
+                "rod", body, defaults, "gfrp_pultruded"
+            ),
+            cover_fabric=_material(
+                "fabric", body, defaults, "oxford_600d", key="cover_fabric"
+            ),
+            sleeve_material=_material(
+                "sleeve", body, defaults, "steel_mild", key="sleeve_material"
             ),
             alias=str(body.get("alias", "")),
             door=str(body.get("door", defaults.get("door", ""))),

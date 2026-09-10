@@ -100,6 +100,33 @@ Three rules keep the pipeline honest:
 `inclination_convention`, `above_convention`) so a consumer cannot silently
 misread the numbers.
 
+### Where a number lives
+
+Four homes, and the rule is what KIND of number it is.
+
+| kind | home | example |
+|---|---|---|
+| variant-specific | `configs/variants.toml` | diameter, rod diameter, skirt, section limit |
+| a material's properties | `stardome/materials.py` | GFRP density and modulus, fabric weight, sleeve moduli |
+| derived from the topology | `stardome/geometry.py` | the family tilts, `MARKS_THIRDS`, `MARKS_FIFTHS` |
+| a design decision | with the module that makes it | seam allowance, knee-brace leg, engagement length |
+
+A variant **names** its materials rather than describing them, so two domes on
+different rod diameters share one density instead of repeating it.
+
+This exists because the same rod's density was once typed in two modules and
+its modulus in a third: measuring the real stock would have meant editing
+three places, and the mass in the rod report could stop agreeing with the mass
+in the wind screening without anything noticing.
+`tests/test_materials.py` walks the package's syntax tree and fails if any
+module defines a constant whose name says "material property" and whose value
+is a literal.
+
+The same trap has a second form that a catalogue does not fix: a **derivation**
+duplicated. The section count was worked out three different ways in three
+modules before the transport limit changed and they disagreed. That one is
+fixed by one function, not one file.
+
 ### Where generated files go
 
 The two producers write to separate directories, and must keep doing so:

@@ -42,6 +42,13 @@ skirt_height = 0
 # See docs/transport.md. Below 3000 the equal division breaks and
 # sections have to be placed unequally instead.
 section_length = 3500
+
+# WHICH material, by name from stardome/materials.py. The properties live
+# there so that two domes on different rod diameters share one density
+# instead of repeating it. Override per variant below if one ever differs.
+rod_material = "gfrp_pultruded"
+cover_fabric = "oxford_600d"
+sleeve_material = "steel_mild"
 # Shell spacing for the "layered" drawing convention, as a multiple of rod
 # diameter. A drawing convention only -- NOT a build instruction.
 weave_gap = 1.0

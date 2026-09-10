@@ -54,9 +54,10 @@ from __future__ import annotations
 
 import math
 
-# The rod, as an assumption. Pultruded GFRP varies by supplier and by fibre
-# fraction; confirm against a data sheet.
-ROD_MODULUS_MPA = 40000.0
+from . import materials
+
+# The rod's bending modulus, from the catalogue rather than typed here.
+ROD_MODULUS_MPA = materials.ROD[materials.DEFAULT_ROD]["modulus_mpa"]
 
 # Bore clearance over the rod, so the section slides in.
 DEFAULT_CLEARANCE_MM = 0.4
@@ -85,16 +86,12 @@ CONNECTOR_REACH_MM = {
 }
 DEFAULT_CONNECTOR_REACH_MM = 44.0
 
-# name: (E MPa, allowable MPa, density kg/m3, minimum wall mm, how it is made)
+# The sleeve catalogue, flattened to the tuple this module works in. The
+# values live in materials.py.
 MATERIALS = {
-    "aluminium_6061": (69000.0, 150.0, 2700.0, 0.8, "drawn tube, cut to length"),
-    "steel_mild": (200000.0, 140.0, 7850.0, 0.8, "drawn tube, cut to length"),
-    "stainless_304": (193000.0, 120.0, 8000.0, 0.8, "drawn tube, cut to length"),
-    "printed_pla": (3500.0, 20.0, 1240.0, 1.2, "printed"),
-    "printed_petg": (2100.0, 18.0, 1270.0, 1.2, "printed"),
-    "printed_nylon_cf": (6000.0, 40.0, 1200.0, 1.2, "printed"),
-    "cast_aluminium": (70000.0, 60.0, 2680.0, 3.0, "cast from a printed pattern"),
-    "cast_bronze": (100000.0, 90.0, 8800.0, 3.0, "cast from a printed pattern"),
+    name: (e["modulus_mpa"], e["allowable_mpa"], e["density_kgm3"],
+           e["min_wall_mm"], e["made_by"])
+    for name, e in materials.SLEEVE.items()
 }
 
 

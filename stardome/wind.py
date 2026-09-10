@@ -46,12 +46,10 @@ from __future__ import annotations
 
 import math
 
-from . import cover, interior
+from . import cover, interior, materials
 
-# Air at 15 C, sea level. The one number here that is not an assumption.
-AIR_DENSITY = 1.225  # kg/m3
-
-GRAVITY = 9.80665  # m/s2
+AIR_DENSITY = materials.AIR_DENSITY
+GRAVITY = materials.GRAVITY
 
 # Force coefficient on the silhouette of a covered dome. A hemisphere sits
 # somewhere around here, but the value depends on ground effect and on how
@@ -60,19 +58,11 @@ GRAVITY = 9.80665  # m/s2
 DEFAULT_CF = 0.5
 CF_RANGE = (0.35, 0.5, 0.65)
 
-# Pultruded solid GFRP rod, kg/m3. Confirm against the supplier's data sheet
-# before any of this is used for anything.
-GFRP_DENSITY = 1900.0
+GFRP_DENSITY = materials.ROD[materials.DEFAULT_ROD]["density_kgm3"]
 
-# Oxford-type polyester fabric, nominal areal weight in g/m2 INCLUDING a
-# typical PU coating. Trade denier numbers are not a specification and the
-# coating can move these by half again -- weigh a sample of the actual roll.
-FABRIC = {
-    "oxford_210d": 120.0,
-    "oxford_420d": 190.0,
-    "oxford_600d": 290.0,
-}
-DEFAULT_FABRIC = "oxford_600d"
+# Kept as a name; the weights live in materials.py.
+FABRIC = {name: entry["gsm"] for name, entry in materials.FABRIC.items()}
+DEFAULT_FABRIC = materials.DEFAULT_FABRIC
 
 # Wind speeds worth a line, m/s. The names are the Beaufort description, which
 # is a description of the sea and the trees, not a design load.

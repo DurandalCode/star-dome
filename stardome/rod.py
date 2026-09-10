@@ -49,11 +49,12 @@ from __future__ import annotations
 
 import math
 
-from . import geometry
+from . import geometry, materials
 
-# Nominal GFRP density, kg/m3, for the mass figure. Same assumption the wind
-# screening makes; confirm against the supplier before it matters.
-GFRP_DENSITY = 1900.0
+# Kept as a name for the default rod's density, but the value now lives in
+# materials.py -- it used to be typed here AND in wind.py, and the two could
+# drift apart without anything noticing.
+GFRP_DENSITY = materials.ROD[materials.DEFAULT_ROD]["density_kgm3"]
 
 # A coil rather than a bar: no cutting waste, because you unroll what you need.
 COIL = None
@@ -204,16 +205,20 @@ def cut_plan(data: dict, stock_mm: float | None = COIL,
     }
 
 
-def mass(data: dict) -> dict:
-    """What the rod weighs, on the nominal density."""
+def mass(data: dict, material: str = materials.DEFAULT_ROD) -> dict:
+    """What the rod weighs, on the catalogue's density for this stock."""
+    entry = materials.get("rod", material)
     meta = data["meta"]
     bow = bows(data)
     area = math.pi * (meta["rod_diameter"] / 2000.0) ** 2
-    kg = area * bow["total_m"] * GFRP_DENSITY
+    density = entry["density_kgm3"]
+    kg = area * bow["total_m"] * density
     return {
+        "material": material,
         "kg": round(kg, 1),
-        "kg_per_m": round(area * GFRP_DENSITY, 4),
-        "note": "Nominal GFRP density; weigh a metre of the real stock.",
+        "kg_per_m": round(area * density, 4),
+        "measured": entry.get("measured", False),
+        "note": entry.get("note", ""),
     }
 
 
