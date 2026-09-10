@@ -174,9 +174,17 @@ The wall stays 0.8 at every size while the rod grows, so **the joint gets
 softer as the dome gets bigger** — 6.1× on D3, 3.6× on D12. The end of the
 range that needs it most is the end that gets it.
 
-The mouth is flared 0.35 mm over 2.5 mm at both ends, because a square bore
-edge is a stress raiser on fibreglass — the same rule the crossing clamp
-follows, and here it is also where the rod leaves and starts bending again.
+### Nothing is formed
+
+An earlier version flared both mouths, on the rule the crossing clamp follows:
+a square bore edge is a stress raiser on fibreglass. **Dropped.** Flaring is a
+forming operation on every one of the 43 parts a dome takes, there is 0.8 mm
+of wall to form it in, and it was the one feature pulling this part back out
+of *cut to length* and into *made*. The bore edge still wants breaking — but
+that is a deburr note on the drawing, not a feature on the model.
+
+The manufacture is now, in full: **cut the tube, drill two holes, break the
+edges.**
 
 **The fastener is a field choice, not a part change.** The sleeve is a tube
 with two cross holes; what goes through them does not change it. A bolt and

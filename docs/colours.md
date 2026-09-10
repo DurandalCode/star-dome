@@ -74,11 +74,42 @@ doc.save()
 
 `apply_view` in each connector script does the same and is a no-op headless.
 
+When the bridge is down, the GUI will run a script given on its command line,
+which is the same thing without the bridge:
+
+```
+/Applications/FreeCAD.app/Contents/MacOS/FreeCAD colour_it.py
+```
+
+Two things to know. That path is a wrapper which execs
+`Resources/bin/freecad`, so `pgrep -f MacOS/FreeCAD` finds nothing and the run
+looks like it died — match on `bin/freecad` instead. And `Console.PrintMessage`
+goes to the report view, not to stdout, so a script that reports its results
+has to write them to a file if you want to read them back.
+
+Colours are checked by reading them back off the objects, not out of the saved
+file: FreeCAD 1.x keeps `ShapeColor` in a `ShapeAppearance` material list,
+written as separate binary members of the `.FCStd` zip. `Transparency` is
+still plain XML, so it greps and the colour does not — an easy way to conclude
+the colouring silently failed when it did not.
+
 ## Where these are defined
 
 `blender/build_scene.py` and `blender/build_site.py` at the top;
-`connectors/fan_node_v2.py` and `connectors/base_hub_v1.py` above their
-`apply_view`. Four copies, deliberately: the two Blender scripts run inside
-Blender's interpreter and the two connector scripts inside FreeCAD's, and
-neither can import from `stardome/`. Change one, change this table, change the
-rest.
+`connectors/fan_node_v2.py`, `connectors/base_hub_v1.py` and
+`connectors/splice_v1.py` above their `apply_view`. Five copies,
+deliberately: the two Blender scripts run inside Blender's interpreter and the
+three connector scripts inside FreeCAD's, and neither can import from
+`stardome/`. Change one, change this table, change the rest.
+
+Two greys are easy to swap and mean opposite things: `0.55, 0.55, 0.58` is
+**bought steel** — bolts, and nothing else — while a part *you make* is a blue
+at 55%. The splice had them the wrong way round for a commit.
+
+## One hue, two values
+
+Where several members are the same kind and the drawing is about how they sit
+relative to each other, ramp one hue rather than reaching for a second: the
+base hub's four plates go light to dark bottom to cap, and the splice's two
+rod sections take a light and a dark of the G blue. Both are one bow and one
+family — a second hue would say they were not.

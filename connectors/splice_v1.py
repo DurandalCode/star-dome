@@ -67,6 +67,17 @@ is the price of the recorded material decision, not a fault in the drawing.
 Whether it is acceptable is a load question, and load questions are milestone
 8. verify() reports the ratio so the price stays visible.
 
+NOTHING IS FORMED
+
+An earlier version flared both mouths, arguing that a square bore edge is a
+stress raiser on fibreglass. Dropped. Flaring is a forming operation on every
+one of the 43 parts a dome takes, there is 0.8 mm of wall to form it in, and
+it was the one feature pulling this part back out of "cut to length" and into
+"made". The bore edge still wants breaking -- but that is a deburr note on the
+drawing, not a feature on the model, and it does not need a tool of its own.
+
+So the manufacture is now: cut the tube, drill two holes, break the edges.
+
 WHAT THE FASTENER IS
 
 The part is a tube with two cross holes; what goes through them does not
@@ -142,16 +153,8 @@ INPUTS = [
     ("buttGap",                0.0,  "mm",  "clearance between the two rod ends. 0 = they butt, so compression crosses the joint through the fibreglass and not through the bolts"),
     ("boltDiameter",           4.0,  "mm",  "cross fastener each side: holds tension and torsion. A bolt and nut, or a spring pin in the same hole"),
     ("boltAt",                22.0,  "mm",  "how far each cross hole sits from its own end of the sleeve"),
-    ("mouthFlare",             2.5,  "mm",  "axial length of the flared mouth. A square bore edge is a stress raiser on fibreglass, and this is where the rod bends away"),
-    ("mouthFlareRise",         0.35, "mm",  "radial rise of that flare"),
     ("endChamfer",             0.4,  "mm",  "chamfer on the outside of each end, so the sleeve does not catch on the cover"),
 ]
-
-
-def _flare(bore_r, rise, length, z, direction):
-    """A cone opening a mouth, so the rod does not bear on a square edge."""
-    return Part.makeCone(bore_r + rise, bore_r, length,
-                         App.Vector(0, 0, z), App.Vector(0, 0, direction))
 
 
 def build(values):
@@ -162,8 +165,6 @@ def build(values):
     butt_gap = values["buttGap"]
     bolt_d = values["boltDiameter"]
     bolt_at = values["boltAt"]
-    flare_len = values["mouthFlare"]
-    flare_rise = values["mouthFlareRise"]
     chamfer = values["endChamfer"]
 
     bore_r = (rod_d + clearance) / 2.0
@@ -178,11 +179,6 @@ def build(values):
         Part.makeCylinder(bore_r, length + 2.0,
                           App.Vector(0, 0, -1.0), App.Vector(0, 0, 1))
     )
-
-    # Flare both mouths. The rod leaves the sleeve here and starts bending
-    # again, so this is the edge that would dig in.
-    body = body.cut(_flare(bore_r, flare_rise, flare_len, 0.0, 1))
-    body = body.cut(_flare(bore_r, flare_rise, flare_len, length, -1))
 
     # One cross hole per side, the same distance from its own end. Drilled at
     # right angles to each other, so neither rod loses width in the same
@@ -374,9 +370,20 @@ def derived_rows(dims, values):
 # --------------------------------------------------------------------------
 # drawing
 # --------------------------------------------------------------------------
-SLEEVE_COLOUR = (0.55, 0.55, 0.58)
-ROD_COLOUR = (0.15, 0.55, 0.95)
-BOLT_COLOUR = (0.80, 0.70, 0.25)
+# docs/colours.md: the made part is translucent so you can see the rods
+# inside it, the rods are solid, and bought steel is grey.
+SLEEVE_COLOUR = (0.35, 0.52, 0.78)
+SLEEVE_TRANSPARENCY = 55
+BOLT_COLOUR = (0.55, 0.55, 0.58)
+# Both rods are the same bow, so both are that bow's family colour -- but the
+# whole subject of this drawing is where they meet, and two identical blues
+# butted end to end show nothing. So they take a light and a dark of the one
+# hue, the way the base hub ramps its plates to show stacking order. Family
+# read intact, joint visible.
+ROD_COLOURS = [
+    (0.15, 0.55, 0.95),   # G family blue
+    (0.09, 0.33, 0.60),   # the same blue, darker: the other section
+]
 
 
 def populate(doc, geo):
@@ -393,24 +400,30 @@ def populate(doc, geo):
 
 
 def apply_view(doc):
-    """Colours per docs/colours.md; the rod is its family blue."""
-    if not hasattr(App, "Gui"):
-        return doc
-    try:
-        gui = App.Gui  # noqa: F841 -- its presence is the test
-    except Exception:
-        return doc
+    """Colours per docs/colours.md.
+
+    A no-op without a GUI: freecadcmd gives objects no ViewObject, so a
+    document built by generate_clamps.py carries geometry and no appearance.
+    Colour it with the GUI up -- see docs/colours.md.
+    """
+    rod_index = 0
     for obj in doc.Objects:
         view = getattr(obj, "ViewObject", None)
         if view is None:
             continue
         if obj.Name.startswith("Sleeve"):
-            view.ShapeColor = SLEEVE_COLOUR
-            view.Transparency = 40
+            colour, transparency = SLEEVE_COLOUR, SLEEVE_TRANSPARENCY
         elif obj.Name.startswith("ref_Rod"):
-            view.ShapeColor = ROD_COLOUR
+            colour = ROD_COLOURS[rod_index % len(ROD_COLOURS)]
+            transparency = 0
+            rod_index += 1
         elif obj.Name.startswith("Bolt"):
-            view.ShapeColor = BOLT_COLOUR
+            colour, transparency = BOLT_COLOUR, 0
+        else:
+            continue
+        view.ShapeColor = colour
+        if hasattr(view, "Transparency"):
+            view.Transparency = transparency
     return doc
 
 
