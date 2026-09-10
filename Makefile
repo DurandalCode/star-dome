@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors clamps blender site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors wind clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -28,6 +28,7 @@ help:
 	@echo "make covers     fabric area, and how few gores it sews from"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make camp       five domes joined by corridors, laid out and drawn"
+	@echo "make wind       SCREENING sail area and hold-down; not a check"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make site       one scene with every variant side by side, at 1:1"
@@ -86,6 +87,13 @@ covers:
 
 # A covered corridor on the doorway. CORRIDOR is width, height, length in mm.
 CORRIDOR ?= 900 1950 3000
+
+# SCREENING ONLY -- no code, no factors, no uplift. See docs/wind.md.
+FABRIC ?= oxford_600d
+CF ?= 0.5
+
+wind:
+	@$(PYTHON) -m stardome wind --all --fabric $(FABRIC) --cf $(CF)
 
 corridors:
 	@$(PYTHON) -m stardome corridor --all \

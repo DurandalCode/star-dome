@@ -28,6 +28,7 @@ from . import (
     model,
     verify,
     weave,
+    wind,
 )
 
 
@@ -337,6 +338,19 @@ def cmd_camp(args) -> int:
     return 0
 
 
+def cmd_wind(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        if args.skirt is not None:
+            variant = config.load(
+                name, args.config, skirt_height=float(args.skirt)
+            )
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(wind.format_analysis(data, cf=args.cf, fabric=args.fabric))
+        print()
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -382,6 +396,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("cover", cmd_cover, "fabric area, and how few gores it sews from"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
         ("camp", cmd_camp, "several domes joined by corridors, and where they may stand"),
+        ("wind", cmd_wind, "SCREENING ONLY: sail area, drag and what has to hold it down"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -415,7 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
         if name == "scad-config":
             p.add_argument("-o", "--out", default="configs/variants.scad", type=Path)
-        if name in ("interior", "doorway", "cover", "corridor"):
+        if name in ("interior", "doorway", "cover", "corridor", "wind"):
             p.add_argument(
                 "--skirt",
                 type=float,
@@ -478,6 +493,16 @@ def build_parser() -> argparse.ArgumentParser:
                 type=float,
                 default=corridor.DEFAULT_BRACE_LEG_MM,
                 help="knee-brace leg, mm; portal only",
+            )
+        if name == "wind":
+            p.add_argument(
+                "--cf", type=float, default=wind.DEFAULT_CF,
+                help="force coefficient on the silhouette; assumed, not measured",
+            )
+            p.add_argument(
+                "--fabric", default=wind.DEFAULT_FABRIC,
+                choices=sorted(wind.FABRIC),
+                help="cover fabric; areal weights are nominal, weigh the roll",
             )
         if name == "camp":
             p.add_argument(

@@ -60,6 +60,7 @@ single interchange format every other tool reads — see
 - The fabric cover: [`docs/cover.md`](docs/cover.md)
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
 - Joining domes into a camp: [`docs/camp.md`](docs/camp.md)
+- Wind, as a screening figure: [`docs/wind.md`](docs/wind.md)
 
 ## Sizes
 
