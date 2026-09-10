@@ -51,6 +51,8 @@ BRACE_COLOUR = (0.35, 0.62, 0.78, 1.0)   # tension diagonals, not rod
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)
 GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)
+CORRIDOR_COLOUR = (0.62, 0.72, 0.58, 1.0)      # corridor hoops, not dome rod
+CORRIDOR_SKIN_COLOUR = (0.88, 0.86, 0.80, 1.0)  # fabric
 GROUND_COLOUR = (0.26, 0.29, 0.24, 1.0)
 LABEL_COLOUR = (0.95, 0.95, 0.95, 1.0)
 
@@ -83,6 +85,12 @@ def parse_args(argv):
         metavar="DEPTH",
         help="curve the row back by this many metres at its ends, so it reads "
              "as a camp round a yard rather than as a size chart",
+    )
+    p.add_argument(
+        "--aerial",
+        action="store_true",
+        help="look down on the camp, so the corridors read as tunnels rather "
+             "than as frames round each doorway",
     )
     p.add_argument(
         "--named-only",
@@ -234,6 +242,42 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     return obj, panel
 
 
+def add_corridor(corridor, rod_radius_m, material_, skin_material, collection,
+                 origin_x, lift, spin_deg=0.0, origin_y=0.0):
+    """Hoops and skin, straight from the model, placed like everything else."""
+    drawing = corridor.get("drawing")
+    if not drawing:
+        return
+
+    def put(x, y, z):
+        px, py = _place(x, y, origin_x, spin_deg, origin_y)
+        return (px, py, z * MM + lift)
+
+    for i, hoop in enumerate(drawing["hoops"], start=1):
+        curve = bpy.data.curves.new(f"CorridorHoop_{i}", "CURVE")
+        curve.dimensions = "3D"
+        spline = curve.splines.new("POLY")
+        spline.points.add(len(hoop) - 1)
+        for point, (x, y, z) in zip(spline.points, hoop):
+            point.co = (*put(x, y, z), 1.0)
+        curve.bevel_depth = rod_radius_m
+        curve.bevel_resolution = 3
+        obj = bpy.data.objects.new(f"Corridor_Hoop_{i}", curve)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(material_)
+        move_to(obj, collection)
+
+    skin = drawing["skin"]
+    mesh = bpy.data.meshes.new("Corridor_Skin")
+    mesh.from_pydata([put(*v) for v in skin["vertices"]], [],
+                     [f[:] for f in skin["faces"]])
+    mesh.update()
+    obj = bpy.data.objects.new("Corridor_Skin", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(skin_material)
+    move_to(obj, collection)
+
+
 def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
     """Both figures side by side. Proportions scale with height, so the tall
     one reads as tall rather than as one standing nearer the camera."""
@@ -295,6 +339,10 @@ def build(args, models):
     jamb_mat = material("Rod_Jamb", JAMB_COLOUR)
     ghost_mat = make_transparent(material("Rod_Cut", GHOST_COLOUR), 0.50)
     brace_mat = material("Skirt_Brace", BRACE_COLOUR)
+    corridor_mat = material("Corridor_Hoop", CORRIDOR_COLOUR)
+    corridor_skin_mat = make_transparent(
+        material("Corridor_Skin", CORRIDOR_SKIN_COLOUR), 0.30
+    )
 
     x = 0.0
     placed = []
@@ -359,6 +407,13 @@ def build(args, models):
                 data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift,
                 spin, origin_y=y0, brace_material=brace_mat,
             )
+        corridor = data.get("corridor") or {}
+        if corridor.get("present") and corridor.get("drawing"):
+            add_corridor(
+                corridor, rod_radius_m, corridor_mat, corridor_skin_mat,
+                coll, x, lift, spin, origin_y=y0,
+            )
+
         if door:
             add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
             # In the doorway, not beside it: the row exists to be read at a
@@ -400,7 +455,8 @@ def build(args, models):
     return placed, span, max_radius
 
 
-def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0):
+def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0,
+                         aerial=False):
     """Frame the whole row from its length rather than by guesswork.
 
     The horizontal half-angle of a 35 mm-format camera is atan(18/lens); the
@@ -419,9 +475,18 @@ def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0
     # row seen from far above is mostly ground.
     # Nearly level with the row. Higher than this and a long row is mostly
     # ground; the domes stand side by side so nothing occludes anything.
-    height = tallest * 0.8
-    cam.location = (span * 0.5, -needed, height)
-    target = Vector((span * 0.5, 0.0, tallest * 0.45))
+    if aerial:
+        # A camp is read from above: every door faces the yard, so every
+        # corridor points at a level camera and foreshortens to a frame round
+        # the doorway. Lifting the eye is what turns them back into tunnels.
+        cam.location = (span * 0.5, -needed * 0.72, tallest * 2.9)
+        target = Vector((span * 0.5, max_radius * 0.15, tallest * 0.30))
+    else:
+        # Nearly level with the row: a long row seen from far above is mostly
+        # ground, and the domes stand side by side so nothing occludes
+        # anything.
+        cam.location = (span * 0.5, -needed, tallest * 0.8)
+        target = Vector((span * 0.5, 0.0, tallest * 0.45))
     cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
 
@@ -462,7 +527,8 @@ def main():
     tallest = max(
         m.get("overall_height", m["dome_height_measured"]) * MM for _, _, _, m in placed
     )
-    add_camera_and_light(bpy.context.scene, span, max_radius, tallest)
+    add_camera_and_light(bpy.context.scene, span, max_radius, tallest,
+                         aerial=args.aerial)
 
     print(f"[site] {len(placed)} domes over {span:.1f} m, tallest {tallest:.2f} m")
     for name, x, radius_m, meta in placed:

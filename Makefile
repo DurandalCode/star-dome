@@ -146,11 +146,18 @@ sizes:
 # One of each of the three sizes anyone camps in, standing round a yard with
 # the doorways actually cut out rather than ghosted. This is the picture of
 # the thing as built; `make sizes` is the picture of the decisions in it.
+# A camp rather than a size chart: three S, one M, one L, each with the
+# largest corridor its own doorway will actually pass. They are not the same
+# corridor -- S takes 1950 mm, L 1700, M only 1175 -- and that difference is
+# the point of the picture. Seen from above, or the corridors point straight
+# at the camera and read as frames round each door.
 camp:
-	$(PYTHON) -m stardome build S M L --polylines --weave-mode layered -o $(OUT)
+	$(PYTHON) -m stardome build S M L --polylines --corridor-fit --weave-mode layered -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
-		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json $(OUT)/star_dome_d8.json \
-		--camp 4.0 --gap 3.0 --hide-cuts \
+		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d4.json \
+		         $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json \
+		         $(OUT)/star_dome_d8.json \
+		--camp 5.0 --gap 3.0 --hide-cuts --aerial \
 		--out exports/blender/camp.blend \
 		--render exports/blender/camp.png
 

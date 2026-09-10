@@ -432,6 +432,35 @@ def tallest_that_fits(data: dict, width: float = DEFAULT_WIDTH_MM,
     }
 
 
+def fitted_spec(
+    data: dict,
+    width: float = DEFAULT_WIDTH_MM,
+    max_height: float = DEFAULT_HEIGHT_MM,
+    length: float = DEFAULT_LENGTH_MM,
+    pitch: float = DEFAULT_PITCH_MM,
+) -> dict | None:
+    """The biggest corridor of this width that this dome's doorway will pass.
+
+    A camp cannot give every dome the same corridor, because the domes do not
+    have the same door. Sizing each one to what its own bay admits is what
+    makes a row of five read as five different-sized buildings rather than as
+    one design drawn wrong four times.
+
+    Returns ``None`` when the dome has no doorway at all.
+    """
+    if not data.get("doorway"):
+        return None
+    best = tallest_that_fits(data, width)["tallest_mm"]
+    if not best:
+        return None
+    return {
+        "width": width,
+        "height": min(best, max_height),
+        "length": length,
+        "pitch": pitch,
+    }
+
+
 def format_analysis(
     data: dict,
     width: float = DEFAULT_WIDTH_MM,

@@ -44,6 +44,14 @@ def cmd_build(args) -> int:
         spec = None
         if args.corridor:
             spec = {"include_geometry": args.polylines}
+        elif args.corridor_fit:
+            # Size the corridor to what this dome's own doorway admits, which
+            # is how a camp of different sizes gets corridors that are each
+            # buildable rather than one that fits nobody.
+            probe = model.build(variant, weave_mode=args.weave_mode)
+            fitted = corridor.fitted_spec(probe)
+            if fitted:
+                spec = dict(fitted, include_geometry=args.polylines)
         data = model.build(
             variant,
             weave_mode=args.weave_mode,
@@ -296,6 +304,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "--corridor",
                 action="store_true",
                 help="attach a corridor to the doorway and carry it in the model",
+            )
+            p.add_argument(
+                "--corridor-fit",
+                dest="corridor_fit",
+                action="store_true",
+                help="same, but sized to the largest this dome's doorway admits",
             )
         if name == "snapshot":
             p.add_argument("-o", "--out", default="tests/golden", type=Path)
