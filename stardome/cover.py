@@ -126,7 +126,8 @@ def opening(data: dict) -> dict:
     }
 
 
-def gores(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
+def gores(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+          radius_mm: float | None = None) -> dict:
     """How few tapered strips the hemisphere can be sewn from.
 
     The gore is widest at the equator, where the gores between them share the
@@ -135,7 +136,7 @@ def gores(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
     means fewer seams, so the answer wanted is always the smallest ``n`` that
     fits.
     """
-    r = radius(data)
+    r = radius(data) if radius_mm is None else radius_mm
     if roll_width_mm <= 0:
         raise ValueError("roll width must be positive")
 
@@ -289,4 +290,296 @@ def format_analysis(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) ->
         "",
         "  Shape and area only. No sag, no seam allowance, no load claim.",
     ]
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# cutting patterns
+# --------------------------------------------------------------------------
+# Three ways to make the same skin, and they are not equivalent. Two come
+# from the reference (see docs/references.md); the third is what you get if
+# you insist every panel is one piece.
+PATTERNS = ("faceted", "leaf", "gore")
+
+# Takekawa's own figure, quoted by the reference: make the cover 10% larger if
+# it goes over the outside of the structure.
+DEFAULT_OVERSIZE = 0.10
+
+# Overlap between horizontal lanes within a leaf. A shingled lap sheds water
+# without the joint having to be watertight, which is the whole reason the
+# reference prefers leaves for rain. An input, not a derived figure.
+DEFAULT_LAP_MM = 80.0
+
+# Regular polygon areas, as multiples of side^2.
+PENTAGON_AREA = 1.720477400588967   # (1/4) sqrt(5(5+2 sqrt5))
+TRIANGLE_AREA = 0.4330127018922193  # sqrt(3)/4
+# A regular pentagon of side s is s*phi across and s*sqrt((5+2sqrt5))/2 tall.
+PENTAGON_WIDTH = 1.618033988749895
+PENTAGON_HEIGHT = 1.5388417685876268
+
+
+def facet_side(data: dict) -> float:
+    """The side of every cover facet, which the model already carries.
+
+    Half an icosidodecahedron is 6 pentagons and 10 triangles, and its
+    equatorial decagons are the G family bows -- so the facet side IS the
+    base edge chord, and that is ``R / phi`` exactly.
+    """
+    return data["meta"]["base_edge_chord"]
+
+
+def faceted(data: dict, oversize: float = DEFAULT_OVERSIZE,
+            roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
+    """The reference's first pattern: 6 pentagons and 10 triangles of side s.
+
+    Every panel is flat, so it develops with no distortion at all -- there is
+    no spherical approximation anywhere in it. What it costs is seams, and on
+    a narrow roll it costs more than it looks: a pentagon is 1.618*s across,
+    which on anything but a small dome is wider than the fabric.
+
+    The reference does not recommend it for weather. Quoted in
+    docs/references.md.
+    """
+    s = facet_side(data) * (1.0 + oversize)
+    pent = PENTAGON_AREA * s * s
+    tri = TRIANGLE_AREA * s * s
+    area = 6.0 * pent + 10.0 * tri
+
+    width = PENTAGON_WIDTH * s
+    strips = max(1, math.ceil(width / roll_width_mm))
+
+    return {
+        "pattern": "faceted",
+        "side_mm": round(s, 1),
+        "panels": {"pentagons": 6, "triangles": 10},
+        "panel_count": 16,
+        "area_m2": round(area / 1e6, 2),
+        # 25 internal edges in half an icosidodecahedron: 60 edges, 10 on the
+        # equator, the other 50 shared between the two halves.
+        "seam_count": 25,
+        "seam_length_m": round(25.0 * s / 1000.0, 1),
+        "hem_length_m": round(10.0 * s / 1000.0, 1),
+        "pentagon_width_mm": round(width, 1),
+        "pentagon_fits_roll": width <= roll_width_mm,
+        "pentagon_strips": strips,
+        "roll_floor_m": round(area / 1e6 / (roll_width_mm / 1000.0), 1),
+        "baseline": "inscribed polyhedron, not the sphere",
+        "note": (
+            "Flat panels, no distortion, and genuinely LESS fabric than the "
+            "other two -- it wraps the inscribed polyhedron rather than the "
+            "sphere, so it is a different surface and not a like-for-like "
+            "saving. The reference calls it interior or "
+            "sun-shade only -- too many seams to sew leak-free. And a "
+            f"pentagon is {width:.0f} mm across against a "
+            f"{roll_width_mm:.0f} mm roll, so it needs piecing too unless the "
+            "fabric is wide."
+        ),
+    }
+
+
+def leaf(data: dict, leaves: int = 10, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+         lap_mm: float = DEFAULT_LAP_MM,
+         oversize: float = DEFAULT_OVERSIZE) -> dict:
+    """The reference's preferred pattern: 5 or 10 leaves of shingled lanes.
+
+    A leaf is a gore spanning 360/leaves of azimuth, and it is far wider than
+    any roll -- so it is built up from horizontal lanes laid overlapping,
+    upper over lower, and rain sheds down the slope without the joint having
+    to be watertight.
+
+    Roll length is computed rather than assumed: a lane is cut with its
+    height across the roll and its width along it, so the roll it eats is the
+    leaf's width at that lane, summed.
+    """
+    if leaves < 3:
+        raise ValueError("a leaf cover wants at least three leaves")
+    r = radius(data) * (1.0 + oversize)
+    slant = math.pi * r / 2.0
+
+    step = roll_width_mm - lap_mm
+    if step <= 0:
+        raise ValueError("the lap cannot be as wide as the roll")
+    lanes = max(1, math.ceil((slant - lap_mm) / step))
+
+    def leaf_width(arc):
+        return 2.0 * math.pi * r * math.sin(min(arc / r, math.pi / 2.0)) / leaves
+
+    # Each lane is very nearly a trapezoid: narrow at the top, wide at the
+    # bottom. Cut one per rectangle and the taper is waste; turn every other
+    # one end for end and two lanes share a rectangle, so each costs its MEAN
+    # width instead of its widest. That is exact for a straight-sided
+    # trapezoid and slightly optimistic here, because the sides are sine
+    # curves rather than lines.
+    roll_plain = 0.0
+    roll_nested = 0.0
+    widths = []
+    for i in range(lanes):
+        s_top = i * step
+        s_low = min(slant, (i + 1) * step + lap_mm)
+        w_top = leaf_width(s_top)
+        w_low = leaf_width(s_low)
+        widths.append(round(w_low, 1))
+        roll_plain += w_low
+        roll_nested += 0.5 * (w_top + w_low)
+    roll_plain *= leaves
+    roll_nested *= leaves
+    roll_mm = roll_nested
+
+    return {
+        "pattern": "leaf",
+        "leaves": leaves,
+        "lanes_per_leaf": lanes,
+        "piece_count": leaves * lanes,
+        "lane_widths_mm": widths,
+        "lap_mm": lap_mm,
+        "area_m2": round(2.0 * math.pi * r * r / 1e6, 2),
+        "roll_length_m": round(roll_mm / 1000.0, 1),
+        "roll_unnested_m": round(roll_plain / 1000.0, 1),
+        "roll_floor_m": round(
+            2.0 * math.pi * r * r / 1e6 / (roll_width_mm / 1000.0), 1
+        ),
+        "leaf_seam_length_m": round(leaves * slant / 1000.0, 1),
+        "lap_length_m": round(leaves * sum(widths[:-1]) / 1000.0, 1),
+        "note": (
+            "Vertical seams run down the slope, where water leaves; the "
+            "horizontal joints are laps, not seams. One larger triangle at "
+            "the base is the entry, per the reference. Roll length assumes "
+            "alternate lanes are turned end for end so two share a "
+            "rectangle; cut them all the same way round and it is "
+            f"{roll_plain / 1000.0:.1f} m instead."
+        ),
+    }
+
+
+def gore_plan(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+              oversize: float = DEFAULT_OVERSIZE) -> dict:
+    """Every gore in one piece, pole to equator. No horizontal joints at all.
+
+    The clean-looking option, and the expensive one. **A gore fills exactly
+    2/pi = 63.66% of its own bounding rectangle**, whatever the radius and
+    whatever the gore count, and no nesting recovers it: at the equator the
+    gore is already the full width of its strip, so a flipped neighbour has
+    nowhere to go. Raising the gore count does not help either -- it only
+    leaves more of the roll's width unused.
+    """
+    r = radius(data) * (1.0 + oversize)
+    g = gores(data, roll_width_mm, radius_mm=r)
+    slant = math.pi * r / 2.0
+    roll_mm = g["count"] * slant
+    area = 2.0 * math.pi * r * r
+    return {
+        "pattern": "gore",
+        "count": g["count"],
+        "piece_count": g["count"],
+        "gore_width_mm": g["gore_width_mm"],
+        "gore_length_mm": round(slant, 1),
+        "area_m2": round(area / 1e6, 2),
+        "roll_length_m": round(roll_mm / 1000.0, 1),
+        "seam_length_m": round(g["count"] * slant / 1000.0, 1),
+        "fill_of_bounding_box": round(2.0 / math.pi, 6),
+        "roll_floor_m": round(area / 1e6 / (roll_width_mm / 1000.0), 1),
+        "note": (
+            "No horizontal joints. A gore fills 2/pi of its bounding "
+            "rectangle exactly, and nesting cannot beat it -- at the equator "
+            "the gore is already the full strip width."
+        ),
+    }
+
+
+def roll_cost(roll_length_m: float, price_per_m: float) -> dict:
+    """What that much roll costs. The price is yours, not the module's."""
+    return {
+        "roll_length_m": round(roll_length_m, 1),
+        "price_per_m": price_per_m,
+        "total": round(roll_length_m * price_per_m, 2),
+    }
+
+
+def patterns(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+             lap_mm: float = DEFAULT_LAP_MM,
+             oversize: float = DEFAULT_OVERSIZE,
+             price_per_m: float | None = None) -> dict:
+    """All three patterns side by side, so the trade is visible."""
+    out = {
+        "roll_width_mm": roll_width_mm,
+        "oversize": oversize,
+        "faceted": faceted(data, oversize, roll_width_mm),
+        "leaf_10": leaf(data, 10, roll_width_mm, lap_mm, oversize),
+        "leaf_5": leaf(data, 5, roll_width_mm, lap_mm, oversize),
+        "gore": gore_plan(data, roll_width_mm, oversize),
+    }
+    if price_per_m is not None:
+        for key in ("leaf_10", "leaf_5", "gore"):
+            out[key]["cost"] = roll_cost(out[key]["roll_length_m"], price_per_m)
+    return out
+
+
+def format_patterns(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+                    lap_mm: float = DEFAULT_LAP_MM,
+                    oversize: float = DEFAULT_OVERSIZE,
+                    price_per_m: float | None = None) -> str:
+    """The cutting patterns, as a page for a person."""
+    meta = data["meta"]
+    p = patterns(data, roll_width_mm, lap_mm, oversize, price_per_m)
+    f, l10, l5, g = p["faceted"], p["leaf_10"], p["leaf_5"], p["gore"]
+
+    lines = [
+        f"--- {meta['variant']} cover patterns  "
+        f"({roll_width_mm:.0f} mm roll, +{oversize * 100:.0f}% oversize)",
+        "",
+        f"  {'':<10}{'pieces':>8}{'area m2':>10}{'roll m':>9}{'floor':>8}"
+        f"{'seam m':>9}{'cost':>10}",
+    ]
+
+    def row(name, pieces, area, roll, seam, plan):
+        cost = plan.get("cost")
+        money = f"{cost['total']:.0f}" if cost else "--"
+        roll_s = f"{roll:.1f}" if roll else "--"
+        floor = f"{plan['roll_floor_m']:.1f}"
+        return (f"  {name:<10}{pieces:>8}{area:>10.2f}{roll_s:>9}{floor:>8}"
+                f"{seam:>9.1f}{money:>10}")
+
+    lines.append(row("faceted", f["panel_count"], f["area_m2"], None,
+                     f["seam_length_m"], f))
+    lines.append(row("leaf x10", l10["piece_count"], l10["area_m2"],
+                     l10["roll_length_m"], l10["leaf_seam_length_m"], l10))
+    lines.append(row("leaf x5", l5["piece_count"], l5["area_m2"],
+                     l5["roll_length_m"], l5["leaf_seam_length_m"], l5))
+    lines.append(row("gore", g["piece_count"], g["area_m2"],
+                     g["roll_length_m"], g["seam_length_m"], g))
+
+    lines += [
+        "",
+        f"  faceted   6 pentagons + 10 triangles, side {f['side_mm']:.0f} mm "
+        f"(= R/phi, the model's own base edge)",
+        f"            flat panels, no distortion -- but a pentagon is "
+        f"{f['pentagon_width_mm']:.0f} mm across, so on this roll it needs "
+        f"{f['pentagon_strips']} strip(s) of its own.",
+        "            The reference calls this interior / sun-shade only: too "
+        "many seams to sew leak-free.",
+        "",
+        f"  leaf      the reference's choice for rain. {l10['lanes_per_leaf']} "
+        f"lanes per leaf, lapped {l10['lap_mm']:.0f} mm.",
+        "            Vertical seams run down the slope where water leaves; "
+        "the horizontal joints are laps, not seams.",
+        f"            Lanes are nested end for end, two to a rectangle. Cut "
+        f"them all one way round and it is {l10['roll_unnested_m']:.1f} m.",
+        "",
+        f"  gore      one piece per gore, no horizontal joints -- and "
+        f"{g['fill_of_bounding_box'] * 100:.1f}% of the roll used.",
+        "            A gore fills 2/pi of its bounding rectangle exactly, at "
+        "any radius and any count, and",
+        "            nesting cannot beat it: at the equator the gore is "
+        "already the full strip width.",
+    ]
+    lines += [
+        "",
+        "  floor is area / roll width: the roll you would buy if fabric came "
+        "in the shape you wanted.",
+        "  faceted's area is measured against the INSCRIBED polyhedron, not "
+        "the sphere -- a different",
+        "  surface, so its smaller figure is not a like-for-like saving.",
+    ]
+    if price_per_m is None:
+        lines += ["", "  Pass --price to cost it; the price per metre is yours, not mine."]
     return "\n".join(lines)

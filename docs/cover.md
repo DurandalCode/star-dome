@@ -53,22 +53,73 @@ part of this dome that gets *easier* per square metre as it grows.
 
 ## How it is cut
 
-A sphere is not developable, so the cover is sewn from **gores** — tapered
-strips between two meridians. At the equator the gores share the whole
-circumference between them, so each is `2*pi*R/n` across, and that is what has
-to cross the roll of fabric being cut from:
+Three patterns, two of them from the reference. Checked against the source
+rather than assumed, because the first guess here was the wrong one. See
+[`references.md`](references.md) for the quotes.
 
-    gore length          pi * R / 2
-    gore half width      pi * R * sin(theta) / n      at polar angle theta
-    gore full width      2 * pi * R / n               at the equator
+```bash
+python3 -m stardome cover D6 --patterns --price 450
+```
 
-D6 on a 1500 mm roll: **13 gores of 1486 × 4830 mm, 62.8 m of seam.**
+D6, 1500 mm roll, +10% oversize (Takekawa's own figure):
 
-The roll width is an input, not a fact about the world — pass `--roll` for
-what the supplier actually sells. Fewer gores means fewer seams and less
-labour, so the answer wanted is always the smallest `n` that fits.
+| | pieces | area m² | roll m | floor | seam m |
+|---|---|---|---|---|---|
+| faceted | 16 | 60.95 | — | 40.6 | 51.0 |
+| leaf ×10 | 40 | 71.89 | 55.8 | 47.9 | 53.1 |
+| **leaf ×5** | **20** | 71.89 | **55.8** | 47.9 | **26.6** |
+| gore | 15 | 71.89 | 79.7 | 47.9 | 79.7 |
 
-`cover.gore_outline(data, count)` gives one gore as a flat pattern:
+*floor* is area ÷ roll width: the roll you would buy if fabric came in the
+shape you wanted.
+
+### Faceted — 6 pentagons and 10 triangles
+
+Half an icosidodecahedron, the solid whose equatorial decagons **are** the G
+family bows. So the panel side is the model's own `base_edge_chord`, which is
+`R / φ` exactly — no new constant anywhere.
+
+Every panel is flat, so it develops with no distortion at all, and it wraps
+less fabric than the others because it is the *inscribed* polyhedron: a
+different surface, not a like-for-like saving.
+
+The reference does not recommend it for weather — "too many parts and seams
+to sew leak-free" — and a narrow roll takes away its other advantage too: a
+D6 pentagon is 3300 mm across, so on 1500 mm fabric each one has to be pieced
+from three strips before you even start.
+
+### Leaf — the reference's choice, and the numbers agree
+
+5 or 10 leaves, each a gore spanning 72° or 36°. A leaf is far wider than any
+roll, so it is built from **horizontal lanes laid overlapping** — shingled,
+upper over lower — and rain sheds down the slope without the joint having to
+be watertight. One larger triangle at the base is the entry.
+
+Two things make it win:
+
+- **The lanes nest.** Each is very nearly a trapezoid; turn every other one
+  end for end and two share a rectangle, so each costs its *mean* width
+  instead of its widest. That is 55.8 m of roll against 66.9 unnested.
+- **Five leaves, not ten.** Same fabric, half the seams, half the pieces. Ten
+  only buys easier handling — a 3.9 m lane is a lot of cloth to move.
+
+Against one-piece gores that is **30% less roll and a third of the seam**, and
+the gap widens with size: on D10 it is 167 m against 211, and 44 m of seam
+against 211.
+
+### Gore — one piece each, and the price of it
+
+No horizontal joints at all, which is the clean-looking option. It costs:
+
+> **A gore fills exactly 2/π = 63.66% of its own bounding rectangle** — at any
+> radius, for any gore count.
+
+And no nesting recovers it. At the equator a gore is already the full width of
+its strip, so a flipped neighbour has nowhere to go; the nesting pitch comes
+out at exactly one gore length. Raising the count does not help either — it
+only leaves more of the roll's width unused, so the roll fill *falls*.
+
+`cover.gore_outline(data, count)` still gives one gore as a flat pattern:
 `(along, half_width)` from the pole, ready to mark out.
 
 ## What this does not do

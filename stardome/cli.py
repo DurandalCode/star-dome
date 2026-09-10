@@ -216,7 +216,16 @@ def cmd_cover(args) -> int:
                 name, args.config, skirt_height=float(args.skirt)
             )
         data = model.build(variant, weave_mode=args.weave_mode)
-        print(cover.format_analysis(data, roll_width_mm=args.roll))
+        if args.patterns:
+            print(cover.format_patterns(
+                data,
+                roll_width_mm=args.roll,
+                lap_mm=args.lap,
+                oversize=args.oversize,
+                price_per_m=args.price,
+            ))
+        else:
+            print(cover.format_analysis(data, roll_width_mm=args.roll))
     return 0
 
 
@@ -475,6 +484,30 @@ def build_parser() -> argparse.ArgumentParser:
                 type=float,
                 default=cover.DEFAULT_ROLL_WIDTH_MM,
                 help="fabric roll width, mm; sets the gore count",
+            )
+            p.add_argument(
+                "--patterns",
+                action="store_true",
+                help="compare the three cutting patterns instead of the areas",
+            )
+            p.add_argument(
+                "--price",
+                type=float,
+                default=None,
+                metavar="PER_M",
+                help="price per running metre of roll, to cost each pattern",
+            )
+            p.add_argument(
+                "--lap",
+                type=float,
+                default=cover.DEFAULT_LAP_MM,
+                help="overlap between horizontal lanes in a leaf, mm",
+            )
+            p.add_argument(
+                "--oversize",
+                type=float,
+                default=cover.DEFAULT_OVERSIZE,
+                help="fraction larger than the frame; Takekawa's figure is 0.10",
             )
         if name == "corridor":
             p.add_argument(
