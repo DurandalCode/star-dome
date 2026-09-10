@@ -36,8 +36,10 @@ import Part
 OVERHANG_LIMIT_DEG = 45.0
 NEGLIGIBLE_FACE_MM2 = 5.0
 
-# Mesh tolerances for the STL that goes to the slicer. 0.02 mm linear is well
-# under any FDM nozzle's resolution and lands around 1 MB.
+# Mesh tolerances for the STL that goes to the slicer. Shape.exportStl()
+# tessellates at a default fine enough to produce ~24 MB for a 48 mm part,
+# which is useless to a slicer; 0.02 mm linear is well under any FDM nozzle's
+# resolution and lands around 1 MB.
 LINEAR_DEFLECTION = 0.02
 ANGULAR_DEFLECTION = 0.5
 
