@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from stardome import config, model, rod, splice
+from stardome import config, geometry, model, rod, splice
 
 VARIANTS = sorted(config.load_all())
 
@@ -121,6 +121,46 @@ def test_a_whole_dome_of_them(built):
 
 
 # --- and it must miss the crossings ---------------------------------------
+def test_the_collision_is_with_the_thirds_marking_itself():
+    """Not bad luck: a third of 180 degrees is where U and L are marked.
+
+    Dividing a bow into three puts joints at the third points, and the
+    reference marks the U and L bows at exactly those points -- so the
+    crossings are there because the marks are there. Any section count that
+    is a multiple of three collides by definition.
+    """
+    data = model.build(config.load("D4"), weave_mode="layered")
+    on_bow = set()
+    for crossing in data["crossings"]:
+        for family_key, t_key in (("family_a", "t_a_deg"),
+                                  ("family_b", "t_b_deg")):
+            if crossing[family_key] in ("U", "L"):
+                on_bow.add(round(crossing[t_key], 6))
+
+    for mark in geometry.MARKS_THIRDS:
+        assert mark in on_bow
+
+    for count in (3, 6):
+        joints = {round(180.0 * i / count, 6) for i in range(1, count)}
+        assert set(geometry.MARKS_THIRDS) <= joints
+        assert not splice.joint_clearance(
+            data, limit_mm=180.0 / count * 0.99999
+        )["clears"]
+
+
+def test_divisible_by_three_or_five_hits_and_nothing_else_does():
+    """The rule, exactly: thirds mark U and L, fifths mark G."""
+    data = model.build(config.load("D4"), weave_mode="layered")
+    bow = rod.bows(data)["length_mm"]
+    for count in range(2, 15):
+        clear = splice.joint_clearance(
+            data, sleeve_length_mm=1.0, limit_mm=bow / count + 1e-9
+        )
+        assert clear["joints_per_bow"] == count - 1
+        collides = count % 3 == 0 or count % 5 == 0
+        assert (clear["closest_deg"] < 1e-6) is collides, count
+
+
 def test_the_transport_minimum_can_land_a_joint_on_a_crossing():
     """The finding. Dividing a bow into three puts joints at 60 and 120 deg,
     and the star has crossings at exactly 60 and 120."""

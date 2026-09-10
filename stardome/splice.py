@@ -266,9 +266,24 @@ def choose_sections(data: dict, sleeve_length_mm: float | None = None,
     """The fewest sections whose joints clear every crossing.
 
     The transport limit sets a MINIMUM count. It does not follow that the
-    minimum is usable: dividing a bow into three puts joints at 60 and 120
-    degrees, and the star has crossings at exactly 60 and 120. Half the
-    family lands a splice dead on a crossing that way.
+    minimum is usable, and the reason is not bad luck.
+
+    The U and L bows are **marked in thirds** -- that is the reference's own
+    rod-marking scheme, ``geometry.MARKS_THIRDS``, and a third of 180 degrees
+    is 60 and 120. The crossings sit on those marks, because sitting on the
+    marks is what the marks are for. Dividing a bow into three puts a joint
+    at the third points too. So the two constructions are the same
+    construction, and they collide by definition rather than by accident.
+
+    The same holds for G, which is marked in fifths. So the rule is exact:
+
+        **a section count divisible by 3 or by 5 lands joints dead on
+        crossings; any other count clears.**
+
+    3, 6, 9, 12 hit the thirds; 5 and 10 hit the fifths; 2, 4, 7, 8, 11, 13
+    are clean. The search below still runs, because clearing at all is not
+    the same as clearing by more than half a sleeve -- D12 needs to get past
+    8 and 11 on margin before 13 finally gives it room.
 
     So the count is searched upward from the transport minimum, and the first
     one that clears is the answer. It costs sections -- and a splice each --

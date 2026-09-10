@@ -65,6 +65,28 @@ Sections divide the bow evenly, so joints land at fixed fractions of its 180°.
 Three sections puts them at 60° and 120° — and the star has crossings at
 exactly 60° and 120°.
 
+**Not bad luck: the same construction twice.** The U and L bows are *marked in
+thirds* — that is the reference's own rod-marking scheme, `MARKS_THIRDS` in
+`geometry.py` — and a third of 180° is 60 and 120. The crossings sit on those
+marks because sitting on the marks is what the marks are for. Dividing a bow
+into three puts a joint at the third points too, so the two constructions are
+the same construction and collide by definition.
+
+Which means it is not one near miss but **twenty exact hits**: ten U and L
+bows, two joints each, dead centre. And it is not only three — any section
+count that is a multiple of three does it, which is why six fails as well.
+
+The G bows are marked in fifths (36, 72, 108, 144), so they collide with
+counts that are multiples of five. Which makes the rule exact:
+
+> **A section count divisible by 3 or by 5 lands joints dead on crossings.
+> Any other count clears.**
+
+3, 6, 9, 12 hit the thirds; 5 and 10 hit the fifths; 2, 4, 7, 8, 11, 13 are
+clean. Clearing at all is not the same as clearing by more than half a
+sleeve, though, which is why D12 has to get past 8 (0.26°, 27 mm) and 11
+(0.42°, 44 mm) before 13 gives it 88 mm and enough room.
+
 | | transport allows | joints clear? | use | cost |
 |---|---|---|---|---|
 | D3 | 2 | yes, 203 mm | 2 | — |
