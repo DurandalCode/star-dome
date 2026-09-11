@@ -29,14 +29,15 @@ TWO_ROD_CLAMP_CAPACITY = 2
 
 ANGLE_DP = 4
 
-# How long a splice sleeve has to be, in rod diameters.
+# How long a splice ferrule has to be, in rod diameters.
 #
 # A bow is bent everywhere -- to the dome radius, the whole way round -- so a
 # splice is not a butt joint with a collar over it: it is a sleeve that has to
-# carry that bending across itself. Too short and it is a hinge at the one
-# place a continuous member was carrying moment. Ten diameters is the working
-# assumption the geometry uses to keep splices clear of the crossings; the
-# generator owns the real number, and if it moves, this moves with it.
+# carry that bending across itself, five diameters of engagement each side of
+# the butt. Too short and it is a hinge at the one place a continuous member
+# was carrying moment. Ten diameters is the working assumption the geometry
+# uses to keep splices clear of the crossings; the generator owns the real
+# number, and if it moves, this moves with it.
 SPLICE_SLEEVE_DIAMETERS = 10.0
 
 # What still has to be *made*, against what merely has to be chosen.
@@ -319,18 +320,22 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "longest_section_mm": round(longest, 1),
                     "worst_move_mm": round(moved, 1),
                     "joints": joints,
-                    "generator": "rod_splice_v1",
+                    "generator": "rod_splice_v2",
                     "note": (
                         f"A bow is {meta['rod_length_nominal']:.0f} mm long and "
                         f"transports in {section:.0f} mm sections, so it is "
-                        "spliced along its length. The joint has to carry "
-                        "bending, because the bow is bent everywhere -- to "
-                        f"{meta['dome_radius']:.0f} mm radius, which is the "
-                        "radius the sleeve has to be drawn on too. Joints "
-                        "sit at the even division of each bow where that "
-                        "clears the crossings and up to "
-                        f"{moved:.0f} mm off it where it does not; longest "
-                        f"section {longest:.0f} mm, tightest crossing "
+                        "spliced along its length. A ferrule: the sections "
+                        "slide in from the ends, the way a tent pole joins, "
+                        "because a splice is the one joint here that never "
+                        "has to close around anything. The joint still has to "
+                        "carry bending, and the bow is bent to "
+                        f"{meta['dome_radius']:.0f} mm radius afterwards, so "
+                        "the ferrule's middle is relieved rather than "
+                        "close-fitting -- it bears at its two ends and lets "
+                        "the bow curve through it. Joints sit at the even "
+                        "division of each bow where that clears the crossings "
+                        f"and up to {moved:.0f} mm off it where it does not; "
+                        f"longest section {longest:.0f} mm, tightest crossing "
                         f"clearance {clear:.0f} mm."
                     ),
                 }

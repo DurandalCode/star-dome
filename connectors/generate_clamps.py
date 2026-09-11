@@ -78,7 +78,7 @@ def load_clamp_module():
 FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
 BASE_SOURCE = os.path.join(REPO, "connectors", "base_hub_v1.py")
 TERM_SOURCE = os.path.join(REPO, "connectors", "term_clamp_v1.py")
-SPLICE_SOURCE = os.path.join(REPO, "connectors", "rod_splice_v1.py")
+SPLICE_SOURCE = os.path.join(REPO, "connectors", "rod_splice_v2.py")
 LOADED = {}
 
 
@@ -170,6 +170,32 @@ def export_solid(shape, stem):
     return kit.export_solid(shape, stem, OUT_DIR)
 
 
+def clear_exports(part_id):
+    """Delete what a previous run wrote for this part, before writing again.
+
+    A part's pieces are named by the generator, and a generator can rename
+    them: the splice went from a two-piece clamp -- BottomSleeve and TopSleeve
+    -- to a one-piece ferrule. Nothing removed the old pair, and the scene
+    builder, which takes every ``<part id>_*.stl`` it finds, went on placing a
+    part that no longer exists, in a shape nobody had drawn for two versions.
+
+    So the output for a part is rebuilt rather than added to. Only files that
+    start with this part's id are touched; everything else in the directory is
+    another part's business.
+    """
+    if not os.path.isdir(OUT_DIR):
+        return []
+    gone = []
+    for name in sorted(os.listdir(OUT_DIR)):
+        if not (name.startswith(part_id + "_") or name.startswith(part_id + ".")):
+            continue
+        if not name.endswith((".step", ".stl", ".FCStd", ".FCBak")):
+            continue
+        os.remove(os.path.join(OUT_DIR, name))
+        gone.append(name)
+    return gone
+
+
 def run():
     if not os.path.isdir(OUT_DIR):
         os.makedirs(OUT_DIR)
@@ -180,6 +206,10 @@ def run():
 
     for part in sched["parts"]:
         generator = part.get("generator")
+        if generator:
+            stale = clear_exports(part["id"])
+            if stale:
+                report.setdefault("replaced", {})[part["id"]] = stale
 
         if generator == "base_hub_v1":
             base, geo, dims, values = build_base(part)
@@ -236,13 +266,13 @@ def run():
             )
             continue
 
-        if generator == "rod_splice_v1":
+        if generator == "rod_splice_v2":
             splice = load_module(SPLICE_SOURCE)
             values = {alias: value for (alias, value, _u, _n) in splice["INPUTS"]}
             values["rodDiameter"] = float(part["rod_diameter"])
-            # The bow is bent to the dome radius, so that is the radius the
-            # sleeve is drawn on. It comes from the model, like every other
-            # number here -- see docs/architecture.md.
+            # The ferrule is straight -- the section is straight when it goes
+            # on -- but the bow is bent to the dome radius afterwards, and that
+            # is what decides how much the middle has to be relieved by.
             values["bendRadius"] = float(part["bend_radius"])
             values["sleeveLength"] = float(part["sleeve_length"])
             geo, dims = splice["build"](values)
@@ -258,9 +288,11 @@ def run():
             doc.saveAs(fcstd)
             checks = splice["verify"](geo, dims, values)
 
-            files, facets = export_pair(
-                geo["bottom"], geo["cap"], part["id"], "_BottomSleeve", "_TopSleeve"
+            step_path, stl_path, facet_count = export_solid(
+                geo["body"], part["id"] + "_Ferrule"
             )
+            files = [step_path, stl_path]
+            facets = {"Ferrule": facet_count}
             report["built"].append(
                 {
                     "id": part["id"],

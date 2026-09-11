@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Star Dome rod splice, prototype V1.
+Star Dome rod splice, prototype V1 -- SUPERSEDED, kept as a record.
+
+**`rod_splice_v2.py` is the part.** This one is a two-piece bolted clamp, and
+that was the crossing clamp's architecture copied into a joint that does not
+need it: a clamp has bolts beside the rod because two rods cross there and
+nothing can sit on the axis, and a splice has one rod. The copy came out
+48.4 mm wide on a 10 mm rod -- 78.8 cm3 and four M5 bolts each, which is
+3.5 litres of plastic and 180 bolts per dome against V2's 0.8 litres and none.
+
+Frozen rather than deleted, the same way `fan_node_v1.py` is: the reasoning
+below about bending, sleeve length and joints missing the crossings is still
+the reasoning V2 uses, and one thing here is worth keeping in sight -- this
+part is drawn CURVED, on the dome radius, because a clamp closes around a rod
+that is already bent. V2 is straight because it slides onto a section that is
+still straight. If the assembly sequence ever changes, that is the paragraph
+to re-read.
+
+---
 
 A bow is a semicircle 9.4 m long on M and it travels in 2400 mm sections, so it
 is joined along its length -- 45 times per dome, which makes this the most

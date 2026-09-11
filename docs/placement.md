@@ -139,6 +139,10 @@ looks identical to right.
 - **Two joints have no answer at all from geometry.** `TERM` puts load along
   a rod into a 5 mm printed wall, and `SPLICE` has to carry bending across a
   butt joint. Both are test-rig questions.
+- **The ferrule is the wrong thing to print.** Upright its layers lie across
+  the axis, which is the plane a bending joint opens; lying down its bore
+  needs support. 45 of them is 4.5 m of Ø18×4 tube, and the schedule already
+  has a state for parts that are bought rather than drawn.
 - **The stake.** Ten per dome, still a size to choose.
 - **`max_diameter_woven`** — and so the cover area — is still taken from the
   `layered` offsets, which now overstate the real weave by a factor of five.

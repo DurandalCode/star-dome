@@ -260,7 +260,7 @@ def test_splices_are_the_largest_part_count_on_any_real_size(sched):
     worth getting right before any of the others.
     """
     splice = _part(sched, "rod_splice")
-    assert splice["generator"] == "rod_splice_v1"
+    assert splice["generator"] == "rod_splice_v2"
     # The sleeve is drawn on the dome radius, because the bow is bent to it
     # everywhere; a splice does not get a straight piece of rod to sit on.
     assert splice["bend_radius"] == sched_radius(sched)
@@ -487,3 +487,47 @@ def test_the_four_rod_fan_never_has_to_be_turned_over():
     feet = [p for p in sched["placements"] if p["kind"] == "base_hub"]
     turned = sum(1 for f in feet if f["turned_over"])
     assert turned == 5, "the base hubs are two mirror sets of five"
+
+
+def test_the_splice_is_a_ferrule_and_not_a_clamp():
+    """A splice joins two sections, and before assembly those are two objects.
+
+    So it is the one joint in the dome that never has to close around
+    anything: the sections slide in from the ends, the way a tent pole joins.
+    V1 was the crossing clamp's two-piece bolted architecture copied into a
+    place that does not need it -- the clamp has bolts beside the rod because
+    two rods cross there and nothing can sit on the axis -- and it cost
+    48.4 mm of width on a 10 mm rod.
+
+    This does not check the solid, which needs FreeCAD. It checks that the
+    schedule still describes the joint the ferrule was drawn for: one rod, a
+    known bend radius to relieve the middle against, and a sleeve long enough
+    not to be a hinge.
+    """
+    from stardome import connectors
+
+    sched = connectors.schedule(_woven("M"))
+    splice = _part(sched, "rod_splice")
+    assert splice["generator"] == "rod_splice_v2"
+    assert splice["members"] == 2
+    assert splice["sleeve_length"] == connectors.SPLICE_SLEEVE_DIAMETERS * 10.0
+    assert splice["bend_radius"] == 3000.0
+    # Five rod diameters of engagement each side of the butt.
+    assert splice["sleeve_length"] / 2.0 / 10.0 == 5.0
+
+
+def test_no_splice_lands_on_a_crossing():
+    """A sleeve on a crossing cannot be clamped and cannot be woven past, and
+    the crossing already carries a part of its own. So every joint clears the
+    nearest crossing by at least the sleeve's own length."""
+    from stardome import connectors
+
+    for name in ("S", "M", "L", "XL"):
+        sched = connectors.schedule(_woven(name))
+        splice = _part(sched, "rod_splice")
+        sleeve = splice["sleeve_length"]
+        assert splice["joints"]
+        for joint in splice["joints"]:
+            assert joint["clear_of_crossing_mm"] >= sleeve - 1e-6, (
+                name, joint["rod"], joint["clear_of_crossing_mm"], sleeve
+            )
