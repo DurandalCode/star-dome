@@ -69,14 +69,27 @@ class Crossing:
     node: int = -1
     tied: int = 0
     type_index: int = -1
+    # Where each rod sits radially AT THIS CROSSING. Under the constant-offset
+    # modes these are the rod's one offset; under ``woven`` they are its route
+    # sampled here, and the same rod is above at one crossing and below at the
+    # next. That is the whole point of a weave.
+    offset_a: float = 0.0
+    offset_b: float = 0.0
+
+    def _outer_is_a(self) -> bool:
+        if abs(self.offset_a - self.offset_b) > 1e-9:
+            return self.offset_a > self.offset_b
+        # Flat mode has no separation to read, so the drawing layer decides
+        # and the answer stays the one it always gave.
+        return self.bow_a.layer > self.bow_b.layer
 
     @property
     def rod_above(self) -> str:
-        return self.bow_a.name if self.bow_a.layer > self.bow_b.layer else self.bow_b.name
+        return self.bow_a.name if self._outer_is_a() else self.bow_b.name
 
     @property
     def rod_below(self) -> str:
-        return self.bow_b.name if self.bow_a.layer > self.bow_b.layer else self.bow_a.name
+        return self.bow_b.name if self._outer_is_a() else self.bow_a.name
 
     def signature(self) -> tuple:
         """A D5 invariant: equal signatures mean geometrically identical crossings.
@@ -98,6 +111,9 @@ class Crossing:
         )
 
 
+WEAVE_MODES = ("flat", "layered", "woven")
+
+
 def _radial_offsets(bows: list, rod_diameter: float, weave_mode: str, weave_gap: float) -> dict:
     """Per-rod radial offset from the nominal sphere.
 
@@ -105,11 +121,19 @@ def _radial_offsets(bows: list, rod_diameter: float, weave_mode: str, weave_gap:
     to use for measurement and for exported coordinates. ``layered`` gives
     each bow its own shell so that crossings read as clean over/under; it is
     a drawing convention only.
+
+    ``woven`` has no per-rod constant to return, because a rod's offset
+    changes along its own length -- that is what makes it a weave rather than
+    a stack of shells. It comes back as zero here and arrives instead as the
+    ``offset_fn`` that ``crossings`` and the model builder take, solved by
+    ``weave.global_profile``.
     """
-    if weave_mode == "flat":
+    if weave_mode in ("flat", "woven"):
         return {b.name: 0.0 for b in bows}
     if weave_mode != "layered":
-        raise ValueError(f"unknown weave_mode {weave_mode!r} -- use 'flat' or 'layered'")
+        raise ValueError(
+            f"unknown weave_mode {weave_mode!r} -- use one of {WEAVE_MODES}"
+        )
     mid = (len(bows) - 1) / 2.0
     return {b.name: (b.layer - mid) * weave_gap * rod_diameter for b in bows}
 
@@ -120,6 +144,7 @@ def crossings(
     rod_diameter: float = 0.0,
     weave_mode: str = "flat",
     weave_gap: float = 1.0,
+    offset_fn=None,
 ) -> list:
     """Every rod-to-rod crossing above the ground plane.
 
@@ -131,8 +156,16 @@ def crossings(
 
     ``rod_diameter``, ``weave_mode`` and ``weave_gap`` affect only the
     reported radial gap, never the coordinates.
+
+    ``offset_fn(rod_name, t)`` overrides the per-rod constant where the offset
+    varies along the rod, which is the ``woven`` mode. It cannot be worked out
+    here: the route is solved from the crossings, so it is handed back in on a
+    second pass.
     """
     offsets = _radial_offsets(bows, rod_diameter, weave_mode, weave_gap)
+    if offset_fn is None:
+        def offset_fn(name, t, _o=offsets):
+            return _o[name]
     out = []
     for i in range(len(bows)):
         for j in range(i + 1, len(bows)):
@@ -145,6 +178,7 @@ def crossings(
                 p = vec.neg(p)
             t_a, t_b = a.t_of(p), b.t_of(p)
             tan_a, tan_b = a.tangent(t_a), b.tangent(t_b)
+            off_a, off_b = offset_fn(a.name, t_a), offset_fn(b.name, t_b)
             out.append(
                 Crossing(
                     index=len(out),
@@ -158,7 +192,9 @@ def crossings(
                     angle=vec.crossing_angle(tan_a, tan_b),
                     incl_a=math.degrees(math.asin(min(1.0, abs(tan_a[2])))),
                     incl_b=math.degrees(math.asin(min(1.0, abs(tan_b[2])))),
-                    radial_gap=abs(offsets[a.name] - offsets[b.name]),
+                    radial_gap=abs(off_a - off_b),
+                    offset_a=off_a,
+                    offset_b=off_b,
                 )
             )
     return out

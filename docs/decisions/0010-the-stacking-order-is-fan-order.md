@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-09-09
-- **Where it lives:** `stardome/weave.py` (`STACK_ORDER`), `docs/tied-node.md`
+- **Where it lives:** `stardome/weave.py` (`STACK_ORDER`, `node_fan_in_part_order`), `docs/tied-node.md`
 
 ## The decision
 
@@ -41,6 +41,15 @@ generally different on each side, so a channel drilled exactly on the tangent wi
 pre-stress it. `tiltAllowance` in the generators exists for this.
 
 This decision is also where almost all of the assembly cost comes from. It orients 60 of
-the 90 weave arcs before any routing happens, and those 60 alone force 20 of the 21
+the 90 weave arcs before any routing happens, and those 60 alone force 18 of the 20
 threadings the build needs — see `docs/assembly.md`. If a cheaper build is ever wanted,
 this is the decision to reopen.
+
+**Where the fan is cut matters as much as the order.** "Fan order" needs a first arm, and
+a fan closes on itself, so one of its four gaps is never a contact. The part spends that
+on the widest, 63.4349°, which is what leaves the three contacts above. Starting instead
+at the arm with the smallest angle -- which is what sorting by angle does -- puts the
+widest gap in the middle of the stack at the five LOWER nodes and asks for contacts
+37.3774, 63.4349, 37.3774 there: a second part, at ten nodes this decision describes as
+one. `weave.node_fan_in_part_order` cuts at the widest gap, and
+`tests/test_weave.py` checks that all ten nodes come out with the same three contacts.

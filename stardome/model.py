@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 
-from . import SCHEMA_VERSION, __version__, geometry, topology
+from . import SCHEMA_VERSION, __version__, geometry, topology, weave
 from .config import Variant
 
 SCHEMA = f"star_dome_geometry/{SCHEMA_VERSION}"
@@ -261,9 +261,33 @@ def build(
     ``weave_mode="flat"`` puts every centreline on the nominal sphere and is
     the basis for all exported coordinates. ``"layered"`` only changes the
     reported per-rod offsets and radial gaps.
+
+    ``"woven"`` is neither a measurement basis nor a drawing convention: it is
+    the route the rods actually take, solved by ``weave.global_profile`` so
+    that no two rods share space at any of the 90 crossings. It is the mode to
+    build a scene in when connectors go on the rods, because a connector's
+    stack is only ten millimetres tall and ``layered`` spreads the same
+    crossing over a hundred and forty.
+
+    The route is solved FROM the crossings, so it cannot be known before they
+    exist: the woven build computes a flat one first and then lays the answer
+    back over it. That costs one extra pass and nothing else -- the solver
+    converges in a few dozen iterations.
     """
     radius = variant.radius
     bows = geometry.build_bows()
+
+    offset_fn = None
+    profile = None
+    if weave_mode == "woven":
+        profile = weave.global_profile(build(variant, weave_mode="flat"))
+        if not profile["feasible"]:
+            raise ValueError(
+                "no woven route clears every crossing for "
+                f"{variant.name}: {len(profile['violations'])} violations, "
+                f"tightest {profile['tightest_separation_mm']} mm"
+            )
+        offset_fn = weave.route_sampler(profile)
 
     xs = topology.crossings(
         bows,
@@ -271,6 +295,7 @@ def build(
         rod_diameter=variant.rod_diameter,
         weave_mode=weave_mode,
         weave_gap=variant.weave_gap,
+        offset_fn=offset_fn,
     )
     node_points = topology.nodes(xs)
     topology.assign_nodes(xs, node_points)
@@ -283,6 +308,13 @@ def build(
     rods = []
     for b in bows:
         drawn_radius = radius + offsets[b.name]
+        route = profile["routes"].get(b.name, []) if profile else []
+        if profile:
+            # A woven rod has no single drawn radius, so the reported length
+            # is the length of the route it actually takes.
+            drawn_radius = radius + sum(
+                offset_fn(b.name, t) for t in (0.0, 45.0, 90.0, 135.0, 180.0)
+            ) / 5.0
         marks = b.tie_marks_deg()
         rod = {
             "number": b.number,
@@ -296,14 +328,37 @@ def build(
             "length_drawn": _r(math.pi * drawn_radius),
             "layer": b.layer,
             "radial_offset": _r(offsets[b.name]),
+            **(
+                {
+                    "radial_profile": [
+                        [_r(stop["t_deg"]), _r(stop["offset_mm"])]
+                        for stop in route
+                    ],
+                    "radial_band": [
+                        _r(min(stop["offset_mm"] for stop in route)),
+                        _r(max(stop["offset_mm"] for stop in route)),
+                    ],
+                }
+                if route
+                else {}
+            ),
             "tie_marks_deg": [_r(m) for m in marks],
             "tie_marks_mm": [_r(radius * math.radians(m)) for m in marks],
         }
         if include_polylines:
-            rod["points"] = [
-                [_r(c) for c in p]
-                for p in b.polyline(drawn_radius, variant.rod_segments)
-            ]
+            if offset_fn is None:
+                pts = b.polyline(drawn_radius, variant.rod_segments)
+            else:
+                # Sample evenly, but put a vertex on every crossing the route
+                # turns at. Without them the kinks land wherever the even
+                # sampling happened to fall and a rod leaves its own connector.
+                step = 180.0 / variant.rod_segments
+                ts = {_r(i * step) for i in range(variant.rod_segments + 1)}
+                ts.update(_r(stop["t_deg"]) for stop in route)
+                pts = [
+                    b.point(t, radius + offset_fn(b.name, t)) for t in sorted(ts)
+                ]
+            rod["points"] = [[_r(c) for c in p] for p in pts]
         rods.append(rod)
 
     base_pts = geometry.base_points(radius)

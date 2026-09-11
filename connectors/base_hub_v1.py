@@ -106,6 +106,16 @@ DEFAULT_FAN_GAPS = [41.810315, 37.377368]
 
 PLATE_NAMES = ["Bottom", "Mid1", "Mid2", "Cap"]
 
+
+def plate_names(arm_count):
+    """One plate above each rod and one below the lot: arms + 1 pieces.
+
+    A doorway jamb gathers two bow ends instead of three, so it is the same
+    stack a plate shorter. Naming them by position rather than by number keeps
+    a Bottom and a Cap in both.
+    """
+    return ["Bottom"] + [f"Mid{i}" for i in range(1, arm_count)] + ["Cap"]
+
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
@@ -258,9 +268,11 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
 
 def build(values, fan_gaps=None):
     gaps = list(fan_gaps or DEFAULT_FAN_GAPS)
-    if len(gaps) != 2:
+    if not 1 <= len(gaps) <= 2:
         raise ValueError(
-            f"a three-arm fan has two gaps, got {len(gaps)}: {gaps}"
+            f"a base fan has one gap or two, got {len(gaps)}: {gaps}. "
+            "Three bow ends at a plain foot, two where a doorway cut took "
+            "one away; anything else is a different joint."
         )
     azimuths = kit.azimuths_from_gaps(gaps, values["firstArmRise"])
 
@@ -333,8 +345,9 @@ def build(values, fan_gaps=None):
     reach_back = hub_r
     tilt_slack = (length / 2.0) * math.tan(math.radians(values["tiltAllowance"]))
 
+    arm_count = len(azimuths)
     pitch = rod_d + values["rodGap"]
-    levels = [(k - 1.0) * pitch for k in range(3)]
+    levels = [(k - (arm_count - 1) / 2.0) * pitch for k in range(arm_count)]
 
     # The angle passes right through, and it cannot go through the middle: its
     # section is 30 mm deep along the stack axis whatever way it is rolled,
@@ -350,7 +363,7 @@ def build(values, fan_gaps=None):
     slot_top = levels[0] - channel_r - tilt_slack - wall
     slot_bottom = slot_top - slot_span
     z_bottom = slot_bottom - values["baseFloor"]
-    z_top = levels[2] + channel_r + tilt_slack + values["capThickness"]
+    z_top = levels[-1] + channel_r + tilt_slack + values["capThickness"]
 
     bolt_points = [
         App.Vector(
@@ -367,21 +380,21 @@ def build(values, fan_gaps=None):
     ref_len = max(length, values["refRodLength"])
     rods = [
         kit.rod_from_hub(rod_d / 2.0, ref_len, azimuths[k], levels[k], reach_back)
-        for k in range(3)
+        for k in range(arm_count)
     ]
     channels = [
         rod_channel(
             channel_r, length, azimuths[k], levels[k],
             values["tiltAllowance"], reach_back,
         )
-        for k in range(3)
+        for k in range(arm_count)
     ]
 
     # A cross pin per arm, through the arm's width and the rod with it. With a
     # slide fit the channel no longer grips anything, and a bow end that is
     # merely located can walk out of its own accord.
     pins = []
-    for k in range(3):
+    for k in range(arm_count):
         along = kit.direction(azimuths[k]).multiply(values["rodPinAt"])
         across = kit.direction(azimuths[k] + 90.0)
         span = arm_w + 8.0
@@ -444,10 +457,11 @@ def build(values, fan_gaps=None):
         cross_dir,
     )
 
+    names = plate_names(arm_count)
     plates = []
-    for i in range(4):
+    for i in range(len(names)):
         z_lo = z_bottom if i == 0 else levels[i - 1]
-        z_hi = z_top if i == 3 else levels[i]
+        z_hi = z_top if i == len(names) - 1 else levels[i]
         blank = plate_blank(
             hub_r, arm_len, arm_w, boss_r, z_lo, z_hi,
             azimuths, stake_azimuth, stake_reach, bolt_points,
@@ -463,7 +477,7 @@ def build(values, fan_gaps=None):
         solid = solid.cut(cross)
         solid = solid.removeSplitter()
         if not kit.has_volume(solid):
-            raise RuntimeError(f"plate {PLATE_NAMES[i]} came out invalid")
+            raise RuntimeError(f"plate {names[i]} came out invalid")
         plates.append(solid)
 
     # The angle itself, drawn: mostly in the ground, and the reason the empty
@@ -496,11 +510,12 @@ def build(values, fan_gaps=None):
             App.Vector(0.0, 0.0, levels[k]),
             kit.direction(azimuths[k]),
         )
-        for k in range(3)
+        for k in range(arm_count)
     ]
 
     geo = {
         "plates": plates,
+        "names": names,
         "rods": rods,
         "channels": channels,
         "keepouts": keepouts,
@@ -558,13 +573,13 @@ def verify(geo, dims, values):
     problems = []
     plates = geo["plates"]
 
-    for name, plate in zip(PLATE_NAMES, plates):
+    for name, plate in zip(geo["names"], plates):
         if not kit.has_volume(plate):
             problems.append(f"{name}: not a valid solid")
 
     # No plate may eat into a rod.
     interference = 0.0
-    for name, plate in zip(PLATE_NAMES, plates):
+    for name, plate in zip(geo["names"], plates):
         for i, rod in enumerate(geo["rods"]):
             common = plate.common(rod)
             v = kit.vol(common)
@@ -612,7 +627,7 @@ def verify(geo, dims, values):
 
     # And the plates must not eat into it either.
     if geo.get("stake") is not None:
-        for name, plate in zip(PLATE_NAMES, plates):
+        for name, plate in zip(geo["names"], plates):
             v = kit.vol(plate.common(geo["stake"]))
             if v > 0.5:
                 problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
@@ -620,7 +635,7 @@ def verify(geo, dims, values):
     # Every bolt has to pass through material, in every plate. Cutting a hole
     # through open air leaves the stack with nothing holding it together, and
     # it looks exactly the same in a render.
-    for name, plate in zip(PLATE_NAMES, plates):
+    for name, plate in zip(geo["names"], plates):
         for i, probe in enumerate(geo.get("bolt_probes", [])):
             v = kit.vol(plate.common(probe))
             if v < 1.0:
@@ -657,7 +672,7 @@ def verify(geo, dims, values):
     # with its upward channel up. Same convention as the four-rod node.
     printability = {
         name: kit.printability(plate, flipped=(name == "Cap"))
-        for name, plate in zip(PLATE_NAMES, plates)
+        for name, plate in zip(geo["names"], plates)
     }
 
     return {
@@ -745,7 +760,7 @@ def populate(doc, geo):
         if obj.TypeId == "Spreadsheet::Sheet":
             continue
         doc.removeObject(obj.Name)
-    for name, solid in zip(PLATE_NAMES, geo["plates"]):
+    for name, solid in zip(geo["names"], geo["plates"]):
         obj = doc.addObject("Part::Feature", f"Plate_{name}")
         obj.Shape = solid
     for i, rod in enumerate(geo["rods"]):

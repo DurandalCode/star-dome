@@ -16,7 +16,7 @@ figures, and how the scene is laid out.
 import math
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 MM = 0.001  # model units (mm) -> Blender units (m)
 
@@ -135,3 +135,80 @@ def segment(name, a, b, radius_m, material, collection, place, lift=0.0):
     obj.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
     obj.data.materials.append(material)
     return move_to(obj, collection)
+
+
+def import_stl(path):
+    """Load one STL and return its object, or None if the file is not there.
+
+    Blender 4.2 replaced ``import_mesh.stl`` with ``wm.stl_import`` and the old
+    name is gone in 5.x, so both are tried. The file arrives in millimetres,
+    which is what every generator in this project writes, and the object is
+    left at millimetre scale: the caller places it with a matrix that carries
+    the mm -> m conversion, so scaling twice is the mistake to avoid here.
+    """
+    import os
+
+    if not os.path.exists(path):
+        return None
+    before = set(bpy.data.objects)
+    if hasattr(bpy.ops.wm, "stl_import"):
+        bpy.ops.wm.stl_import(filepath=path, global_scale=1.0)
+    else:  # pragma: no cover - Blender 4.1 and earlier
+        bpy.ops.import_mesh.stl(filepath=path, global_scale=1.0)
+    fresh = [o for o in bpy.data.objects if o not in before]
+    if not fresh:
+        return None
+    if len(fresh) > 1:
+        # One solid per file is what export_solid writes; anything else means
+        # the file is not what this thinks it is.
+        raise RuntimeError(f"{path} holds {len(fresh)} objects, expected 1")
+    return fresh[0]
+
+
+def place_instance(name, mesh, origin_mm, basis, collection,
+                   lift=0.0, place=None):
+    """One connector, sharing its mesh with every other copy of the same part.
+
+    A dome carries 107 connectors and several hundred printed pieces, so each
+    piece is imported once and every instance after that is a new object over
+    the SAME mesh data. Blender treats that as one mesh with many transforms,
+    which is the difference between a scene that opens and one that does not.
+
+    ``basis`` maps the part's own axes onto the dome, as the connector
+    schedule derived them: rows are where local +X, +Y and +Z point. The
+    matrix is built by columns because that is what transforms a local vector.
+
+    Colour rides on the mesh, not the object, because the mesh is the shared
+    thing: one material per printed piece, set once when it is imported.
+    """
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+
+    ex, ey, ez = (Vector(row) for row in basis)
+    x, y = (place(origin_mm[0], origin_mm[1]) if place
+            else (origin_mm[0] * MM, origin_mm[1] * MM))
+    obj.matrix_world = Matrix((
+        (ex.x * MM, ey.x * MM, ez.x * MM, x),
+        (ex.y * MM, ey.y * MM, ez.y * MM, y),
+        (ex.z * MM, ey.z * MM, ez.z * MM, origin_mm[2] * MM + lift),
+        (0.0, 0.0, 0.0, 1.0),
+    ))
+    return obj
+
+
+def mirror_mesh(mesh, name):
+    """A mesh reflected in its own XZ plane: the other hand of a chiral part.
+
+    The two-rod clamp is handed -- its cap goes outside, over the rod that
+    runs outside, so it cannot be turned over to make the angles agree -- and
+    the dome needs both. Reflecting the mesh keeps the placement a rotation,
+    which is what lets every instance share one transform convention.
+    """
+    copy = mesh.copy()
+    copy.name = name
+    for vertex in copy.vertices:
+        vertex.co.y = -vertex.co.y
+    for polygon in copy.polygons:
+        polygon.flip()
+    copy.update()
+    return copy
