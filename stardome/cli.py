@@ -27,6 +27,7 @@ from . import (
     interior,
     model,
     tolerance,
+    topology,
     verify,
     weave,
 )
@@ -95,10 +96,21 @@ def cmd_snapshot(args) -> int:
 def cmd_connectors(args) -> int:
     for name in _variant_names(args):
         variant = config.load(name, args.config)
-        data = model.build(variant, weave_mode=args.weave_mode)
+        # The schedule is about parts, and a part sits on the rods as woven,
+        # not on the nominal sphere. Where each one goes and which way up it
+        # faces cannot be answered without the route, so the schedule is
+        # always built on it whatever mode the rest of the run asked for.
+        data = model.build(variant, weave_mode="woven")
         sched = connectors.schedule(data)
         if args.json:
-            path = Path(args.out) / f"star_dome_{name.lower()}_connectors.json"
+            # Filed under the geometry's name, not the alias the user typed,
+            # so the schedule lands beside the model.json it belongs to --
+            # `stardome connectors M` and `stardome build D6` write a matching
+            # pair, which is what every consumer downstream assumes.
+            path = (
+                Path(args.out)
+                / f"star_dome_{variant.name.lower()}_connectors.json"
+            )
             export.write_json(sched, path)
             print(f"{name}: {path}")
         else:
@@ -322,8 +334,11 @@ def build_parser() -> argparse.ArgumentParser:
             "--weave-mode",
             dest="weave_mode",
             default="flat",
-            choices=("flat", "layered"),
-            help="flat (default) for measurement; layered is a drawing convention",
+            choices=topology.WEAVE_MODES,
+            help=(
+                "flat (default) for measurement; layered is a drawing "
+                "convention; woven is the solved route the connectors sit on"
+            ),
         )
         if name == "build":
             p.add_argument("-o", "--out", default="exports/model", type=Path)

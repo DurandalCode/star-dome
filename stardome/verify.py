@@ -79,6 +79,36 @@ def check(data: dict) -> list:
             f"base point {b['name']} has families {families}, expected one of each",
         )
 
+    # --- the woven route is a build, not a drawing ---------------------------
+    #
+    # ``layered`` puts each bow on its own shell and spreads a crossing over
+    # fourteen rod diameters, which reads well and is not what gets built.
+    # ``woven`` claims to be the route the rods take, so it has to survive the
+    # only test that matters: no two rods sharing space anywhere, and the
+    # whole weave inside the radial room a connector stack actually has.
+    if meta.get("weave_mode") == "woven":
+        rod_d = meta["rod_diameter"]
+        tight = [
+            c for c in data["crossings"] if c["radial_gap"] < rod_d - 1e-6
+        ]
+        want(
+            not tight,
+            f"{len(tight)} woven crossings are closer than one rod diameter "
+            f"({rod_d} mm); the rods would share space at "
+            + ", ".join(sorted({c["node"] for c in tight})[:5]),
+        )
+        band = max(
+            (abs(v) for r in data["rods"] for _t, v in r.get("radial_profile", [])),
+            default=0.0,
+        )
+        stack = 1.5 * rod_d
+        want(
+            band <= stack + TOL,
+            f"the woven route swings {band} mm off the nominal sphere but a "
+            f"four-rod stack is only {stack} mm half-height; the weave would "
+            "not fit the connector that holds it",
+        )
+
     # --- tied nodes join four rods ------------------------------------------
     tied_nodes = [n for n in data["nodes"] if n["rod_count"] == 4]
     untied_nodes = [n for n in data["nodes"] if n["rod_count"] == 2]

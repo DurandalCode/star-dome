@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interiors covers corridors clamps blender site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interiors covers corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -31,6 +31,7 @@ help:
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
+	@echo "make fitted     the same dome with every connector fitted (V=M)"
 	@echo "make site       one scene with every variant side by side, at 1:1"
 	@echo "make check      verify + test; run this before claiming anything works"
 	@echo "make scad       regenerate the OpenSCAD reference export for parity tests"
@@ -110,7 +111,7 @@ corridors:
 
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
-	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(V)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
+	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(v)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
 
 # Build the 1:1 Blender scene. Layered weave and polylines are required: in
 # flat mode every crossing has two rods in the same place, which makes a
@@ -120,7 +121,11 @@ BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 # broken scene script leaves the previous render in place, looking current.
 BLENDER_RUN = $(BLENDER) --background --factory-startup --python-exit-code 1
 V ?= D6
-v = $(shell echo $(V) | tr A-Z a-z)
+# S, M, L and XL are aliases; the geometry is filed under D4, D6, D8 and D10,
+# and so are every model.json and schedule. Ask the model rather than lowering
+# the case of whatever was typed, or `make fitted V=M` looks for d6 under the
+# name m and finds nothing.
+v = $(shell $(PYTHON) -c "from stardome import config; print(config.resolve('$(V)').lower())")
 
 blender:
 	$(PYTHON) -m stardome build $(V) --polylines --corridor --weave-mode layered -o $(OUT)
@@ -128,6 +133,28 @@ blender:
 		--model $(OUT)/star_dome_$(v).json \
 		--out exports/blender/star_dome_$(v).blend \
 		--render exports/blender/star_dome_$(v).png
+
+# The dome with every connector fitted, at 1:1. Three things have to line up
+# for this to mean anything, and each is a separate command:
+#
+#   the model must be WOVEN -- layered spreads a crossing over 140 mm and a
+#     connector stack is 10, so a part drawn on it would float;
+#   the schedule must be regenerated, because it carries where each part goes
+#     and which way up, and that is derived from the weave;
+#   the parts must actually be built, or there is nothing to place.
+#
+# What no generator builds yet is blocked in, in red. 57 of M's 107 connectors
+# are still in that state and the picture says so.
+fitted:
+	$(PYTHON) -m stardome build $(V) --polylines --weave-mode woven -o $(OUT)
+	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
+	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(v)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
+	$(BLENDER_RUN) --python blender/build_scene.py -- \
+		--model $(OUT)/star_dome_$(v).json \
+		--connectors real --hide-cuts \
+		--out exports/blender/fitted_$(v).blend \
+		--render exports/blender/fitted_$(v).png \
+		--shots exports/shots
 
 venv:
 	$(PYTHON) -m venv $(VENV)

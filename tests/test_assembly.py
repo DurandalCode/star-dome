@@ -216,19 +216,19 @@ def test_assembly_cost_is_the_same_at_every_size(analysed):
     """The digraph comes from the topology and the stacking order, neither of
     which scales. A 3 m dome and a 12 m dome are the same build."""
     analysis = analysed
-    assert analysis["threadings"] == 21
-    assert analysis["forced_by_nodes"] == 20
-    assert analysis["worst_threadings"] == 69
+    assert analysis["threadings"] == 20
+    assert analysis["forced_by_nodes"] == 18
+    assert analysis["worst_threadings"] == 70
 
 
 def test_most_of_the_cost_is_forced_by_the_lashed_nodes(analysed):
     """The stack order orients 60 of the 90 arcs before any routing happens,
-    and those 60 alone already cost 20 of the 21."""
+    and those 60 alone already cost 18 of the 20."""
     analysis = analysed
     assert analysis["lashed_arcs"] == 60
     assert analysis["free_arcs"] == 30
     assert analysis["forced_by_nodes"] <= analysis["threadings"]
-    assert analysis["attributable_to_routing"] == 1
+    assert analysis["attributable_to_routing"] == 2
 
 
 def test_family_by_family_is_worse_than_the_optimum(analysed):
@@ -238,8 +238,8 @@ def test_family_by_family_is_worse_than_the_optimum(analysed):
     analysis = analysed
     blocked = analysis["family_blocked"]
     assert len(blocked) == 6
-    assert min(o["threadings"] for o in blocked) == 34
-    assert max(o["threadings"] for o in blocked) == 54
+    assert min(o["threadings"] for o in blocked) == 30
+    assert max(o["threadings"] for o in blocked) == 50
     assert blocked[0]["threadings"] > analysis["threadings"]
 
 

@@ -38,15 +38,18 @@ import os
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kit import (  # noqa: E402  -- needs the path set above
     MM,
+    import_stl,
     make_transparent,
     material as make_material,
+    mirror_mesh,
     move_to,
     new_collection,
+    place_instance,
     rod_runs,
     segment,
 )
@@ -67,6 +70,22 @@ GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)     # fabric: off-white, not a rod colour
 CORRIDOR_COLOUR = (0.62, 0.72, 0.58, 1.0)  # corridor hoops, distinct from dome rods
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
+
+# Printed parts, by what holds what. Deliberately away from the rod families:
+# the question a connector picture answers is "what is at this joint", and a
+# part the colour of the rod it grips answers nothing.
+PART_COLOUR = {
+    "four_rod_fan":   (0.93, 0.90, 0.86, 1.0),   # printed plastic, off-white
+    "two_rod_clamp":  (0.72, 0.74, 0.78, 1.0),   # cooler grey, and there are 30
+    "base_hub":       (0.55, 0.58, 0.62, 1.0),   # darker: it is on the ground
+    "cut_termination": (1.00, 0.78, 0.10, 1.0),  # doorway yellow, like the opening
+    "ground_stake":   (0.30, 0.31, 0.34, 1.0),   # steel, driven, not printed
+    "rod_splice":     (0.62, 0.72, 0.58, 1.0),
+}
+# A part with no generator is drawn as a block in the warning colour, the same
+# move the cut-away rod pieces use: a picture that quietly leaves out the 47
+# parts nobody has designed is a picture of a dome that does not exist.
+UNDESIGNED_COLOUR = (0.90, 0.10, 0.10, 1.0)
 
 # Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
 # stilts or in a frame, and whether that gets through the door is a question a
@@ -118,6 +137,27 @@ def parse_args(argv):
         help="draw the fabric cover; needs a model built with --polylines",
     )
     p.add_argument("--no-ground", action="store_true", help="omit the ground plane")
+    p.add_argument(
+        "--connectors",
+        choices=("none", "real", "proxy"),
+        default="none",
+        help=(
+            "put the connectors on the dome. 'real' imports the STL each "
+            "generator wrote into exports/connectors and stands it on its "
+            "rods; 'proxy' blocks in the ones nothing builds yet. Needs a "
+            "model built with --weave-mode woven."
+        ),
+    )
+    p.add_argument(
+        "--schedule",
+        default=None,
+        help="connector schedule JSON; defaults to the one beside --model",
+    )
+    p.add_argument(
+        "--connector-dir",
+        default=None,
+        help="where the built connector STLs are; defaults to exports/connectors",
+    )
     p.add_argument(
         "--untied-nodes",
         action="store_true",
@@ -442,6 +482,205 @@ def label_node(name, xyz_mm, size_m, material, collection, lift=0.0):
     return move_to(obj, collection)
 
 
+def load_schedule(args):
+    """The connector schedule that goes with this model, or a clear refusal."""
+    path = args.schedule
+    if path is None:
+        stem = os.path.splitext(args.model)[0]
+        path = f"{stem}_connectors.json"
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"no connector schedule at {path}\n"
+            "write one with:  python3 -m stardome connectors <variant> --json"
+        )
+    with open(path) as fh:
+        sched = json.load(fh)
+    if not sched.get("placements"):
+        raise SystemExit(
+            "the schedule has no placements.\n"
+            + (sched.get("placements_note") or "")
+        )
+    return sched
+
+
+def part_pieces(part_id, directory):
+    """Every printed piece of one part, in the order the generator wrote them.
+
+    A connector is not one solid: the fan is five plates, the base hub four,
+    the clamp a bottom and a cap. They are exported as separate STLs because
+    they are separate prints, and the scene wants all of them in place.
+
+    ``ref-`` files are reference rods and whole-node assemblies, drawn for
+    looking at inside FreeCAD. Importing them here would double every rod.
+    """
+    if not os.path.isdir(directory):
+        return []
+    prefix = f"{part_id}_"
+    names = [
+        f for f in sorted(os.listdir(directory))
+        if f.startswith(prefix) and f.endswith(".stl")
+        and not f[len(prefix):].startswith("ref-")
+    ]
+    return [os.path.join(directory, f) for f in names]
+
+
+def add_connectors(args, sched, root, lift, rod_radius_m):
+    """Stand every connector the schedule places on the rods it holds.
+
+    Each printed piece is imported once and instanced after that, sharing one
+    mesh between all its copies -- 107 connectors on M come to several hundred
+    pieces, and importing each one would make a file nobody can open.
+
+    What has no generator is blocked in instead, in the warning colour. That
+    is the honest picture: the dome is 47 parts short, and leaving them out
+    would show a structure that cannot be built yet as though it could.
+    """
+    parts = {p["id"]: p for p in sched["parts"]}
+    directory = args.connector_dir or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(args.model))), "connectors"
+    )
+
+    collections = {}
+    meshes = {}
+    materials = {}
+    counts = {"real": 0, "proxy": 0, "pieces": 0}
+    missing = []
+
+    staging = new_collection("_ConnectorSource", root)
+    for spot in sched["placements"]:
+        part = parts[spot["part"]]
+        kind = spot["kind"]
+        coll = collections.get(kind)
+        if coll is None:
+            coll = collections[kind] = new_collection(
+                "Connectors_" + kind.replace("_", " ").title().replace(" ", ""),
+                root,
+            )
+
+        key = spot["part"]
+        if key not in meshes:
+            pieces = part_pieces(key, directory) if args.connectors == "real" else []
+            loaded = []
+            for path in pieces:
+                obj = import_stl(path)
+                if obj is None:
+                    continue
+                mesh = obj.data
+                mesh.name = os.path.basename(path)[:-4]
+                mat = materials.get(key)
+                if mat is None:
+                    mat = materials[key] = make_material(
+                        f"Part_{key}", PART_COLOUR.get(kind, UNTIED_COLOUR)
+                    )
+                mesh.materials.clear()
+                mesh.materials.append(mat)
+                move_to(obj, staging)
+                obj.hide_render = obj.hide_viewport = True
+                loaded.append(mesh)
+            meshes[key] = loaded
+            if not loaded:
+                missing.append(key)
+
+        pieces = meshes[key]
+        if pieces:
+            for index, mesh in enumerate(pieces):
+                use = mesh
+                if spot.get("hand") == "mirrored":
+                    name = f"{mesh.name}_mirrored"
+                    use = bpy.data.meshes.get(name) or mirror_mesh(mesh, name)
+                place_instance(
+                    f"{key}_{spot['at']}_{index}", use,
+                    spot["origin_mm"], spot["basis"], coll, lift,
+                )
+                counts["pieces"] += 1
+            counts["real"] += 1
+        elif args.connectors in ("real", "proxy"):
+            proxy_block(spot, part, coll, lift, rod_radius_m * 2.0, materials)
+            counts["proxy"] += 1
+            counts["pieces"] += 1
+
+    if missing:
+        print(
+            "[connectors] blocked in as proxies, nothing builds them yet: "
+            + ", ".join(sorted(missing))
+        )
+    print(
+        f"[connectors] {counts['real']} placed from STL, {counts['proxy']} as "
+        f"proxies, {counts['pieces']} pieces in the scene"
+    )
+    return counts
+
+
+def proxy_size(spot, part, rod_d):
+    """How big the thing that goes here would be, and where its middle sits.
+
+    Sized off what the part has to do, not off a guess. A splice is a sleeve
+    of a known length round a rod. A termination is a clamp with one channel
+    closed, so it is a clamp. A stake is a 30 mm steel angle half a metre
+    long, driven, so it hangs below the foot rather than straddling it.
+
+    Returns the box in metres and how far to shift it along local +Z, which
+    is what puts the stake in the ground instead of half out of it.
+    """
+    kind = spot["kind"]
+    if kind == "rod_splice":
+        length = part.get("sleeve_length", rod_d * 10.0) * MM
+        return (length, rod_d * 2.2 * MM, rod_d * 2.2 * MM), 0.0
+    if kind == "cut_termination":
+        return (rod_d * 5.0 * MM, rod_d * 4.5 * MM, rod_d * 3.0 * MM), 0.0
+    if kind == "ground_stake":
+        # A driven angle: 30 mm legs, 500 mm long, and local +Z points down.
+        return (0.030, 0.030, 0.500), 0.250
+    members = max(1, part.get("members", 2))
+    return (
+        (rod_d * 12.0 * MM, rod_d * 3.0 * MM, rod_d * members * MM),
+        0.0,
+    )
+
+
+def proxy_block(spot, part, collection, lift, rod_d, materials):
+    """A block the size of the joint, where no generator exists yet.
+
+    It says "something goes here and it is this big", which is all an
+    undesigned part has earned. Drawing nothing instead would show a dome that
+    can be built out of what exists, and 57 of M's 107 connectors do not.
+    """
+    (length, width, height), shift = proxy_size(spot, part, rod_d)
+
+    mat = materials.get("__undesigned__")
+    if mat is None:
+        mat = materials["__undesigned__"] = make_material(
+            "Part_Undesigned", UNDESIGNED_COLOUR
+        )
+
+    mesh = bpy.data.meshes.get("Proxy_Cube")
+    if mesh is None:
+        bpy.ops.mesh.primitive_cube_add(size=1.0)
+        seed = bpy.context.active_object
+        mesh = seed.data
+        mesh.name = "Proxy_Cube"
+        mesh.materials.append(mat)
+        bpy.data.objects.remove(seed, do_unlink=True)
+
+    obj = bpy.data.objects.new(f"{spot['part']}_{spot['at']}", mesh)
+    collection.objects.link(obj)
+
+    ex, ey, ez = (Vector(row) for row in spot["basis"])
+    origin = spot["origin_mm"]
+    centre = (
+        origin[0] * MM + ez.x * shift,
+        origin[1] * MM + ez.y * shift,
+        origin[2] * MM + lift + ez.z * shift,
+    )
+    obj.matrix_world = Matrix((
+        (ex.x, ey.x, ez.x, centre[0]),
+        (ex.y, ey.y, ez.y, centre[1]),
+        (ex.z, ey.z, ez.z, centre[2]),
+        (0.0, 0.0, 0.0, 1.0),
+    )) @ Matrix.Diagonal((length, width, height, 1.0))
+    return obj
+
+
 def add_camera_and_light(scene, radius_m, height_m, facing_deg=None,
                          framing_m=None):
     cam_data = bpy.data.cameras.new("Camera")
@@ -482,6 +721,71 @@ EYE_HEIGHT = 1.70
 def _aim(cam, at):
     direction = Vector(at) - cam.location
     cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def joint_cameras(scene, data, lift, rod_radius_m):
+    """Close on one joint of each kind, which is the only way to check one.
+
+    A whole-dome view shows that connectors are there. It cannot show whether
+    they are ON the rods -- at 6 m across, being a rod diameter out looks
+    identical to being right. These stand about twenty rod diameters off one
+    joint, which is close enough to see a channel miss.
+    """
+    made = {}
+    rod_d = rod_radius_m * 2.0
+
+    wanted = []
+    lashed = [n for n in data["nodes"] if n["rod_count"] == 4]
+    if lashed:
+        wanted.append(("node", max(lashed, key=lambda n: n["z"])))
+    crossings = [n for n in data["nodes"] if n["rod_count"] == 2]
+    if crossings:
+        wanted.append(("crossing", max(crossings, key=lambda n: n["z"])))
+
+    door = data.get("doorway")
+    cut = (door or {}).get("cut") or {}
+    ends = set()
+    for rod, spans in (cut.get("spans") or {}).items():
+        ends.add(rod)
+    feet = data["base_nodes"]
+    if door and ends:
+        # The doorway foot: the one the cut took a bow from, which is the one
+        # worth looking at because it is a different part from the other eight.
+        jamb = min(
+            feet,
+            key=lambda b: abs(
+                math.degrees(math.atan2(b["y"], b["x"]))
+                - door["bay"]["centre_azimuth_deg"]
+            ) % 360.0,
+        )
+    else:
+        jamb = feet[0]
+    wanted.append(("foot", jamb))
+
+    for name, node in wanted:
+        at = (node["x"] * MM, node["y"] * MM, node["z"] * MM + lift)
+        # Stand off along the outward radius, so the camera is outside the
+        # shell looking in rather than buried in it. A foot is on the ground
+        # with a figure standing next to it, so it needs more room and a
+        # flatter angle than a node up in the air does.
+        reach = rod_d * (34.0 if name == "foot" else 20.0)
+        out = Vector((at[0], at[1], 0.0))
+        out = out.normalized() if out.length > 1e-9 else Vector((1.0, 0.0, 0.0))
+        # Off to one side as well: straight down the radius at a foot is
+        # straight at whoever is standing in the doorway.
+        side = Vector((-out.y, out.x, 0.0)) * (reach * 0.55)
+        cam_data = bpy.data.cameras.new(f"Cam_{name}")
+        cam_data.lens = 50.0
+        cam = bpy.data.objects.new(f"Cam_{name}", cam_data)
+        scene.collection.objects.link(cam)
+        cam.location = (
+            at[0] + out.x * reach + side.x,
+            at[1] + out.y * reach + side.y,
+            at[2] + reach * (0.5 if name == "foot" else 0.35),
+        )
+        _aim(cam, at)
+        made[name] = cam
+    return made
 
 
 def shot_cameras(scene, radius_m, height_m, facing_deg):
@@ -587,10 +891,21 @@ def build(args):
             "regenerate it with:  python3 -m stardome build "
             f"{meta['variant']} --polylines --weave-mode layered"
         )
-    if meta["weave_mode"] != "layered":
+    if meta["weave_mode"] == "flat":
         print(
-            f"[warning] weave_mode is {meta['weave_mode']!r}; in flat mode every "
-            "crossing has two rods in the same place. Use --weave-mode layered."
+            "[warning] weave_mode is 'flat'; every crossing has two rods in "
+            "the same place. Use --weave-mode layered to look at the weave, "
+            "or woven to put connectors on it."
+        )
+    if args.connectors != "none" and meta["weave_mode"] != "woven":
+        raise SystemExit(
+            f"--connectors needs a woven model; this one is "
+            f"{meta['weave_mode']!r}.\n"
+            "'layered' is a drawing convention: it puts each bow on its own "
+            "shell, up to 14 rod diameters apart at a crossing, and a "
+            "connector stack is one. Rebuild with:\n"
+            f"  python3 -m stardome build {meta['variant']} --polylines "
+            "--weave-mode woven"
         )
 
     radius_m = meta["dome_radius"] * MM
@@ -660,6 +975,10 @@ def build(args):
         tied = node["rod_count"] == 4
         if not tied and not args.untied_nodes:
             continue
+        if args.connectors != "none":
+            # The marker is a stand-in for the connector. With the connector
+            # itself in the scene it is a ball inside a part.
+            continue
         marker(
             f"Node_{node['name']}",
             (node["x"], node["y"], node["z"]),
@@ -668,6 +987,9 @@ def build(args):
             tied_coll if tied else untied_coll,
             lift,
         )
+
+    if args.connectors != "none":
+        add_connectors(args, load_schedule(args), root, lift, rod_radius_m)
 
     if args.label_nodes:
         label_coll = new_collection("Labels", root)
@@ -696,6 +1018,8 @@ def build(args):
             )
 
     for node in data["base_nodes"]:
+        if args.connectors != "none":
+            continue  # the base hub itself is in the scene
         marker(
             f"Base_{node['name']}",
             (node["x"], node["y"], node["z"]),
@@ -746,7 +1070,9 @@ def build(args):
 
     default_cam, _ = add_camera_and_light(scene, radius_m, height_m, facing,
                                           framing_m)
-    data["_shot_cameras"] = shot_cameras(scene, radius_m, height_m, facing)
+    shots = shot_cameras(scene, radius_m, height_m, facing)
+    shots.update(joint_cameras(scene, data, lift, rod_radius_m))
+    data["_shot_cameras"] = shots
     data["_default_camera"] = default_cam
 
     # The unlashed markers are noise for most work; keep them out of the way

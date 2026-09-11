@@ -111,10 +111,13 @@ def test_linear_interpolation_between_nodes_does_not_work(built):
     """The obvious guess fails, which is why global_profile exists.
 
     Routing each rod straight between the offsets its lashed nodes dictate
-    leaves half the unlashed crossings with the two rods sharing space.
+    leaves 25 of the 30 unlashed crossings with the two rods sharing space,
+    some of them exactly coincident. Every lashed node is still fine, because
+    those offsets are the fixed ones; it is the free stretches in between that
+    the straight line gets wrong.
     """
     violations = weave.linear_profile_violations(built)
-    assert len(violations) == 15
+    assert len(violations) == 25
     assert all(not v["tied"] for v in violations)
     worst = min(v["separation_mm"] for v in violations)
     assert worst < 0.2 * built["meta"]["rod_diameter"]
@@ -173,3 +176,64 @@ def test_every_stacking_order_admits_a_consistent_weave(built):
             continue
         seen.add(perm)
         assert weave.global_profile(built, perm)["feasible"], perm
+
+
+def test_the_fan_is_cut_where_the_printed_part_is_cut(built):
+    """All ten nodes are one part only if the fan starts at the same place.
+
+    A fan closes on itself, so one of its four gaps is never a contact between
+    two stacked rods -- the one from the last arm back to the first. The
+    printed part spends that on the widest gap, 63.4349 deg, which is what
+    leaves its three channels 37.3774, 41.8103 and 37.3774 apart.
+
+    Sorting the arms by angle and starting at the smallest puts the widest gap
+    in the MIDDLE at the five lower nodes, and asks for channels 37.3774,
+    63.4349, 37.3774 apart instead. That is a second part, and the project has
+    always claimed there is one. This is the check that keeps it true.
+    """
+    from stardome import geometry
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    tied = [n for n in built["nodes"] if n["rod_count"] == 4]
+    assert len(tied) == 10
+
+    sequences = set()
+    for node in tied:
+        arms = weave.node_fan_in_part_order(node, bows)
+        gaps = weave.gaps_in_order(arms)
+        assert gaps[-1] == max(gaps), (
+            f"{node['name']} does not close on its widest gap: {gaps}"
+        )
+        sequences.add(tuple(gaps))
+    assert len(sequences) == 1, f"ten nodes, {len(sequences)} fan geometries"
+
+
+def test_the_weave_stacks_every_node_the_same_way_round(built):
+    """The solved route has to agree with the part it is held by.
+
+    Radially adjacent rods in a four-rod stack bear on each other, and the
+    angle between them is a channel spacing in the printed fan. If the ten
+    nodes do not all give the same three spacings, one fan cannot hold them.
+    """
+    from stardome import geometry
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    routes = weave.global_profile(built)["routes"]
+    tied = [n for n in built["nodes"] if n["rod_count"] == 4]
+
+    spacings = set()
+    for node in tied:
+        arms = weave.node_fan_in_part_order(node, bows)
+        offsets = {}
+        for _angle, rod, _fam, _out in arms:
+            stop = [s for s in routes[rod] if s["node"] == node["name"]]
+            assert stop, f"{rod} has no offset at {node['name']}"
+            offsets[rod] = stop[0]["offset_mm"]
+        by_radius = sorted(arms, key=lambda a: offsets[a[1]])
+        contacts = []
+        for lower, upper in zip(by_radius, by_radius[1:]):
+            gap = abs(lower[0] - upper[0])
+            contacts.append(round(min(gap, 180.0 - gap), 4))
+        spacings.add(tuple(contacts))
+    assert len(spacings) == 1, f"stack spacings differ between nodes: {spacings}"
+    assert spacings == {(37.3774, 41.8103, 37.3774)}

@@ -806,6 +806,86 @@ def cut_pieces(data: dict, cuts: dict) -> dict:
     }
 
 
+def feet_released(data: dict, cuts: dict) -> dict:
+    """Which base points lose a bow end to a cut, and which bow.
+
+    A bow runs foot to foot, so a removed piece that reaches ``t = 0`` takes
+    its end off ``foot_a`` and one reaching ``t = 180`` off ``foot_b``. Those
+    base points now gather one fewer arm than the other eight, and a base hub
+    drawn for three of them does not fit two.
+
+    On the portal cut this is never incidental: the two feet it frees are the
+    two the doorway stands between, which is the whole point of cutting there.
+    """
+    feet = {b["index"]: b["name"] for b in data["base_nodes"]}
+    out: dict = {}
+    for rod in data["rods"]:
+        for lo, hi in cuts.get(rod["name"], ()):
+            if lo <= 1e-6:
+                out.setdefault(feet[rod["foot_a"]], []).append(rod["name"])
+            if hi >= 180.0 - 1e-6:
+                out.setdefault(feet[rod["foot_b"]], []).append(rod["name"])
+    return {name: sorted(set(rods)) for name, rods in sorted(out.items())}
+
+
+def terminations(data: dict, cuts: dict) -> list:
+    """Where each cut bow now begins: the crossing it stops at, and against what.
+
+    A bow that used to run through a crossing now ends in it. The joint there
+    holds a rod END against a rod, which is a different part from the clamp
+    that holds two rods against each other, and it needs to know which of the
+    two is the one that stops.
+
+    ``approach`` says which way the surviving bow arrives in the bow's own
+    parameter: ``+`` means it runs on towards 180, ``-`` back towards 0. That
+    is what tells the part which side of the channel is open and which is the
+    wall the rod end bears on.
+    """
+    out = []
+    for rod, spans in sorted(cuts.items()):
+        for lo, hi in spans:
+            if lo <= 1e-6:
+                t_end, approach = hi, "+"
+            elif hi >= 180.0 - 1e-6:
+                t_end, approach = lo, "-"
+            else:
+                # A span in the middle of a bow severs it and leaves two ends,
+                # neither of which is what the portal cut makes. No level in
+                # CUT_LEVELS produces one today; if one ever does, it wants
+                # its own answer rather than a guess from this one.
+                continue
+            match = None
+            for c in data["crossings"]:
+                for side in ("a", "b"):
+                    if c[f"rod_{side}"] != rod:
+                        continue
+                    if abs(c[f"t_{side}_deg"] - t_end) > 1e-3:
+                        continue
+                    match = (c, side)
+            if match is None:
+                raise ValueError(
+                    f"{rod} is cut to t={t_end}, which is not a crossing; "
+                    "a bow end in mid-span has nothing to be clamped to"
+                )
+            crossing, side = match
+            other = "b" if side == "a" else "a"
+            out.append(
+                {
+                    "node": crossing["node"],
+                    "rod": rod,
+                    "other_rod": crossing[f"rod_{other}"],
+                    "t_deg": round(t_end, 6),
+                    "approach": approach,
+                    "crossing_angle_deg": crossing["angle_deg"],
+                    "ends_above": crossing["rod_above"] == rod,
+                    "x": crossing["x"],
+                    "y": crossing["y"],
+                    "z": crossing["z"],
+                }
+            )
+    return out
+
+
 def _nodes_with_nothing_through(data: dict, cuts: dict) -> list:
     """Nodes left with every rod terminating on them and none passing through.
 

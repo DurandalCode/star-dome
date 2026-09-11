@@ -76,18 +76,43 @@ def load_clamp_module():
 
 
 FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
-FAN = None
+BASE_SOURCE = os.path.join(REPO, "connectors", "base_hub_v1.py")
+LOADED = {}
+
+
+def load_module(source):
+    """Load a generator's functions without letting it auto-build."""
+    if source not in LOADED:
+        namespace = {"SUPPRESS_AUTORUN": True, "__file__": source, "REPO": REPO}
+        with open(source) as handle:
+            exec(compile(handle.read(), source, "exec"), namespace)
+        LOADED[source] = namespace
+    return LOADED[source]
 
 
 def load_fan_module():
     """Load the four-rod fan generator, likewise without auto-building."""
-    global FAN
-    if FAN is None:
-        namespace = {"SUPPRESS_AUTORUN": True, "__file__": FAN_SOURCE, "REPO": REPO}
-        with open(FAN_SOURCE) as handle:
-            exec(compile(handle.read(), FAN_SOURCE, "exec"), namespace)
-        FAN = namespace
-    return FAN
+    return load_module(FAN_SOURCE)
+
+
+def build_base(part):
+    """Build the base hub at the fan the schedule derived from the model.
+
+    Three arms at a plain foot, two where a doorway cut took a bow away. The
+    generator takes the gaps, so the difference is one shorter list -- and the
+    first arm's angle with it, because a hub that lost its lowest arm starts
+    somewhere else and the part is drawn in the frame it stands in.
+
+    That angle is the schedule's ``arm_azimuths_deg``, not its ``rises_deg``.
+    They agree for a three-arm hub and do not for a two-arm one, where the
+    outer arm sits at 116.5651 deg and rises 63.4349.
+    """
+    base = load_module(BASE_SOURCE)
+    values = {alias: value for (alias, value, _u, _n) in base["INPUTS"]}
+    values["rodDiameter"] = float(part["rod_diameter"])
+    values["firstArmRise"] = float(part["arm_azimuths_deg"][0])
+    geo, dims = base["build"](values, fan_gaps=part["fan_gaps_deg"])
+    return base, geo, dims, values
 
 
 def build_fan(part):
@@ -153,6 +178,61 @@ def run():
 
     for part in sched["parts"]:
         generator = part.get("generator")
+
+        if generator == "base_hub_v1":
+            base, geo, dims, values = build_base(part)
+
+            doc = fresh_document(part["id"])
+            base["populate"](doc, geo)
+            kit.write_parameters(
+                doc, None, base["INPUTS"], values,
+                base["derived_rows"](dims, values), base["TITLE"],
+            )
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+
+            # Same ordering rule the other two follow: verify the solid before
+            # meshing it, or exportStl leaves isValid() false afterwards.
+            checks = base["verify"](geo, dims, values)
+
+            files = []
+            facets = {}
+            for plate_name, solid in zip(geo["names"], geo["plates"]):
+                step_path, stl_path, count = export_solid(
+                    solid, "%s_%s" % (part["id"], plate_name)
+                )
+                files.extend((step_path, stl_path))
+                facets[plate_name] = count
+            for rod_index, rod in enumerate(geo["rods"], start=1):
+                step_path, stl_path, _count = export_solid(
+                    rod, "%s_ref-Rod%d" % (part["id"], rod_index)
+                )
+                files.extend((step_path, stl_path))
+            assembly = Part.makeCompound(list(geo["plates"]) + list(geo["rods"]))
+            step_path, stl_path, count = export_solid(
+                assembly, "%s_ref-Assembly" % part["id"]
+            )
+            files.extend((step_path, stl_path))
+            facets["ref-Assembly"] = count
+
+            report["built"].append(
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "generator": generator,
+                    "rod_diameter": part["rod_diameter"],
+                    "count_needed": part["count"],
+                    "pieces_per_hub": len(geo["plates"]),
+                    "fan_gaps_deg": part["fan_gaps_deg"],
+                    "first_arm_rise_deg": values["firstArmRise"],
+                    "fcstd": fcstd,
+                    "files": [os.path.basename(f) for f in files],
+                    "mesh_facets": facets,
+                    "checks": checks,
+                }
+            )
+            continue
 
         if generator == "fan_node_v2":
             fan = load_fan_module()

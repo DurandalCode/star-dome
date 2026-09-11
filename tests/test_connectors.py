@@ -23,8 +23,12 @@ def sched(request):
     return connectors.schedule(model.build(config.load(request.param)))
 
 
-def _part(sched, kind):
+def _part(sched, kind, part_id=None):
     hits = [p for p in sched["parts"] if p["kind"] == kind]
+    if part_id is not None:
+        hits = [p for p in hits if p["id"] == part_id]
+        assert len(hits) == 1, f"expected exactly one {part_id}, got {len(hits)}"
+        return hits[0]
     assert len(hits) == 1, f"expected exactly one {kind}, got {len(hits)}"
     return hits[0]
 
@@ -153,18 +157,78 @@ def test_a_bare_dome_anchors_its_feet_with_a_stake_and_still_needs_a_hub():
     from stardome import connectors, model
 
     sched = connectors.schedule(model.build(config.load("M")))
-    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
-    assert len(hubs) == 1
-    assert hubs[0]["members"] == 3
-    assert hubs[0]["count"] == 10
-    # The hub itself is drawn now -- it is the node's fan with one arm fewer.
-    assert hubs[0]["state"] == connectors.GENERATED
-    assert hubs[0]["generator"] == "base_hub_v1"
-    assert hubs[0]["anchored_by_stake"] is True
+    hubs = {p["id"]: p for p in sched["parts"] if p["kind"] == "base_hub"}
+    assert sum(h["count"] for h in hubs.values()) == 10
+    for hub in hubs.values():
+        # The hub itself is drawn now -- it is the node's fan with one arm
+        # fewer -- and every foot on a bare dome sits over a driven angle.
+        assert hub["state"] == connectors.GENERATED
+        assert hub["generator"] == "base_hub_v1"
+        assert hub["anchored_by_stake"] is True
+
+    assert hubs["BASE3-10"]["members"] == 3
+    assert hubs["BASE3-10"]["count"] == 8
 
     stake = _part(sched, "ground_stake")
     assert stake["count"] == 10
     assert stake["state"] == connectors.HARDWARE
+
+
+def test_the_doorway_takes_a_bow_off_the_two_feet_it_stands_between():
+    """The portal cut is not free at the ground, and this is what it costs.
+
+    The cut frees a bow end at each of the two feet the door stands between,
+    so those two gather two arms and the other eight gather three. A schedule
+    that still asked for ten identical hubs would be asking for a part that
+    does not fit at the one place anybody stands.
+
+    What it does not cost is a second geometry. Both jambs keep the same pair
+    of arms -- the U bow and the G bow -- at the same 37.3774 deg the node fan
+    already uses, and the two are mirror images, so one printed part turned
+    over serves both.
+    """
+    from stardome import connectors, doorway, model
+
+    data = model.build(config.load("M"))
+    cuts = {r: [tuple(s) for s in v]
+            for r, v in data["doorway"]["cut"]["spans"].items()}
+    assert doorway.feet_released(data, cuts) == {"b0": ["L1"], "b1": ["L4"]}
+
+    sched = connectors.schedule(data)
+    jamb = _part(sched, "base_hub", "BASE2-10")
+    assert jamb["count"] == 2
+    assert jamb["members"] == 2
+    assert jamb["bow_ends"] == 2
+    assert jamb["families_in_fan_order"] == ["U", "G"]
+    assert jamb["fan_gaps_deg"] == [37.377368]
+    assert jamb["handed"] is True
+    assert jamb["generator"] == "base_hub_v1"
+
+
+def test_a_cut_bow_ends_in_a_crossing_and_wants_a_part_that_knows_it():
+    """TERM is a rod END against a rod, which CL2 is not.
+
+    The portal cut stops two L bows at crossings rather than at their feet.
+    The clamp there holds one rod that stops and one that carries on, so it
+    has a closed channel and an open one -- and the part has to be told which
+    crossing, at what angle, and which way the surviving bow runs.
+
+    Both land on the same 70.5288 deg every unlashed crossing uses, and in
+    both the terminating bow is the outer of the two, so this is one part.
+    """
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("M")))
+    term = _part(sched, "cut_termination")
+    assert term["count"] == 2
+    assert term["nodes"] == ["N25", "N26"]
+    assert term["crossing_angle"] == 70.5288
+
+    ends = term["terminations"]
+    assert {e["rod"] for e in ends} == {"L1", "L4"}
+    assert {e["other_rod"] for e in ends} == {"U1", "U4"}
+    assert {e["approach"] for e in ends} == {"+", "-"}
+    assert all(e["ends_above"] for e in ends)
 
 
 def test_the_skirted_base_point_is_out_of_a_stake_s_reach():
@@ -275,3 +339,142 @@ def test_the_ten_base_points_are_two_mirror_sets_of_five(sched):
     fan = weave.base_fan(data)
     assert fan["distinct_fans"] == 1 or fan["mirror_pairs"]
     assert fan["base_points"] == 10
+
+
+def _woven(name):
+    from stardome import model
+
+    return model.build(config.load(name), weave_mode="woven", include_polylines=True)
+
+
+def test_every_part_the_schedule_asks_for_has_somewhere_to_go():
+    """A part counted but not placed is a part that quietly went missing."""
+    from stardome import connectors
+
+    sched = connectors.schedule(_woven("M"))
+    assert sched["placements_note"] is None
+    placed = {}
+    for spot in sched["placements"]:
+        placed[spot["part"]] = placed.get(spot["part"], 0) + 1
+    for part in sched["parts"]:
+        assert placed.get(part["id"]) == part["count"], part["id"]
+    assert len(sched["placements"]) == sched["totals"]["parts_per_dome"]
+
+
+def test_a_flat_model_cannot_say_where_a_part_goes():
+    """Which rod runs outside is what fixes a part's stack, and flat has none."""
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("M")))
+    assert sched["placements"] == []
+    assert "woven" in sched["placements_note"]
+
+
+def test_every_connector_lands_on_the_rods_it_holds():
+    """The frames are read off the generators, so check them against the dome.
+
+    Each part is flat: arms in local XY, stack along local Z. Put the
+    generator's own arm azimuths and stack levels through the placement's
+    basis and they have to come out on the real rods, at the real radial
+    offsets the weave gives them. A millimetre here is a connector floating
+    off its rod in the scene.
+    """
+    import math
+
+    from stardome import connectors, geometry, vec
+
+    data = _woven("M")
+    sched = connectors.schedule(data)
+    bows = {b.name: b for b in geometry.build_bows()}
+    parts = {p["id"]: p for p in sched["parts"]}
+    offset_at = connectors._rod_offset_sampler(data)
+    rod_d = data["meta"]["rod_diameter"]
+    nodes = {n["name"]: n for n in data["nodes"]}
+    crossings = {c["node"]: c for c in data["crossings"]}
+
+    def to_world(basis, local):
+        return tuple(
+            sum(local[k] * basis[k][i] for k in range(3)) for i in range(3)
+        )
+
+    checked = 0
+    for spot in sched["placements"]:
+        part = parts[spot["part"]]
+        basis, origin = spot["basis"], spot["origin_mm"]
+
+        # Right-handed, or the part is mirrored and would not print as drawn.
+        det = sum(
+            basis[0][i] * vec.cross(basis[1], basis[2])[i] for i in range(3)
+        )
+        assert abs(det - 1.0) < 1e-6, spot["at"]
+
+        if spot["kind"] == "four_rod_fan":
+            point = tuple(nodes[spot["at"]][k] for k in "xyz")
+            azimuths = connectors._azimuths(part["fan_gaps_deg"][:-1], 0.0)
+            pitch = part["stack_height"] / 3.0
+            arms = spot["arms"]
+            # Arm k sits at stack level k, innermost first.
+            levels = [(k - 1.5) * pitch for k in range(4)]
+        elif spot["kind"] in ("two_rod_clamp", "cut_termination"):
+            contact = crossings[spot["at"]]
+            point = (contact["x"], contact["y"], contact["z"])
+            half = part["crossing_angle"] / 2.0
+            if spot["hand"] == "mirrored":
+                half = -half
+            azimuths = [half, -half]
+            arms = [spot["rod_above"], spot["rod_below"]]
+            # The cap is outside, so the upper rod is the one at +v/2.
+            levels = [+rod_d / 2.0, -rod_d / 2.0]
+        else:
+            continue
+
+        normal = vec.unit(point)
+        for k, rod in enumerate(arms):
+            t = bows[rod].t_of(point)
+            angle = math.radians(azimuths[k])
+            placed = to_world(basis, (math.cos(angle), math.sin(angle), 0.0))
+            real = vec.unit(bows[rod].tangent(t))
+            # Rods are lines, so compare them as lines.
+            assert abs(abs(vec.dot(placed, real)) - 1.0) < 1e-9, (spot["at"], rod)
+
+            axis = tuple(origin[i] + levels[k] * basis[2][i] for i in range(3))
+            want = tuple(
+                point[i] + offset_at(rod, t) * normal[i] for i in range(3)
+            )
+            assert vec.dist(axis, want) < 1e-6, (spot["at"], rod)
+            checked += 1
+    assert checked == 10 * 4 + 30 * 2 + 2 * 2
+
+
+def test_the_two_rod_clamp_is_chiral_and_the_dome_needs_both_hands():
+    """The cap goes outside, and that is what makes the part handed.
+
+    Turning a two-piece clamp over to make its angles agree puts the cap on
+    the inside, under the rod it is meant to hold down. So the mirror-image
+    crossings need the mirror-image part, and the schedule says how many.
+    """
+    from stardome import connectors
+
+    sched = connectors.schedule(_woven("M"))
+    clamp = _part(sched, "two_rod_clamp")
+    assert clamp["hands"] == {"as-drawn": 17, "mirrored": 13}
+    assert sum(clamp["hands"].values()) == clamp["count"]
+
+
+def test_the_four_rod_fan_never_has_to_be_turned_over():
+    """Unlike the base hub, the fan sits stack-outward at all ten nodes.
+
+    That matters because the stack is five different plates: turned over, the
+    Cap would be on the inside. It works out because the fan is cut at its
+    widest gap, which makes the ten nodes one part in the same orientation.
+    """
+    from stardome import connectors
+
+    sched = connectors.schedule(_woven("M"))
+    fans = [p for p in sched["placements"] if p["kind"] == "four_rod_fan"]
+    assert len(fans) == 10
+    assert not any(f["turned_over"] for f in fans)
+
+    feet = [p for p in sched["placements"] if p["kind"] == "base_hub"]
+    turned = sum(1 for f in feet if f["turned_over"])
+    assert turned == 5, "the base hubs are two mirror sets of five"

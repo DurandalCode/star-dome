@@ -75,14 +75,14 @@ those three arcs has to be paid for whichever bow goes up first. A weave with
 no cycles would be a stack of hoops with nothing holding it together; the cycle
 is the structure, and the threading is what it costs to build it.
 
-### 2. The floor is 21 threadings, and it is the same at every size
+### 2. The floor is 20 threadings, and it is the same at every size
 
 | | |
 |---|---|
 | crossings | 90 |
-| **minimum threadings** | **21** |
-| worst possible order | 69 |
-| orders achieving the minimum | 16 |
+| **minimum threadings** | **20** |
+| worst possible order | 70 |
+| orders achieving the minimum | 3 |
 
 The worst order is the crossings less the best, because reversing an order
 flips every arc — so there is no separate solve for it.
@@ -94,21 +94,21 @@ weight of what you are springing, not the number of times you have to spring
 it. That is worth knowing before anyone concludes that the small variants are
 the easy ones to put up.
 
-### 3. Twenty of the 21 are bought at the ten lashed nodes
+### 3. Eighteen of the 20 are bought at the ten lashed nodes
 
 The fan stacking order fixes the radial level of all four rods at a node, which
 orients 60 of the 90 arcs before any weave routing happens at all. Feed the
-solver only those 60 and the answer is **20**.
+solver only those 60 and the answer is **18**.
 
 So the routing of the 30 free crossings — the part `global_profile` solves for,
 and the part that could in principle be chosen differently — is worth at most
-one threading out of 21. **Almost the entire cost of assembly is decided by the
+two threadings out of 20. **Almost the entire cost of assembly is decided by the
 stacking order at the nodes, not by the weave.** If a cheaper build is ever
 wanted, that is where to look, and `weave.stacking_options` already enumerates
 the alternatives with what each does to the connector.
 
-Twenty is a hard floor under any routing whatsoever. Whether some other
-feasible routing reaches it — that is, whether the last threading can be
+Eighteen is a hard floor under any routing whatsoever. Whether some other
+feasible routing reaches it — that is, whether the last two threadings can be
 removed — is open, and would need the weave solver to optimise rather than just
 find a feasible answer.
 
@@ -121,21 +121,21 @@ rather than handed on a sheet.
 
 | order | threadings |
 |---|---|
-| G–L–U | 34 |
-| L–G–U | 34 |
-| L–U–G | 34 |
-| G–U–L | 54 |
-| U–G–L | 54 |
-| U–L–G | 54 |
+| G–L–U | 30 |
+| L–G–U | 30 |
+| L–U–G | 30 |
+| G–U–L | 50 |
+| U–G–L | 50 |
+| U–L–G | 50 |
 
 The split is exactly one rule: **put family L up before family U.** Where G
-goes makes no difference at all. Obey it and a family order costs 34; break it
-and it costs 54.
+goes makes no difference at all. Obey it and a family order costs 30; break it
+and it costs 50.
 
-So the price of an order simple enough to say out loud is 34 against the
-optimum's 21 — thirteen extra threadings. Whether thirteen hard moves are worth
-more than a memorised fifteen-item permutation is a field question, not a
-geometry one, and milestone 4's stopwatch is what should answer it.
+So the price of an order simple enough to say out loud is 30 against the
+optimum's 20 — ten extra threadings. Whether ten hard moves are worth more than
+a memorised fifteen-item permutation is a field question, not a geometry one,
+and milestone 4's stopwatch is what should answer it.
 
 ## The schedule
 
@@ -145,36 +145,36 @@ connector can be bolted up — or a base point whose third bow end has landed.
 
 | step | bow | crossings made | threadings | threads under | closes |
 |---|---|---|---|---|---|
-| 1 | L2 | 0 | 0 | — | — |
-| 2 | G2 | 1 | 0 | — | — |
-| 3 | G5 | 2 | 0 | — | — |
-| 4 | L1 | 3 | 0 | — | N21 |
-| 5 | L4 | 4 | 1 | G2 | — |
-| 6 | G4 | 4 | 1 | G2 | — |
-| 7 | L3 | 5 | 1 | L2 | N23 |
-| 8 | L5 | 6 | 2 | G5, L4 | — |
+| 1 | G5 | 0 | 0 | — | — |
+| 2 | L1 | 1 | 0 | — | — |
+| 3 | L2 | 2 | 0 | — | — |
+| 4 | G2 | 3 | 0 | — | N21 |
+| 5 | L3 | 3 | 0 | — | — |
+| 6 | L4 | 5 | 1 | G5 | — |
+| 7 | G4 | 5 | 1 | L1 | N23 |
+| 8 | L5 | 6 | 2 | G5, L1 | — |
 | 9 | U3 | 6 | 0 | — | b4, b9 |
-| 10 | G3 | 8 | 3 | G2, L2, L4 | N24 |
-| 11 | U1 | 8 | 1 | G4 | b0, b5 |
-| 12 | G1 | 10 | 4 | G4, G5, L2, L5 | N07, N20, N22 |
+| 10 | U1 | 8 | 1 | G4 | — |
+| 11 | G1 | 9 | 3 | G5, L2, L3 | N07, N20 |
+| 12 | G3 | 9 | 4 | G2, G5, L4, L5 | N22, N24, b0, b5 |
 | 13 | U4 | 10 | 2 | G2, G4 | N05, b1, b6 |
 | 14 | U2 | 11 | 3 | G2, G5, U3 | N08, b2, b7 |
 | 15 | U5 | 12 | 3 | G3, G5, U3 | N06, N09, b3, b8 |
 
 Three things in it matter on site.
 
-**The first four bows are free.** A quarter of the frame goes up with no hard
-move at all, and the first lashed node closes at step 4 — so there is something
-rigid to work against early rather than a pile of loose arches.
+**The first 5 bows are free.** A third of the frame goes up with no hard
+move at all, and the first lashed node closes at step 4 — so there is
+something rigid to work against early rather than a pile of loose arches.
 
-**The work is back-loaded.** The last five steps carry 13 of the 21 threadings,
-and the worst single step is four. The crew is not needed evenly: the last
+**The work is back-loaded.** The last five steps carry 15 of the 20
+threadings, and the worst single step is four. The crew is not needed evenly: the last
 third of the build is where the hands go.
 
 **At most three bows are ever standing loose.** Counting bows that are up but
 do not yet pass through any completed node, the running total goes
-1, 2, 3, 0, 1, 2, 0, 1, 2, 1, 2, 0, 0, 0, 0 — it never exceeds three, and it
-returns to zero five times. That is a proxy for how many bows still need a hand
+1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 0, 0, 0, 0, 0 — it never exceeds three, and it
+returns to zero 7 times. That is a proxy for how many bows still need a hand
 on them, not a stability calculation, but the shape of it is encouraging: the
 frame keeps locking itself down rather than accumulating loose members.
 
@@ -189,7 +189,7 @@ frame keeps locking itself down rather than accumulating loose members.
 - **Nothing about whether a threading is possible at all.** The whole model
   assumes a 9 m rod can be sprung far enough to pass one already-placed rod.
   On D3, bent to a 1.5 m radius already, that assumption is worth checking on
-  the prototype before 21 is treated as a build plan. It is the same question
+  the prototype before 20 is treated as a build plan. It is the same question
   as minimum bend radius, from the other end.
 - **Nothing about the cover, the skirt or the doorway.** Those go on after the
   frame closes and have their own sequence, which nobody has written down.

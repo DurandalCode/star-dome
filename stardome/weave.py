@@ -78,6 +78,39 @@ def node_fan(node: dict, bows: dict) -> list:
     return rows
 
 
+def node_fan_in_part_order(node: dict, bows: dict) -> list:
+    """The node's rods starting where the PRINTED fan starts.
+
+    ``node_fan`` sorts the arms by angle, which needs somewhere to start, and
+    the smallest angle is as good a place as any -- until a part has to fit.
+
+    A fan closes on itself, so one of its four gaps is never a contact between
+    two stacked rods: the one between the last arm and the first. The printed
+    part spends that gap on the widest one, 63.4349 deg, which is what leaves
+    its three channel spacings at 37.3774, 41.8103 and 37.3774.
+
+    Start anywhere else and the stack is a different part. Starting at the
+    smallest angle does exactly that at the five lower nodes, where the widest
+    gap falls in the middle: it asks for channels 37.3774, 63.4349, 37.3774
+    apart, which the fan as drawn does not have. So the cut is made at the
+    widest gap and the ten nodes really are one part.
+    """
+    arms = node_fan(node, bows)
+    n = len(arms)
+    gaps = [(arms[(i + 1) % n][0] - arms[i][0]) % 180.0 for i in range(n)]
+    widest = max(range(n), key=lambda i: gaps[i])
+    start = (widest + 1) % n
+    return arms[start:] + arms[:start]
+
+
+def gaps_in_order(arms: list) -> list:
+    """Gaps between arms as given, going once round. Sums to 180."""
+    n = len(arms)
+    return [
+        round((arms[(i + 1) % n][0] - arms[i][0]) % 180.0, 6) for i in range(n)
+    ]
+
+
 def fan_gaps(angles: list) -> list:
     """Angles between angular neighbours, going once around. Sums to 180."""
     a = sorted(angles)
@@ -142,14 +175,16 @@ def analyse(data: dict) -> dict:
     rod_diameter = data["meta"]["rod_diameter"]
     tied = [n for n in data["nodes"] if n["rod_count"] == 4]
 
-    fans = {n["name"]: node_fan(n, bows) for n in tied}
+    # In the part's order, not the sort order: the reported gap sequence is
+    # the one a generator is handed, so it has to start where the part does.
+    fans = {n["name"]: node_fan_in_part_order(n, bows) for n in tied}
     coplanarity = max(
         abs(row[3]) for rows in fans.values() for row in rows
     ) if fans else 0.0
 
     canon = {}
     for name, rows in fans.items():
-        canon.setdefault(canonical_gaps(fan_gaps([r[0] for r in rows])), []).append(name)
+        canon.setdefault(tuple(gaps_in_order(rows)), []).append(name)
 
     groups = []
     for gaps, names in canon.items():
@@ -187,7 +222,33 @@ def analyse(data: dict) -> dict:
     }
 
 
-def base_fan(data: dict) -> dict:
+def _mirrored(groups: dict) -> bool:
+    """Do the base fans pair off into mirror images of each other?
+
+    A planar part turned over serves its mirror, so a family of fans that
+    pairs up is still one part. The mirror of a fan reverses the order of its
+    gaps and of its families, and the pairing only counts if the two sides are
+    the same size -- one hub of one handedness and five of the other is not a
+    part turned over, it is two parts.
+
+    A cut makes this worth doing properly. Before one there are exactly two
+    groups of five; after one there are four, and a test that counted groups
+    would report the perfectly good mirror pair as handed-in-name-only.
+    """
+    left = {k: list(v) for k, v in groups.items()}
+    while left:
+        gaps, families = next(iter(left))
+        mine = left.pop((gaps, families))
+        twin = (tuple(reversed(gaps)), tuple(reversed(families)))
+        if twin == (gaps, families):
+            continue  # symmetric under the mirror: it is its own twin
+        if twin not in left or len(left[twin]) != len(mine):
+            return False
+        left.pop(twin)
+    return True
+
+
+def base_fan(data: dict, removed: dict | None = None) -> dict:
     """The three bow ends at a base point, which turn out to be a flat fan too.
 
     A great circle through a point on the sphere's equator has its tangent
@@ -202,6 +263,13 @@ def base_fan(data: dict) -> dict:
     The ten base points fall into two mirror-image sets of five, differing
     only in which side of the plane the G bow leaves on. A planar part turned
     over serves the other five, so there is still one geometry.
+
+    ``removed`` names bow ends a doorway cut has taken off a base point --
+    ``{"b0": ["L1"]}`` -- and those points report the fan that is actually
+    left. Two arms are still a fan, and still a flat one; what changes is how
+    many the part has to hold. Passing the cut in rather than filtering the
+    result afterwards keeps the gap angles derived here, where the geometry
+    is, instead of recomputed by whoever asked.
     """
     from . import geometry
 
@@ -211,6 +279,8 @@ def base_fan(data: dict) -> dict:
     groups: dict = {}
     residual = 0.0
     detail = None
+    gone = removed or {}
+    by_base: dict = {}
     for base in data["base_nodes"]:
         foot = (base["x"], base["y"], base["z"])
         outward = vec.unit((base["x"], base["y"], 0.0))
@@ -218,6 +288,8 @@ def base_fan(data: dict) -> dict:
 
         arms = []
         for rod in base["rods"]:
+            if rod in gone.get(base["name"], ()):
+                continue
             bow = bows[rod]
             t = bow.t_of(foot) % 360.0
             if t > 180.0 + 1e-6:
@@ -244,6 +316,15 @@ def base_fan(data: dict) -> dict:
         ]
         key = (tuple(gaps), tuple(a["family"] for a in arms))
         groups.setdefault(key, []).append(base["name"])
+        by_base[base["name"]] = {
+            "arms": arms,
+            "gaps_deg": gaps,
+            "spread_deg": round(
+                arms[-1]["in_plane_deg"] - arms[0]["in_plane_deg"], 6
+            ),
+            "outward": outward,
+            "along": along,
+        }
         if detail is None:
             detail = {"arms": arms, "gaps_deg": gaps}
 
@@ -252,14 +333,14 @@ def base_fan(data: dict) -> dict:
         "coplanarity_residual": residual,
         "coplanar": residual < 1e-9,
         "distinct_fans": len(groups),
-        "mirror_pairs": len(groups) == 2
-        and all(len(v) == len(data["base_nodes"]) // 2 for v in groups.values()),
+        "mirror_pairs": _mirrored(groups),
         "arms": detail["arms"],
         "gaps_deg": detail["gaps_deg"],
         "spread_deg": round(
             detail["arms"][-1]["in_plane_deg"] - detail["arms"][0]["in_plane_deg"], 6
         ),
         "groups": {str(k): v for k, v in groups.items()},
+        "by_base": by_base,
         "note": (
             "Three bow ends in the vertical plane tangent to the base ring. "
             "The two gaps are the same numbers the four-rod node's fan uses, "
@@ -281,7 +362,7 @@ def rod_levels(data: dict) -> dict:
 
     out: dict = {}
     for node in tied:
-        rows = node_fan(node, bows)
+        rows = node_fan_in_part_order(node, bows)
         for fan_index, (_a, name, _f, _o) in enumerate(rows):
             out.setdefault(name, []).append(
                 {"node": node["name"], "level": order[fan_index] + 1, "z": node["z"]}
@@ -344,7 +425,9 @@ def _incidences(data: dict, order: tuple) -> tuple:
 
     fixed = {}
     for node in [n for n in data["nodes"] if n["rod_count"] == 4]:
-        for fan_index, (_a, name, _f, _o) in enumerate(node_fan(node, bows)):
+        for fan_index, (_a, name, _f, _o) in enumerate(
+            node_fan_in_part_order(node, bows)
+        ):
             fixed[(name, node["name"])] = (level_of[fan_index] + 1 - 2.5) * rod_diameter
 
     offsets = {}
@@ -467,6 +550,41 @@ def global_profile(data: dict, order: tuple = STACK_ORDER,
         "iterations": used,
         "routes": routes,
     }
+
+
+def route_sampler(profile: dict):
+    """A rod's radial offset anywhere along it, from the solved route.
+
+    ``global_profile`` fixes an offset at every crossing the rod passes. In
+    between, the rod is a rod: it goes where the two ends put it, and straight
+    interpolation is what a bent fibreglass pole does between two points that
+    hold it. Past the outermost crossing it holds its last offset out to the
+    foot, because what happens there is the base hub's business and the hub
+    stacks the three bow ends itself.
+
+    Returned as a function rather than a table because the sampling density
+    belongs to whoever is drawing, not to the solver.
+    """
+    routes = profile["routes"]
+
+    def at(rod: str, t: float) -> float:
+        stops = routes.get(rod)
+        if not stops:
+            return 0.0
+        if t <= stops[0]["t_deg"]:
+            return stops[0]["offset_mm"]
+        if t >= stops[-1]["t_deg"]:
+            return stops[-1]["offset_mm"]
+        for lo, hi in zip(stops, stops[1:]):
+            if lo["t_deg"] <= t <= hi["t_deg"]:
+                span = hi["t_deg"] - lo["t_deg"]
+                if span < 1e-9:
+                    return lo["offset_mm"]
+                f = (t - lo["t_deg"]) / span
+                return lo["offset_mm"] + f * (hi["offset_mm"] - lo["offset_mm"])
+        return stops[-1]["offset_mm"]
+
+    return at
 
 
 def linear_profile_violations(data: dict, order: tuple = STACK_ORDER) -> list:
