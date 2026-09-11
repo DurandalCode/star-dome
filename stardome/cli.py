@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from . import (
+    assembly,
     config,
     connectors,
     corridor,
@@ -110,6 +111,19 @@ def cmd_weave(args) -> int:
         data = model.build(variant, weave_mode=args.weave_mode)
         print(weave.format_analysis(data))
         print(weave.format_global(data))
+    return 0
+
+
+def cmd_assembly(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        if args.json:
+            path = Path(args.out) / name / "assembly.json"
+            export.write_json(assembly.analyse(data), path)
+            print(f"{name}: {path}")
+        else:
+            print(assembly.format_analysis(data))
     return 0
 
 
@@ -269,6 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("scad-config", cmd_scad_config, "regenerate configs/variants.scad from the TOML"),
         ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
         ("weave", cmd_weave, "four-rod node fan geometry and the stacking order"),
+        ("assembly", cmd_assembly, "the order the bows go up in, and what it costs"),
         ("entrance", cmd_entrance, "where a doorway fits, and how big it can be"),
         ("doorway", cmd_doorway, "the chosen door: which bay, framed by what"),
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
@@ -352,6 +367,9 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
             p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+        if name == "assembly":
+            p.add_argument("--json", action="store_true", help="write the analysis instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

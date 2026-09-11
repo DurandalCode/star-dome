@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave entrances doorways interiors covers corridors clamps blender site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly entrances doorways interiors covers corridors clamps blender site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -20,6 +20,7 @@ help:
 	@echo "make config     regenerate configs/variants.scad from variants.toml"
 	@echo "make connectors show which connector parts each variant needs"
 	@echo "make weave      four-rod node fan geometry and stacking order"
+	@echo "make assembly   the order the bows go up in, and what it costs"
 	@echo "make doorways   the chosen door: which bay, framed by what"
 	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
 	@echo "make camp       one S, one M and one L round a yard, doors cut open"
@@ -56,6 +57,11 @@ config:
 # argued about. Add --json to feed connectors/generate_clamps.py.
 weave:
 	@$(PYTHON) -m stardome weave --all
+
+# Which bow goes up when. The number that matters is threadings: how many
+# times a bow has to be passed UNDER one already standing.
+assembly:
+	@$(PYTHON) -m stardome assembly --all
 
 connectors:
 	@$(PYTHON) -m stardome connectors --all
