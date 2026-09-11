@@ -77,6 +77,8 @@ def load_clamp_module():
 
 FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
 BASE_SOURCE = os.path.join(REPO, "connectors", "base_hub_v1.py")
+TERM_SOURCE = os.path.join(REPO, "connectors", "term_clamp_v1.py")
+SPLICE_SOURCE = os.path.join(REPO, "connectors", "rod_splice_v1.py")
 LOADED = {}
 
 
@@ -226,6 +228,85 @@ def run():
                     "pieces_per_hub": len(geo["plates"]),
                     "fan_gaps_deg": part["fan_gaps_deg"],
                     "first_arm_rise_deg": values["firstArmRise"],
+                    "fcstd": fcstd,
+                    "files": [os.path.basename(f) for f in files],
+                    "mesh_facets": facets,
+                    "checks": checks,
+                }
+            )
+            continue
+
+        if generator == "rod_splice_v1":
+            splice = load_module(SPLICE_SOURCE)
+            values = {alias: value for (alias, value, _u, _n) in splice["INPUTS"]}
+            values["rodDiameter"] = float(part["rod_diameter"])
+            # The bow is bent to the dome radius, so that is the radius the
+            # sleeve is drawn on. It comes from the model, like every other
+            # number here -- see docs/architecture.md.
+            values["bendRadius"] = float(part["bend_radius"])
+            values["sleeveLength"] = float(part["sleeve_length"])
+            geo, dims = splice["build"](values)
+
+            doc = fresh_document(part["id"])
+            splice["populate"](doc, geo)
+            kit.write_parameters(
+                doc, None, splice["INPUTS"], values,
+                splice["derived_rows"](dims, values), splice["TITLE"],
+            )
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+            checks = splice["verify"](geo, dims, values)
+
+            files, facets = export_pair(
+                geo["bottom"], geo["cap"], part["id"], "_BottomSleeve", "_TopSleeve"
+            )
+            report["built"].append(
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "generator": generator,
+                    "rod_diameter": part["rod_diameter"],
+                    "bend_radius": part["bend_radius"],
+                    "count_needed": part["count"],
+                    "fcstd": fcstd,
+                    "files": [os.path.basename(f) for f in files],
+                    "mesh_facets": facets,
+                    "checks": checks,
+                }
+            )
+            continue
+
+        if generator == "term_clamp_v1":
+            term = load_module(TERM_SOURCE)
+            values = {alias: value for (alias, value, _u, _n) in term["INPUTS"]}
+            values["rodDiameter"] = float(part["rod_diameter"])
+            values["crossingAngle"] = float(part["crossing_angle"])
+            values["verticalSeparation"] = values["rodDiameter"]
+            geo, dims = term["build"](values)
+
+            doc = fresh_document(part["id"])
+            term["populate"](doc, geo)
+            kit.write_parameters(
+                doc, None, term["INPUTS"], values,
+                term["derived_rows"](dims, values), term["TITLE"],
+            )
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+            checks = term["verify"](geo, dims, values)
+
+            files, facets = export_pair(
+                geo["bottom"], geo["cap"], part["id"], "_BottomClamp", "_TopClamp"
+            )
+            report["built"].append(
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "generator": generator,
+                    "crossing_angle": part["crossing_angle"],
+                    "rod_diameter": part["rod_diameter"],
+                    "count_needed": part["count"],
                     "fcstd": fcstd,
                     "files": [os.path.basename(f) for f in files],
                     "mesh_facets": facets,

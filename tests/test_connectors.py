@@ -256,10 +256,14 @@ def test_splices_are_the_largest_part_count_on_any_real_size(sched):
 
     On the smaller domes a bow still fits in three sections and there are
     fewer of these than crossings; from D6 up they outnumber everything else
-    in the schedule, and nothing generates them.
+    in the schedule put together, which is what makes the sleeve the part
+    worth getting right before any of the others.
     """
     splice = _part(sched, "rod_splice")
-    assert splice["generator"] is None
+    assert splice["generator"] == "rod_splice_v1"
+    # The sleeve is drawn on the dome radius, because the bow is bent to it
+    # everywhere; a splice does not get a straight piece of rod to sit on.
+    assert splice["bend_radius"] == sched_radius(sched)
     others = max(
         p["count"] for p in sched["parts"] if p["kind"] != "rod_splice"
     )
@@ -267,6 +271,11 @@ def test_splices_are_the_largest_part_count_on_any_real_size(sched):
         assert splice["count"] <= others
     else:
         assert splice["count"] > others
+
+
+def sched_radius(sched):
+    """The dome radius the schedule was derived from."""
+    return config.load(sched["meta"]["variant"]).radius
 
 
 def test_the_portal_cut_leaves_terminations_that_are_not_crossings():
@@ -277,7 +286,7 @@ def test_the_portal_cut_leaves_terminations_that_are_not_crossings():
     sched = connectors.schedule(model.build(config.load("M")))
     term = _part(sched, "cut_termination")
     assert term["count"] == 2
-    assert term["generator"] is None
+    assert term["generator"] == "term_clamp_v1"
 
 
 def test_the_base_point_is_a_flat_fan_like_the_node(sched):

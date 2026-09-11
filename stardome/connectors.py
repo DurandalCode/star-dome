@@ -274,7 +274,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         parts.append(
             {
                 "id": _part_id("TERM", rod_diameter, angles[0]),
-                "state": UNDESIGNED,
+                "state": GENERATED,
                 "kind": "cut_termination",
                 "rod_diameter": rod_diameter,
                 "count": len(ends),
@@ -283,7 +283,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "members": 2,
                 "crossing_angle": angles[0],
                 "terminations": ends,
-                "generator": None,
+                "generator": "term_clamp_v1",
                 "note": (
                     "A bow now starts at a crossing instead of passing "
                     "through it. The clamp there holds a rod end against a "
@@ -305,7 +305,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             parts.append(
                 {
                     "id": f"SPLICE-{rod_diameter:g}",
-                    "state": UNDESIGNED,
+                    "state": GENERATED,
                     "kind": "rod_splice",
                     "rod_diameter": rod_diameter,
                     "count": len(joints),
@@ -319,7 +319,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "longest_section_mm": round(longest, 1),
                     "worst_move_mm": round(moved, 1),
                     "joints": joints,
-                    "generator": None,
+                    "generator": "rod_splice_v1",
                     "note": (
                         f"A bow is {meta['rod_length_nominal']:.0f} mm long and "
                         f"transports in {section:.0f} mm sections, so it is "
