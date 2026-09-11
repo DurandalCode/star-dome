@@ -18,12 +18,15 @@ It owns:
 - crossings, nodes, and the symmetry classes that determine how many
   genuinely different connectors the design needs;
 - derived dimensions, rod schedule, tie marks;
+- the assembly order, which falls out of the weave as a graph problem rather
+  than a judgement -- see [`assembly.md`](assembly.md);
 - serialisation to the data contract below.
 
 ```bash
 python3 -m stardome report --all      # derived dimensions
 python3 -m stardome verify --all      # geometric invariants
 python3 -m stardome build --all       # model.json + CSV tables
+python3 -m stardome assembly --all    # which bow goes up when, and what it costs
 make check                            # verify + tests
 ```
 

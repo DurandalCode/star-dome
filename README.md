@@ -41,6 +41,7 @@ exports/        generated output; ignored by Git
 python3 -m stardome report --all      # derived dimensions per variant
 python3 -m stardome verify --all      # geometric invariants
 python3 -m stardome build --all       # model.json + CSV into exports/model
+python3 -m stardome assembly --all    # the order the bows go up in
 make venv && make check               # invariants + test suite
 ```
 
@@ -59,6 +60,7 @@ single interchange format every other tool reads — see
 - How much room you get: [`docs/interior.md`](docs/interior.md)
 - The fabric cover: [`docs/cover.md`](docs/cover.md)
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
+- Putting it up: [`docs/assembly.md`](docs/assembly.md)
 
 ## Sizes
 
