@@ -26,6 +26,7 @@ from . import (
     export,
     interior,
     model,
+    tolerance,
     verify,
     weave,
 )
@@ -124,6 +125,27 @@ def cmd_assembly(args) -> int:
             print(f"{name}: {path}")
         else:
             print(assembly.format_analysis(data))
+    return 0
+
+
+def cmd_tolerance(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        kwargs = dict(
+            trials=args.trials,
+            ground_sigma=args.ground,
+            cut_sigma=args.cut,
+            mark_sigma=args.mark,
+            ground_method=args.ground_method,
+            mark_method=args.mark_method,
+        )
+        if args.json:
+            path = Path(args.out) / name / "tolerance.json"
+            export.write_json(tolerance.study(data, **kwargs), path)
+            print(f"{name}: {path}")
+        else:
+            print(tolerance.format_study(data, **kwargs))
     return 0
 
 
@@ -284,6 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("connectors", cmd_connectors, "derive which connector parts the dome needs"),
         ("weave", cmd_weave, "four-rod node fan geometry and the stacking order"),
         ("assembly", cmd_assembly, "the order the bows go up in, and what it costs"),
+        ("tolerance", cmd_tolerance, "how accurately the ground, the rods and the marks must be measured"),
         ("entrance", cmd_entrance, "where a doorway fits, and how big it can be"),
         ("doorway", cmd_doorway, "the chosen door: which bay, framed by what"),
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
@@ -369,6 +392,20 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
         if name == "assembly":
             p.add_argument("--json", action="store_true", help="write the analysis instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
+        if name == "tolerance":
+            p.add_argument("--trials", type=int, default=tolerance.DEFAULT_TRIALS)
+            p.add_argument("--ground", type=float, default=tolerance.DEFAULT_GROUND_SIGMA,
+                           help="one-sigma error pegging a base point, mm")
+            p.add_argument("--cut", type=float, default=tolerance.DEFAULT_CUT_SIGMA,
+                           help="one-sigma error cutting a bow to length, mm")
+            p.add_argument("--mark", type=float, default=tolerance.DEFAULT_MARK_SIGMA,
+                           help="one-sigma error placing a tie mark, mm")
+            p.add_argument("--ground-method", dest="ground_method",
+                           default="radial", choices=tolerance.GROUND_METHODS)
+            p.add_argument("--mark-method", dest="mark_method",
+                           default="from-end", choices=tolerance.MARK_METHODS)
+            p.add_argument("--json", action="store_true", help="write the study instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "connectors":
             p.add_argument("--json", action="store_true", help="write the schedule instead of printing it")
