@@ -35,9 +35,17 @@ Open the pitch and every pair has room between it. That is the whole of V2.
 
 Every rod sits in a real channel, wrapped 180° from below by one plate and 180°
 from above by the next, so each is positively located and each is still liftable
-straight out. No rod touches another rod, which removes the three
-crossed-cylinder contacts on fibreglass that V1's own notes flagged as the first
-thing to check on a printed prototype.
+straight out. That is what V1 did not do, and it is why V2 exists.
+
+What V2 does **not** do is part the rods. `rodGap` defaults to zero, the two
+channels of a middle plate overlap at the centre, and the rods bear on each
+other through the hole that leaves — deliberately, for the reasons in
+[The rods touch at the centre](#the-rods-touch-at-the-centre-and-the-plate-is-a-cross)
+below and in
+[decision 0005](decisions/0005-the-rods-bear-on-each-other-at-the-node.md). So
+the three crossed-cylinder contacts on fibreglass that V1's own notes flagged
+are still present and still the first thing to check on a print. Two earlier
+revisions of this document said otherwise here; they were wrong.
 
 **All five plates are different parts.** Mid1 and Mid3 have the same angle
 between their grooves, but the two through-bolts pin each plate's orientation in

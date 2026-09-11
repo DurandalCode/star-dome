@@ -16,15 +16,27 @@ because V1 set the stack pitch to exactly one rod diameter, inherited from the
 two-rod clamp where the rods deliberately bear on each other. Nothing in the
 dome requires it.
 
-Open the pitch by a web thickness and every pair has room between it. Then the
-part becomes a stack of plates, each carrying a channel on both faces:
+That reasoning was half right, and the half it got wrong is worth stating
+before the part is described, because two revisions of V2 were built on it.
+Rods touching leaves no room for material between them ONLY AT THE CROSSING
+POINT. Move away from the centre and the two surfaces diverge, so material can
+live between two touching rods everywhere except a small lens around the node.
+
+So the part is a stack of plates, each carrying a channel on both faces:
 
     pitch = rodDiameter + rodGap
 
-Every rod ends up in a real channel, wrapped 180 deg from below by one plate
-and 180 deg from above by the next. No rod touches another rod, which also
-removes the three crossed-cylinder contacts on fibreglass that V1's own notes
-flagged as the first thing to check on a printed prototype.
+and rodGap DEFAULTS TO ZERO. Every rod ends up in a real channel, wrapped
+180 deg from below by one plate and 180 deg from above by the next -- but at
+the centre the two channels of a middle plate overlap and the plate simply has
+a hole there, where the rods bear on each other. That is deliberate: the
+clamping load goes rod-to-rod as the reference intends, and there is no thin
+web to creep under sustained bolt preload.
+
+It also means the three crossed-cylinder contacts on fibreglass that V1's own
+notes flagged are still there, on purpose, and still the first thing to check
+on a printed prototype. See docs/decisions/0005-the-rods-bear-on-each-other-at-the-node.md
+and the section "The rods touch at the centre" in docs/fan-node-v2.md.
 
 THE PARTS
 
