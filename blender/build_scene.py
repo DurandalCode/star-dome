@@ -87,6 +87,31 @@ PART_COLOUR = {
 # parts nobody has designed is a picture of a dome that does not exist.
 UNDESIGNED_COLOUR = (0.90, 0.10, 0.10, 1.0)
 
+# The ground stake: 30 mm steel angle, 500 mm long, and how much of it stands
+# out of the soil.
+#
+# The generator draws the angle centred on the hub and says in as many words
+# that it is a reference solid and not a placement -- how deep it goes is a
+# site decision, not a drawn one. It has to stand out far enough to pass
+# through the hub's through-slot, which is what lets the hub be dropped on
+# after the angle is driven and find its own height.
+#
+# Two thirds out is a shallow set, and it is a choice rather than a result:
+# the angle is what resists the dome spreading at its feet, and it does that
+# through the soil it is buried in. 167 mm of embedment is what this leaves.
+# Whether that holds is milestone 8 and a field test, not geometry.
+STAKE_LENGTH_M = 0.500
+STAKE_LEG_M = 0.030
+STAKE_ABOVE_GROUND = 2.0 / 3.0
+# How far in from the base point the angle stands. The hub's slot is not on
+# the base point: it runs UNDER the bow bundle, offset towards the dome
+# centre, which is where base_hub_v1 puts it and why the hub has an empty
+# sector at all. 36 mm on a three-arm hub with a 10 mm rod, measured off the
+# built part -- a drawing figure for a proxy, since the angle itself is still
+# hardware nobody has specified. The placement's local +Y is outward, so the
+# offset is negative along it and the mirrored feet get it on the right side.
+STAKE_SLOT_INSET_M = 0.036
+
 # Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
 # stilts or in a frame, and whether that gets through the door is a question a
 # person-sized figure never asks. See entrance.TEMPLATES["tall"].
@@ -619,21 +644,31 @@ def proxy_size(spot, part, rod_d):
     closed, so it is a clamp. A stake is a 30 mm steel angle half a metre
     long, driven, so it hangs below the foot rather than straddling it.
 
-    Returns the box in metres and how far to shift it along local +Z, which
-    is what puts the stake in the ground instead of half out of it.
+    Returns the box in metres and how far to shift it along local +Y and +Z,
+    which is what stands the stake in the hub's slot rather than on the base
+    point, and part of the way out of the ground rather than all the way in.
     """
     kind = spot["kind"]
     if kind == "rod_splice":
         length = part.get("sleeve_length", rod_d * 10.0) * MM
-        return (length, rod_d * 2.2 * MM, rod_d * 2.2 * MM), 0.0
+        return (length, rod_d * 2.2 * MM, rod_d * 2.2 * MM), 0.0, 0.0
     if kind == "cut_termination":
-        return (rod_d * 5.0 * MM, rod_d * 4.5 * MM, rod_d * 3.0 * MM), 0.0
+        return (rod_d * 5.0 * MM, rod_d * 4.5 * MM, rod_d * 3.0 * MM), 0.0, 0.0
     if kind == "ground_stake":
-        # A driven angle: 30 mm legs, 500 mm long, and local +Z points down.
-        return (0.030, 0.030, 0.500), 0.250
+        # Local +Z points down the way it is driven, so a positive shift sinks
+        # it. Standing it proud takes a negative one. Local +Y is outward, and
+        # the slot is inboard of the foot.
+        above = STAKE_LENGTH_M * STAKE_ABOVE_GROUND
+        below = STAKE_LENGTH_M - above
+        return (
+            (STAKE_LEG_M, STAKE_LEG_M, STAKE_LENGTH_M),
+            -(above - below) / 2.0,
+            -STAKE_SLOT_INSET_M,
+        )
     members = max(1, part.get("members", 2))
     return (
         (rod_d * 12.0 * MM, rod_d * 3.0 * MM, rod_d * members * MM),
+        0.0,
         0.0,
     )
 
@@ -645,7 +680,7 @@ def proxy_block(spot, part, collection, lift, rod_d, materials):
     undesigned part has earned. Drawing nothing instead would show a dome that
     can be built out of what exists, and 57 of M's 107 connectors do not.
     """
-    (length, width, height), shift = proxy_size(spot, part, rod_d)
+    (length, width, height), shift, sideways = proxy_size(spot, part, rod_d)
 
     mat = materials.get("__undesigned__")
     if mat is None:
@@ -668,9 +703,9 @@ def proxy_block(spot, part, collection, lift, rod_d, materials):
     ex, ey, ez = (Vector(row) for row in spot["basis"])
     origin = spot["origin_mm"]
     centre = (
-        origin[0] * MM + ez.x * shift,
-        origin[1] * MM + ez.y * shift,
-        origin[2] * MM + lift + ez.z * shift,
+        origin[0] * MM + ez.x * shift + ey.x * sideways,
+        origin[1] * MM + ez.y * shift + ey.y * sideways,
+        origin[2] * MM + lift + ez.z * shift + ey.z * sideways,
     )
     obj.matrix_world = Matrix((
         (ex.x, ey.x, ez.x, centre[0]),
