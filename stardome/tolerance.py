@@ -55,21 +55,43 @@ millimetres off nominal.
 What costs is **differential** error: this bow long and that one short, this
 peg out and its neighbour in. Then the four marks that should meet at a node
 do not, and the rods have to be flexed until they do. That flexing is
-pre-stress in a structure whose members are already bent to their limit, which
-is why the number to watch is not the dome's height but the **node spread**.
+pre-stress in a structure whose members are already bent to a known radius,
+which is why the number to watch is not the dome's height but the **node
+spread** -- and, through it, the extra curvature that spread forces.
 
-## Node spread
+## Node spread, and what it is allowed to be
 
 At a lashed node the four rods' tangents are coplanar (`weave.node_fan`), so
 the four marks that should coincide there land in one plane. The spread is the
 largest distance between any two of them: the gap the rods must be sprung
 across before the connector will close.
 
-It is a kinematic mismatch, not a force. Turning millimetres into newtons
-needs rod stiffness and is milestone 8. Two reference lengths are worth having
-beside it: the connector's rod clearance, which is absorbed without flexing
-anything, and the rod diameter, beyond which the four marks no longer overlap
-at all.
+Saying whether a given spread is acceptable needs a criterion, and **the
+criterion is where the whole answer lives** -- the two available here differ
+by an order of magnitude, so it is an argument rather than a constant.
+
+**`curvature` (the default, and the operative one).** A spread `s` sprung
+across a span `a` bends the rod into a parabola of curvature `2s/a^2`. The rod
+is already bent to the dome radius, so report that as a fraction of the
+curvature it is holding anyway. Pure geometry: no modulus, no strength,
+nothing to look up. The span comes from the marking scheme, because a rod is
+held at its feet and its tie marks and nowhere else -- the 30 unlashed
+crossings are not clamps. Family G's fifths give the tightest span and
+therefore set the tolerance.
+
+**`overlap`.** The four marks at a node must still fall within a rod diameter
+of each other. This is a tidy landmark and it is what a connector drawing
+asks, but it is **not** a failure mode: a mark is a build aid, not a stop. The
+connector sits where the four rods agree to cross, not on anybody's mark, and
+the rods run through it and slide in their channels. Choosing this criterion
+asks for about ten times the care that the curvature one does, for no physical
+reason.
+
+Neither is a limit. Where the real limit sits needs the strength and the
+ultimate strain of the actual stock -- milestone 3's one open item that
+depends on nothing else. And `2s/a^2` is a worst case on top of that: it holds
+the two neighbouring nodes rigid, where a real frame spreads the displacement
+over several spans and pays less.
 
 ## Field method matters more than field care
 
@@ -103,6 +125,14 @@ DEFAULT_TRIALS = 2000
 
 GROUND_METHODS = ("radial", "chained")
 MARK_METHODS = ("from-end", "stepped")
+
+CRITERIA = ("curvature", "overlap")
+
+# How much extra bending a node mismatch may force, as a fraction of the
+# curvature the rod is already holding. A judgement, not a limit: where the
+# real limit sits needs the strength and the ultimate strain of the actual
+# stock, which is milestone 3's one open item that depends on nothing else.
+DEFAULT_CURVATURE_BUDGET = 0.10
 
 # The exact constants derived in the module docstring.
 D_RISE_D_LENGTH = 0.5
@@ -182,6 +212,50 @@ def arc_points(foot_a, foot_b, length: float, bulge_ref, fractions) -> list:
             )
         )
     return out
+
+
+# --- what a mismatch actually costs -----------------------------------------
+
+
+def held_spans(data: dict) -> dict:
+    """Arc between consecutive held points on a rod, per family, in mm.
+
+    A rod is held at its two feet and at its tie marks, and nowhere else --
+    the 30 unlashed crossings are not clamps and may not even get a part. So
+    the span a mismatch has to be sprung across is the gap between marks, or
+    between a foot and the nearest mark. Derived from the marking scheme
+    rather than typed in: family G is marked in fifths and U and L in thirds,
+    and a bow is 180 degrees of arc.
+    """
+    radius = data["meta"]["dome_radius"]
+    out = {}
+    for rod in data["rods"]:
+        held = [0.0] + list(rod["tie_marks_deg"]) + [180.0]
+        gap = min(held[i + 1] - held[i] for i in range(len(held) - 1))
+        out[rod["family"]] = round(radius * math.radians(gap), 3)
+    return out
+
+
+def curvature_ratio(spread_mm: float, span_mm: float, radius_mm: float) -> float:
+    """Extra curvature a node mismatch forces, against the rod's own.
+
+    Hold a rod at two points ``span`` apart and push it ``spread`` sideways at
+    the middle: the parabola through those three points is
+    ``y = spread (1 - x^2/span^2)``, whose curvature is ``2*spread/span^2``.
+    The rod is already bent to the dome radius, so the honest way to report
+    the mismatch is as a fraction of the curvature it is holding anyway.
+
+    This is the yardstick to use, and it is pure geometry -- no modulus, no
+    strength, nothing that has to be looked up. It is also a **worst case**:
+    it assumes the two neighbouring nodes are rigid, where a real frame
+    spreads the displacement over several spans and pays less.
+    """
+    return (2.0 * spread_mm / (span_mm * span_mm)) * radius_mm
+
+
+def spread_for_curvature(budget: float, span_mm: float, radius_mm: float) -> float:
+    """Node spread that costs a given fraction of the rod's own curvature."""
+    return budget * span_mm * span_mm / (2.0 * radius_mm)
 
 
 # --- what gets measured ----------------------------------------------------
@@ -350,6 +424,8 @@ def study(data: dict, trials: int = DEFAULT_TRIALS,
           mark_sigma: float = DEFAULT_MARK_SIGMA,
           ground_method: str = "radial",
           mark_method: str = "from-end",
+          criterion: str = "curvature",
+          curvature_budget: float = DEFAULT_CURVATURE_BUDGET,
           seed: int = 20260911) -> dict:
     """Monte Carlo over the whole measured chain, plus one source at a time.
 
@@ -388,7 +464,33 @@ def study(data: dict, trials: int = DEFAULT_TRIALS,
     # search. It also removes the sigmas above from the comparison: reading
     # the raw table instead would rank the sources by which sigma was guessed
     # largest.
+    if criterion not in CRITERIA:
+        raise ValueError(f"criterion must be one of {CRITERIA}, got {criterion!r}")
+
     rod = data["meta"]["rod_diameter"]
+    radius = data["meta"]["dome_radius"]
+    spans = held_spans(data)
+    # The tightest span is the one that pays most for a given mismatch, so it
+    # is the one the tolerance has to satisfy.
+    span = min(spans.values())
+
+    # Two possible targets, and which one is chosen changes the answer by an
+    # order of magnitude, so it is an argument rather than a constant.
+    #
+    #   curvature  the mismatch may add this fraction to the bending the rod
+    #              already carries. The operative one.
+    #   overlap    the four marks at a node must still overlap within a rod
+    #              diameter. A tidy landmark, but a mark is a build aid and
+    #              not a stop: the connector sits where the rods agree to
+    #              cross, not on anybody's mark. Kept because it is the
+    #              question a connector drawing asks, not because anything
+    #              fails past it.
+    allowed = (
+        spread_for_curvature(curvature_budget, span, radius)
+        if criterion == "curvature"
+        else rod
+    )
+
     unit = {
         "ground": run(1.0, 0.0, 0.0),
         "cut": run(0.0, 1.0, 0.0),
@@ -398,7 +500,7 @@ def study(data: dict, trials: int = DEFAULT_TRIALS,
         name: body["worst_spread"]["p95"] for name, body in unit.items()
     }
     needed = {
-        name: round(rod / value, 2) if value else None
+        name: round(allowed / value, 2) if value else None
         for name, value in per_mm.items()
     }
 
@@ -436,7 +538,20 @@ def study(data: dict, trials: int = DEFAULT_TRIALS,
         "by_source": sources,
         "by_method": methods,
         "spread_per_mm_of_sigma": {k: round(v, 3) for k, v in per_mm.items()},
-        "sigma_for_one_rod_diameter_mm": needed,
+        "criterion": criterion,
+        "curvature_budget": curvature_budget,
+        "held_spans_mm": spans,
+        "tightest_span_mm": span,
+        "allowed_spread_mm": round(allowed, 2),
+        "required_sigma_mm": needed,
+        "curvature_cost": {
+            key: round(
+                curvature_ratio(
+                    combined["worst_spread"][key], span, radius
+                ), 5
+            )
+            for key in ("median", "p95", "max")
+        },
         "dominant_source": max(per_mm, key=per_mm.get),
         "reference_lengths_mm": {
             "rod_diameter": rod,
@@ -479,20 +594,34 @@ def format_study(data: dict, **kwargs) -> str:
             f"    {label:<18} {q['median']:>8.2f} {q['p90']:>7.2f} "
             f"{q['p95']:>7.2f} {q['max']:>7.2f}"
         )
-    rod = s["reference_lengths_mm"]["rod_diameter"]
     lines.append("")
+    cost = s["curvature_cost"]
     lines.append(
-        "  per mm of care, and the tolerance that keeps the four marks "
-        f"overlapping ({rod:g} mm at p95):"
+        f"  what that costs in bending, over the tightest span "
+        f"({s['tightest_span_mm']:.0f} mm, family G):"
+        f"   median {cost['median'] * 100:.1f}%, p95 {cost['p95'] * 100:.1f}% "
+        f"of the curvature the rod already holds"
     )
+    lines.append("")
+    if s["criterion"] == "curvature":
+        target = (
+            f"{s['curvature_budget'] * 100:.0f}% extra curvature, which is "
+            f"{s['allowed_spread_mm']:.0f} mm of spread"
+        )
+    else:
+        target = (
+            f"four marks overlapping within a rod diameter, "
+            f"{s['allowed_spread_mm']:.0f} mm of spread"
+        )
+    lines.append(f"  per mm of care, against a target of {target} at p95:")
     for name, value in sorted(
         s["spread_per_mm_of_sigma"].items(), key=lambda kv: -kv[1]
     ):
-        needed = s["sigma_for_one_rod_diameter_mm"][name]
+        needed = s["required_sigma_mm"][name]
         flag = "  <- dominant" if name == s["dominant_source"] else ""
         lines.append(
             f"    {name:<8} {value:>5.2f} mm of spread per mm of sigma"
-            f"   ->  hold to +/-{needed:.1f} mm{flag}"
+            f"   ->  hold to +/-{needed:.0f} mm{flag}"
         )
     lines.append("")
     lines.append("  method, at one mm of sigma either way (p95 spread):")
@@ -506,6 +635,8 @@ def format_study(data: dict, **kwargs) -> str:
     lines.append(
         f"  for scale: connector clearance {ref['connector_clearance']:g} mm, "
         f"rod diameter {ref['rod_diameter']:g} mm"
+        f"   (the 'overlap' criterion targets the latter, and asks about ten "
+        f"times the care)"
     )
     q = s["combined"]["height_error"]
     lines.append(

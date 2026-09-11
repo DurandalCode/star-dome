@@ -139,6 +139,8 @@ def cmd_tolerance(args) -> int:
             mark_sigma=args.mark,
             ground_method=args.ground_method,
             mark_method=args.mark_method,
+            criterion=args.criterion,
+            curvature_budget=args.budget,
         )
         if args.json:
             path = Path(args.out) / name / "tolerance.json"
@@ -405,6 +407,14 @@ def build_parser() -> argparse.ArgumentParser:
                            default="radial", choices=tolerance.GROUND_METHODS)
             p.add_argument("--mark-method", dest="mark_method",
                            default="from-end", choices=tolerance.MARK_METHODS)
+            p.add_argument("--criterion", default="curvature",
+                           choices=tolerance.CRITERIA,
+                           help="what a node spread is allowed to be: extra "
+                                "bending (default) or marks still overlapping")
+            p.add_argument("--budget", type=float,
+                           default=tolerance.DEFAULT_CURVATURE_BUDGET,
+                           help="extra curvature allowed, as a fraction of the "
+                                "rod's own; only used by --criterion curvature")
             p.add_argument("--json", action="store_true", help="write the study instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "connectors":

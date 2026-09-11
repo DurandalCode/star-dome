@@ -237,11 +237,11 @@ def test_cut_length_matters_least(study):
     assert per_mm["cut"] < per_mm["marks"]
 
 
-def test_required_tolerance_is_the_rod_diameter_over_the_sensitivity(study):
-    rod = study["reference_lengths_mm"]["rod_diameter"]
+def test_required_tolerance_is_the_allowance_over_the_sensitivity(study):
+    allowed = study["allowed_spread_mm"]
     for name, per_mm in study["spread_per_mm_of_sigma"].items():
-        assert study["sigma_for_one_rod_diameter_mm"][name] == pytest.approx(
-            rod / per_mm, abs=0.01
+        assert study["required_sigma_mm"][name] == pytest.approx(
+            allowed / per_mm, abs=0.01
         )
 
 
@@ -256,20 +256,83 @@ def test_zero_sigma_everywhere_gives_no_spread(d6):
 
 
 def test_sensitivity_does_not_depend_on_dome_size(built):
-    """The coefficients come from a self-similar shape, so they are the same
-    at 3 m and at 12 m -- which means the tolerance is absolute, and a small
-    dome is proportionally the harder one to build."""
+    """The coefficients come from a self-similar shape, so a millimetre of
+    care buys the same millimetres of spread at 3 m and at 12 m."""
     here = tolerance.study(built, trials=300)["spread_per_mm_of_sigma"]
     reference = {"ground": 4.312, "marks": 4.222, "cut": 2.026}
     for name, value in reference.items():
         assert here[name] == pytest.approx(value, abs=0.02)
 
 
-def test_required_tolerance_follows_the_rod_and_nothing_else(built):
-    """Two domes with the same rod need the same care, whatever their size."""
+def test_required_tolerance_is_proportional_to_the_dome(built):
+    """Under the curvature criterion the tolerance scales with the dome.
+
+    The allowance is ``budget * span^2 / (2R)`` and the span is proportional
+    to R, so the allowance is too -- and so is the sigma that delivers it.
+    Every size is therefore the same relative demand, about one part in 215
+    of the radius. It is the reason the earlier "hold the pegs to two
+    millimetres" reading was wrong: that came from pinning the target to the
+    rod diameter, which does not scale with the dome.
+    """
     study = tolerance.study(built, trials=300)
-    rod = built["meta"]["rod_diameter"]
-    expected = {8: 1.9, 10: 2.3, 12: 2.8}[int(rod)]
-    assert study["sigma_for_one_rod_diameter_mm"]["ground"] == pytest.approx(
-        expected, abs=0.1
+    radius = built["meta"]["dome_radius"]
+    assert study["required_sigma_mm"]["ground"] / radius == pytest.approx(
+        1.0 / 215.0, rel=0.05
     )
+
+
+# --- the criterion ---------------------------------------------------------
+
+
+def test_held_spans_come_from_the_marking_scheme(built):
+    """A rod is held at its feet and its tie marks and nowhere else, so the
+    span is a gap in the marking: fifths on G, thirds on U and L."""
+    radius = built["meta"]["dome_radius"]
+    spans = tolerance.held_spans(built)
+    assert spans["G"] == pytest.approx(radius * math.radians(36.0), abs=1e-3)
+    assert spans["U"] == pytest.approx(radius * math.radians(60.0), abs=1e-3)
+    assert spans["L"] == spans["U"]
+    assert min(spans.values()) == spans["G"]
+
+
+def test_curvature_ratio_is_the_parabola_through_three_points():
+    """y = s(1 - x^2/a^2) has curvature 2s/a^2 at the middle; the ratio is
+    that against the 1/R the rod already holds."""
+    assert tolerance.curvature_ratio(32.0, 1885.0, 3000.0) == pytest.approx(
+        2.0 * 32.0 / 1885.0 ** 2 * 3000.0
+    )
+    assert tolerance.curvature_ratio(0.0, 1885.0, 3000.0) == 0.0
+
+
+@pytest.mark.parametrize("budget", [0.05, 0.1, 0.25])
+def test_spread_for_curvature_inverts_curvature_ratio(budget):
+    span, radius = 1885.0, 3000.0
+    spread = tolerance.spread_for_curvature(budget, span, radius)
+    assert tolerance.curvature_ratio(spread, span, radius) == pytest.approx(budget)
+
+
+def test_the_overlap_criterion_asks_far_more_care(d6):
+    """Roughly ten times, and for no physical reason -- a mark is a build aid
+    and not a stop. Kept only because it is the question a connector drawing
+    asks. If these two ever came close together, the document's advice about
+    which one to use would need revisiting."""
+    loose = tolerance.study(d6, trials=200, criterion="curvature")
+    tight = tolerance.study(d6, trials=200, criterion="overlap")
+    ratio = (
+        loose["required_sigma_mm"]["ground"] / tight["required_sigma_mm"]["ground"]
+    )
+    assert 5.0 < ratio < 20.0
+
+
+def test_an_unknown_criterion_is_refused(d6):
+    with pytest.raises(ValueError):
+        tolerance.study(d6, trials=10, criterion="vibes")
+
+
+def test_a_casual_build_is_inside_the_curvature_budget(d6):
+    """Ten millimetres on the pegs -- a tape, on grass -- costs a few per cent
+    of the bending the rod is already carrying. This is the number that
+    replaced 'the ground wants a template'."""
+    study = tolerance.study(d6, trials=400)
+    assert study["curvature_cost"]["median"] < 0.07
+    assert study["curvature_cost"]["p95"] < study["curvature_budget"]
