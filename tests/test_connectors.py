@@ -531,3 +531,31 @@ def test_no_splice_lands_on_a_crossing():
             assert joint["clear_of_crossing_mm"] >= sleeve - 1e-6, (
                 name, joint["rod"], joint["clear_of_crossing_mm"], sleeve
             )
+
+
+def test_the_stake_knows_which_way_is_out_and_which_way_is_down():
+    """The driven angle is hardware, but where it stands is not arbitrary.
+
+    It goes in vertically -- you hammer it, and the ground is down -- and it
+    passes through a slot the hub carries UNDER the bow bundle, offset towards
+    the dome centre. So the frame has to say which way is outward, or a
+    consumer cannot put the angle on the correct side, and the two mirror sets
+    of feet would get it on opposite ones.
+    """
+    from stardome import connectors, vec
+
+    sched = connectors.schedule(_woven("M"))
+    stakes = [p for p in sched["placements"] if p["kind"] == "ground_stake"]
+    assert len(stakes) == 10
+
+    for spot in stakes:
+        ex, ey, ez = (tuple(row) for row in spot["basis"])
+        # Driven: local +Z is straight down, at every foot.
+        assert ez == (0.0, 0.0, -1.0), spot["at"]
+        # Local +Y is outward from the dome axis, so an inboard offset is
+        # negative along it wherever the foot happens to be.
+        radial = vec.unit((spot["origin_mm"][0], spot["origin_mm"][1], 0.0))
+        assert vec.dot(ey, radial) > 0.999, spot["at"]
+        # Right-handed, like every other placement.
+        det = sum(ex[i] * vec.cross(ey, ez)[i] for i in range(3))
+        assert abs(det - 1.0) < 1e-9, spot["at"]

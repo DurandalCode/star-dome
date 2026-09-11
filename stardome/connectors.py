@@ -618,19 +618,7 @@ def placements(data: dict, parts: list) -> list:
                 out.append(_base_placement(part, bases[name], fan, bows))
         elif kind == "ground_stake":
             for name in part["nodes"]:
-                base = bases[name]
-                out.append(
-                    {
-                        "part": part["id"],
-                        "kind": kind,
-                        "at": name,
-                        "origin_mm": [base["x"], base["y"], base["z"]],
-                        # Driven, so it is vertical whatever the hub above it
-                        # is doing: +Z down the way it goes into the ground.
-                        "basis": _basis((1.0, 0.0, 0.0), (0.0, -1.0, 0.0),
-                                        (0.0, 0.0, -1.0)),
-                    }
-                )
+                out.append(_stake_placement(part, bases[name], fan))
         elif kind == "rod_splice":
             for joint in part["joints"]:
                 out.append(_splice_placement(part, joint, bows, offset_at))
@@ -873,6 +861,36 @@ def _base_placement(part: dict, base: dict, fan: dict, bows: dict) -> dict:
         f"base point {base['name']} matches neither arm order of "
         f"{part['id']}; it is a third geometry and wants a part of its own"
     )
+
+
+def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
+    """The driven angle at one foot, in the frame it is driven in.
+
+    It is vertical whatever the hub above it is doing -- you hammer it, and the
+    ground is down -- so local +Z points down the way it goes in. What the foot
+    decides is the other two axes, and they matter: the hub carries its slot
+    UNDER the bow bundle, offset towards the dome centre, so a consumer needs
+    to know which way that is. Local +Y is outward, so the offset is negative
+    along it, and the two mirror sets of feet get it on the correct side
+    without anyone working out which set they are in.
+
+    How far in, this does not say. That is a dimension of the hub, and the hub
+    is `base_hub_v1`'s business; this is the ground's frame, not the part's.
+    """
+    from . import vec
+
+    here = fan["by_base"][base["name"]]
+    along = tuple(here["along"])
+    outward = tuple(here["outward"])
+    down = (0.0, 0.0, -1.0)
+    return {
+        "part": part["id"],
+        "kind": part["kind"],
+        "at": base["name"],
+        "origin_mm": [base["x"], base["y"], base["z"]],
+        "basis": _basis(along, outward, down),
+        "driven": True,
+    }
 
 
 def _foot_direction(bow, point):
