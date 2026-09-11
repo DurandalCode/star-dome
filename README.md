@@ -71,15 +71,20 @@ single interchange format every other tool reads — see
 Four sizes are a chosen build -- skirt settled, doorway settled -- and carry a
 short name. Either name loads the same dome.
 
-| | dome | skirt | overall | you get in |
-|---|---|---|---|---|
-| **S** | D4 | 1350 mm | 3.31 m | carrying something |
-| **M** | D6 | none | 2.95 m | on all fours |
-| **L** | D8 | none | 3.93 m | ducking |
-| **XL** | D10 | none | 4.91 m | carrying something — and a 2.2 m character too |
+| | dome | skirt | overall | clear opening | you get in |
+|---|---|---|---|---|---|
+| **S** | D4 | 1350 mm | 3.31 m | 1210 mm over the skirt | everything, up to a 2.2 m character |
+| **M** | D6 | none | 2.95 m | 1816 mm | carrying something, but not 800 mm wide and not 2.2 m tall |
+| **L** | D8 | none | 3.93 m | 2423 mm | everything, up to a 2.2 m character |
+| **XL** | D10 | none | 4.91 m | 3029 mm | everything, with room to spare |
 
-M and L are bare by choice; that is what makes their doors what they are.
-Only S has a skirt, because a 4 m dome without one admits nothing at all.
+Every one of them walks in, because the door is a portal cut into a low bay
+rather than the tall bay's pointed arch — 2.8% of the rod, nothing severed.
+**M is the only built size that turns anything away**: the 800 mm-wide
+silhouette and the 2.2 m character do not fit it.
+
+M, L and XL are bare by choice. Only S has a skirt, and it is there for
+standing floor area rather than for the door — a 4 m dome is 19% usable bare.
 
 D3 and D12 stay in `configs/variants.toml` without a short name: they are the
 ends of the range, kept for study rather than to build. See

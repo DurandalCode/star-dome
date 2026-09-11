@@ -52,17 +52,21 @@ adds a second ring, and D3 + 1 m now spends 99 m against a bare D4's 94, plus
 27 m of strap. The "silo" is still not the compromise it looks like, but it is
 no longer the cheap option.
 
-And D6, with the 760 mm of skirt a walk-in door needs anyway
-([`entrance.md`](entrance.md)):
+And D6, which this document once proposed to put on 760 mm of skirt because
+[`entrance.md`](entrance.md) said a walk-in door needed it:
 
 | | standing room | of floor | overall | tip index | m²/m |
 |---|---|---|---|---|---|
 | D6 bare | 18.10 m² | 64% | 2947 mm | 0.424 | 0.128 |
-| D6 + 760 | **24.88 m²** | **88%** | 3707 mm | 0.543 | 0.148 |
+| D6 + 760 | 24.88 m² | 88% | 3707 mm | 0.543 | 0.148 |
 
-38% more standing room, 16% better rod efficiency, and the door — for 760 mm of
-height on a 6 m dome. **This is probably what the reference prototype should
-be.**
+**That recommendation is withdrawn, and M is bare.** The door stopped needing a
+skirt once it moved to a portal in a low bay, so the 760 mm now buys standing
+room and nothing else — and pays the full wind penalty for it, tip index 0.424
+to 0.543. Whether a quarter more usable floor is worth that is an open trade
+and not a settled one; `configs/variants.toml` currently says no. See
+[`doorway.md`](doorway.md) and
+[decision 0008](decisions/0008-the-config-records-what-a-dome-admits.md).
 
 ## The one thing it costs
 
@@ -122,7 +126,9 @@ So **D3 + skirt is dominated**, and the earlier "D3 on a skirt beats a bare D4"
 result is true but the wrong comparison — the honest one is skirt against
 skirt. Choose D3 only when the site is too small for 4 m.
 
-The same sweep across the family, each with the skirt its walk-in door needs:
+The same sweep across the family, each with the skirt a **rectangular** walk-in
+door would have needed. These are not the built skirts — only S carries one —
+and they are here for the trend, not as a specification:
 
 | | skirt | standing room | of floor | tip index | slenderness | m²/m |
 |---|---|---|---|---|---|---|
@@ -140,15 +146,23 @@ exposure — does not exist once the door requirement is held constant.
 
 ## What this suggests
 
-- **D6 + 760 mm skirt** as the reference: a walk-in door, 88% of the floor
-  usable, a modest tip penalty.
-- **D3 + 1300–1600 mm skirt** as a small sleeping pod, accepting a tip index
-  near 0.9 and the anchoring that implies. Not a public space.
-- **D10 and above** need no skirt for either headroom or a door.
+A skirt now buys exactly one thing — standing room — because the portal took
+the door out of the argument. So the case for one has to stand on floor area
+alone, and it only does at the small end.
+
 - **D4 wants a skirt more than any other size, and repays it best.** Bare it is
-  the worst of the family — 19% of its floor usable, the lowest rod efficiency
-  of any dome that works at all. On a skirt it is the best thing at the small
-  end; see below.
+  the worst of the family: 19% of its floor usable, the lowest rod efficiency of
+  any dome that works at all. On a skirt it is the best thing at the small end.
+  **S is D4 + 1350 mm**, and it is the only built variant with one.
+- **M, L and XL go bare.** From D6 up, most of the floor is already usable —
+  64%, 80%, 87% — and a skirt would be paying the full wind penalty for the
+  remainder. Whether M is worth 760 mm for a quarter more floor is a live
+  trade; `configs/variants.toml` currently says no. See
+  [decision 0008](decisions/0008-the-config-records-what-a-dome-admits.md).
+- **D3 + 1300–1600 mm** would be a small sleeping pod, accepting a tip index
+  near 0.9 and the anchoring that implies. Not a public space, and dominated by
+  D4 on a skirt in any case —
+  [decision 0009](decisions/0009-d3-on-a-skirt-is-dominated.md).
 
 None of this is a structural calculation. It is geometry and a shape
 comparison, which is enough to choose a size and not enough to build one.

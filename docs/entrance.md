@@ -4,6 +4,16 @@ The Star Dome has no door. It has fifteen rods and whatever gaps they leave, and
 an entrance has to live in one of those gaps without cutting a member. This is
 that question answered by measurement.
 
+> **This measures a rectangle, and the door the project chose is not one.**
+> Everything below fits an axis-aligned rectangle under the bare dome's
+> envelope, which is the right way to ask "how much room is there at the base
+> ring" and the wrong way to ask "does a person get in". A person is not a
+> rectangle and neither is a pointed arch, and
+> [`doorway.md`](doorway.md) fits the two shapes against each other instead —
+> which is cheaper at every size, and is what `configs/variants.toml` builds.
+> The skirt heights in this document are therefore **what a rectangular door
+> would have cost**, not what any variant carries.
+
 ```bash
 python3 -m stardome entrance D6
 python3 -m stardome entrance --all --door 1800 700
@@ -51,11 +61,16 @@ lookup: the tallest unobstructed spot at the base ring is **0.2549 × diameter**
 Widths in mm at the given clear height. Openings repeat with the dome's D5
 symmetry, so they come in fives or tens around the perimeter.
 
-**Read that table for what it says.** A walk-in entrance — call it 1800 mm
-clear at a useful width — does not exist below D10. **D6, the reference
-prototype, cannot take a door you can walk through**: its best is 497 mm wide
-at 1200 mm high. You duck and turn sideways. D3 and D4 have no 1200 mm opening
-at all; they are crawl-in shelters.
+**Read that table for what it says, and not for more.** A walk-in *rectangle*
+— call it 1800 mm clear at a useful width — does not exist below D10. By this
+measure D6's best is 497 mm wide at 1200 mm high, and D3 and D4 have no
+1200 mm opening at all.
+
+That was taken at the time to mean the middle of the range could not be walked
+into, and it does not mean that. It means **no rectangle fits**. Cutting one
+crossing out of a low bay opens a portal that a person-shaped silhouette walks
+through on M, L and XL alike, at a cost of 2.8% of the rod and nothing severed
+— [`doorway.md`](doorway.md).
 
 ## Which is what the skirt is really for
 
@@ -77,16 +92,26 @@ For **1800 × 700 mm**:
 | D10 | 2080 mm | none | 0 | 4911 mm |
 | D12 | 2600 mm | none | 0 | 5894 mm |
 
-Two things fall out of this.
+**None of those skirt heights is what the project built**, and the reason is at
+the top of this document: they answer the rectangle question, and the door is
+not a rectangle. Read the column as *what a skirt would have cost if the
+rectangle had been the only option*.
 
-**D6 wants a skirt.** 760 mm turns the reference prototype from something you
-crawl into to something you walk into, for 760 mm of extra height on a 6 m
-dome. That is a much better trade than it sounds.
+**D6 does not take a skirt.** This document used to recommend 760 mm of it, on
+the grounds that it turned the reference prototype from something you crawl
+into to something you walk into. The portal took the same trade for the price
+of one crossing, so **M is bare** — see
+[`doorway.md`](doorway.md) and
+[decision 0008](decisions/0008-the-config-records-what-a-dome-admits.md).
+The 760 mm figure survives here only as the measurement it was.
 
-**D3 does not work.** It needs 1600 mm of skirt for a standing door, giving a
-3.07 m structure over a 3 m footprint — taller than it is wide, which is a silo
-rather than a dome. Either D3 accepts a crawl entrance, or the size is wrong
-for a room you walk into.
+**D3 is the one case the rectangle still decides.** It needs 1600 mm of skirt
+for a standing door, giving a 3.07 m structure over a 3 m footprint — taller
+than it is wide, which is a silo rather than a dome. `configs/variants.toml`
+gives it 1000 mm and no door cut: it is kept for study at the small end of the
+range, not offered as a room you walk into. See also
+[decision 0009](decisions/0009-d3-on-a-skirt-is-dominated.md), which is why
+D4 carries the small size instead.
 
 ## What this does not tell you
 
