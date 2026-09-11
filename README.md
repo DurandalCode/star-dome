@@ -54,6 +54,8 @@ single interchange format every other tool reads — see
 ## Project guidance
 
 - Agent instructions: [`AGENTS.md`](AGENTS.md)
+- Why it is like that: [`docs/decisions/`](docs/decisions/README.md)
+- What the words mean: [`docs/glossary.md`](docs/glossary.md)
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
 - Dome geometry: [`dome/README.md`](dome/README.md)
 - Crossing clamp V1: [`docs/crossing-clamp-v1.md`](docs/crossing-clamp-v1.md)

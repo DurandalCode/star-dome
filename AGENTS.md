@@ -108,3 +108,5 @@ delete this paragraph.
 - Prefer source files, scripts, configs, and documentation in Git.
 - Keep large Blender caches, renders, temporary meshes, and slicer output out of Git.
 - Record non-obvious design decisions in `docs/` rather than only in commit messages.
+- Write a numbered record in `docs/decisions/` when a decision reverses an earlier one, when a plausible alternative was measured and lost, or when the choice constrains future work. A record says what was chosen, what was rejected and what it costs; how the thing works belongs in the document that explains it. Records are appended, never edited to say something else — correcting one means writing the next. See [`docs/decisions/README.md`](docs/decisions/README.md).
+- Use the project's own vocabulary as [`docs/glossary.md`](docs/glossary.md) defines it. Bow, bay, lancet, portal, gore, fan, tie mark and the rest all mean one specific thing here.
