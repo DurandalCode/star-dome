@@ -59,6 +59,49 @@ This repository is a physical-design workspace for temporary Star Dome structure
 - Update the roadmap when a milestone is materially completed or when a design decision changes the plan.
 - Do not mark structural validation complete based only on visual inspection or CAD geometry.
 
+## Branches and the merge gate
+
+The pull request exists for one reason: **CI runs the checks somewhere other
+than the machine that wrote the change.** `make check` passing locally says the
+change works against one Python, one OpenSCAD, and whatever is already built in
+`exports/`. The `parity` job says it works from a clean clone, with the
+OpenSCAD reference regenerated from scratch. Only the second one is evidence.
+
+That reason is only served if the answer arrives before the merge, so:
+
+- **Never merge before the checks report.** The suite takes about two minutes;
+  merging sooner throws away the only thing the PR was for. Wait for it:
+
+  ```bash
+  gh pr checks --watch && gh pr merge --merge --delete-branch
+  ```
+
+  Both halves matter. `--watch` blocks until every run finishes and exits
+  non-zero if any failed, so the merge simply does not happen on red.
+
+- **A red `main` is fixed before anything else is merged.** It has happened
+  once: a PR merged eleven seconds after it was opened, its own run failed, and
+  `main` stayed broken until the next change happened to repair it. Nothing
+  downstream of a red parity job can be trusted, because the cross-check is
+  what makes the geometry believable in the first place.
+
+- **One branch, one subject, deleted on merge.** A branch reused for
+  unrelated work stops carrying information: its name no longer says what is on
+  it, and commits that are still in progress become indistinguishable from
+  commits that were abandoned. Name it after the question it answers, not after
+  the operation it performs.
+
+- **The PR body is where a design argument goes to be forgotten.** Anything
+  that explains *why* — an alternative rejected, a number that changed a
+  decision, a reconstruction checked against the reference — belongs in
+  `docs/`, and the PR body may then summarise it. A closed PR is not
+  searchable from a clean clone.
+
+Branch protection is not available on a private repository without a paid plan,
+so the gate is a habit rather than an enforced rule. If the repository is ever
+made public, turn on required status checks for `python` and `parity` and
+delete this paragraph.
+
 ## Repo hygiene
 
 - Do not commit generated STL/3MF/OBJ/GLB exports unless there is a specific reason.
