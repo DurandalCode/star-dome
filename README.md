@@ -42,6 +42,7 @@ python3 -m stardome report --all      # derived dimensions per variant
 python3 -m stardome verify --all      # geometric invariants
 python3 -m stardome build --all       # model.json + CSV into exports/model
 python3 -m stardome assembly --all    # the order the bows go up in
+python3 -m stardome tolerance --all   # what the tape measure has to achieve
 make venv && make check               # invariants + test suite
 ```
 
@@ -61,6 +62,7 @@ single interchange format every other tool reads — see
 - The fabric cover: [`docs/cover.md`](docs/cover.md)
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
 - Putting it up: [`docs/assembly.md`](docs/assembly.md)
+- How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)
 
 ## Sizes
 

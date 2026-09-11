@@ -20,6 +20,8 @@ It owns:
 - derived dimensions, rod schedule, tie marks;
 - the assembly order, which falls out of the weave as a graph problem rather
   than a judgement -- see [`assembly.md`](assembly.md);
+- the error budget over the forty marks and ten pegs that are the structure's
+  entire measured content -- see [`tolerance.md`](tolerance.md);
 - serialisation to the data contract below.
 
 ```bash
@@ -27,6 +29,7 @@ python3 -m stardome report --all      # derived dimensions
 python3 -m stardome verify --all      # geometric invariants
 python3 -m stardome build --all       # model.json + CSV tables
 python3 -m stardome assembly --all    # which bow goes up when, and what it costs
+python3 -m stardome tolerance --all   # how accurately it has to be measured
 make check                            # verify + tests
 ```
 
