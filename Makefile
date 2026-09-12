@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interiors covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spanss covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -30,6 +30,7 @@ help:
 	@echo "make covers     fabric area, and how few gores it sews from"
 	@echo "make attachment what holds the cover on, and on what"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
+	@echo "make spans      the longest unsupported span, and the ceiling it sets"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make fitted     the same dome with every connector fitted (V=M)"
@@ -117,6 +118,14 @@ corridors:
 		--width $(word 1,$(CORRIDOR)) \
 		--height $(word 2,$(CORRIDOR)) \
 		--length $(word 3,$(CORRIDOR))
+
+# The longest unsupported span and the scaling law on it. HOLDS is what counts
+# as holding a bow: 'lashed' (feet and tie marks, the conservative reading) or
+# 'contact' (every crossing clamped).
+HOLDS ?= lashed
+
+spans:
+	@$(PYTHON) -m stardome span --all --holds $(HOLDS) --clamps
 
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)

@@ -43,6 +43,7 @@ python3 -m stardome verify --all      # geometric invariants
 python3 -m stardome build --all       # model.json + CSV into exports/model
 python3 -m stardome assembly --all    # the order the bows go up in
 python3 -m stardome tolerance --all   # what the tape measure has to achieve
+python3 -m stardome span --all        # the longest unsupported span, and the ceiling
 make venv && make check               # invariants + test suite
 ```
 
@@ -67,6 +68,7 @@ single interchange format every other tool reads — see
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
 - Putting it up: [`docs/assembly.md`](docs/assembly.md)
 - How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)
+- How far it scales, and why: [`docs/span.md`](docs/span.md)
 
 ## Sizes
 
@@ -97,6 +99,14 @@ diameter, nothing else fixed. D12 in particular is explicitly experimental:
 wind loading, anchoring, cover behaviour, rod buckling and bending, and
 connector loads must all be validated before any real-world use, and at 5.9 m
 tall it is a serious thing to stand up by hand.
+
+The topology scales to any of them — every angle in it is the same at D3 and at
+D12 — but the rod does not, and [`docs/span.md`](docs/span.md) is where that is
+measured. The worst unsupported span is `1.0472 R` at every size, the rod that
+holds it grows as the *square* of the span, and the rod that can be bent to
+shape grows only as the radius. Where those two cross is the largest dome of
+this family that can be built at all, and it lands inside the range this
+project argues about.
 
 ## Reference concept
 

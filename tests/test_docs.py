@@ -25,7 +25,7 @@ import re
 
 import pytest
 
-from stardome import config, model, tolerance
+from stardome import config, model, span, tolerance
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -246,3 +246,96 @@ def test_every_relative_link_resolves():
             if target and not (path.parent / target).exists():
                 broken.append(f"{path.relative_to(ROOT)} -> {target}")
     assert not broken, "broken relative links: " + ", ".join(broken)
+
+
+# --- the span, and the scaling law on it ------------------------------------
+#
+# docs/span.md is the one document here that states a number nobody can check
+# by looking at the dome: a ratio between two variants. Registering these is
+# what stops the prose keeping a figure the maths has moved on from.
+
+
+ALL_VARIANTS = ["D3", "D4", "D6", "D8", "D10", "D12"]
+
+
+@pytest.fixture(scope="module")
+def every_variant():
+    return {name: model.build(config.load(name)) for name in ALL_VARIANTS}
+
+
+def _span_table_rows(heading: str) -> list:
+    """The rows of a pipe table in docs/span.md, by the heading above it."""
+    text = read("docs/span.md").split(heading, 1)[1].split("\n## ", 1)[0]
+    rows = []
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        rows.append(cells)
+    return rows
+
+
+def test_span_doc_lists_every_variant_with_both_readings(every_variant):
+    """The table of worst spans, both readings, one row per variant."""
+    rows = [
+        r for r in _span_table_rows("## The span is a fraction of the radius")
+        if r[0] in ALL_VARIANTS
+    ]
+    assert [r[0] for r in rows] == ALL_VARIANTS, "docs/span.md size table"
+
+    for name, lashed, contact in rows:
+        data = every_variant[name]
+        assert lashed == f"{span.spans(data, 'lashed')['worst']['length_mm']:.0f} mm", name
+        assert contact == f"{span.spans(data, 'contact')['worst']['length_mm']:.0f} mm", name
+
+
+def test_span_doc_states_the_fraction_the_model_computes(every_variant):
+    stated = "1.0472 R"
+    got = span.spans(every_variant["D6"], "lashed")["fraction_of_radius"]
+    assert stated == f"{got:.4f} R"
+    assert stated in read("docs/span.md")
+
+
+def test_span_doc_prices_the_thirty_clamps(every_variant):
+    """5/3 in span and 2.78x in rod diameter: the only number on the open
+    question of whether the free crossings get a part."""
+    value = span.clamp_value(every_variant["D6"])
+    text = read("docs/span.md")
+    assert f"{value['rod_diameter_ratio']:.2f}\u00d7 in rod diameter" in text
+    assert f"**{value['lashed']['length_mm']:.0f} mm against " \
+           f"{value['contact']['length_mm']:.0f} mm**" in text
+
+
+def test_span_doc_scaling_table_matches_the_model(every_variant):
+    ref = span.reference(every_variant[span.REFERENCE_VARIANT], "lashed")
+    rows = [
+        r for r in _span_table_rows("## What that does to the rod")
+        if r[0] in ("D8", "D10", "D12")
+    ]
+    assert [r[0] for r in rows] == ["D8", "D10", "D12"]
+
+    for name, configured, similar, sag, parity in rows:
+        a = span.analyse(every_variant[name], ref)
+        assert configured == f"{a['rod']['configured_mm']:.0f} mm", name
+        assert similar == f"{a['rod']['similar_mm']:.1f} mm", name
+        case = a["cases"]["self_weight"]
+        assert sag == f"{case['sag_ratio']:.1f}\u00d7", name
+        assert parity == f"{case['parity_rod_mm']:.1f} mm", name
+
+
+def test_span_doc_ceiling_table_matches_the_model(every_variant):
+    """The row that decides milestone 7: where the family runs out."""
+    ref = span.reference(every_variant[span.REFERENCE_VARIANT], "lashed")
+    rows = _span_table_rows("## Two constraints, pulling opposite ways")
+    header = next(r for r in rows if r[0] == "allowable strain")
+    assert header[1:] == [f"{e * 100:.1f}%" for e in span.STRAIN_SAMPLES]
+
+    self_weight = next(r for r in rows if "self-weight" in r[0])
+    for cell, strain in zip(self_weight[1:], span.STRAIN_SAMPLES):
+        top = span.ceiling("self_weight", strain, ref)
+        assert f"{top['diameter_mm'] / 1000.0:.1f} m" in cell, strain
+
+
+def test_span_doc_quotes_the_reference_working_strain(every_variant):
+    ref = span.reference(every_variant["D6"], "lashed")
+    assert f"works its rod at {ref['bend_strain'] * 100:.3f}%" in read("docs/span.md")
