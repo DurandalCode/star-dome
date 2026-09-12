@@ -44,6 +44,7 @@ python3 -m stardome build --all       # model.json + CSV into exports/model
 python3 -m stardome assembly --all    # the order the bows go up in
 python3 -m stardome tolerance --all   # what the tape measure has to achieve
 python3 -m stardome span --all        # the longest unsupported span, and the ceiling
+python3 -m stardome bom --all         # everything one dome is made of
 make venv && make check               # invariants + test suite
 ```
 
@@ -69,6 +70,7 @@ single interchange format every other tool reads — see
 - Putting it up: [`docs/assembly.md`](docs/assembly.md)
 - How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)
 - How far it scales, and why: [`docs/span.md`](docs/span.md)
+- What one dome is made of: [`docs/bom.md`](docs/bom.md)
 
 ## Sizes
 

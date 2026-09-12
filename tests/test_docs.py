@@ -25,7 +25,7 @@ import re
 
 import pytest
 
-from stardome import config, model, span, tolerance
+from stardome import bom, config, connectors, model, span, tolerance
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -390,3 +390,57 @@ def test_doorway_doc_compares_the_xl_bay_against_its_portal():
     for level in ("none", "portal"):
         assert rows[level]["clear"] in text, (level, rows[level]["clear"])
         assert rows[level]["area"] in text, (level, rows[level]["area"])
+
+
+# --- what one dome is made of -----------------------------------------------
+#
+# docs/bom.md states two kinds of number. The counts come from the schedule and
+# are checkable anywhere; the plastic is read off built meshes, so those
+# assertions skip themselves when the parts have not been generated -- the same
+# bargain the OpenSCAD parity test makes.
+
+
+@pytest.fixture(scope="module")
+def woven_m():
+    return model.build(config.load("M"), weave_mode="woven")
+
+
+def test_bom_doc_counts_parts_and_prints(woven_m):
+    text = read("docs/bom.md")
+    sched = connectors.schedule(woven_m)
+    assert f"{sched['totals']['parts_per_dome']} parts is " in text
+
+    volumes = bom.measured(bom.DEFAULT_PARTS_DIR)
+    if not volumes:
+        pytest.skip("connectors not built; run `make clamps` for the plastic")
+    listed = bom.printed(sched, volumes)
+    assert f"{listed['parts']} parts is {listed['prints']} prints" in text
+
+
+def test_bom_doc_sections_are_the_splices_plus_the_bows():
+    """The number that says dividing a bow by the transport length is wrong."""
+    data = model.build(config.load("XL"), weave_mode="woven")
+    m = bom.materials(data, connectors.schedule(data))
+    text = read("docs/bom.md")
+    assert f"that is {m['sections']} sections" in text
+    # And the wrong answer it is contrasted with.
+    import math
+
+    naive = m["bows"] * math.ceil(m["bow_length_mm"] / m["section_length_mm"])
+    assert f"not the {naive} the division gives" in text
+    assert naive != m["sections"]
+
+
+def test_bom_doc_base_hub_share(woven_m):
+    volumes = bom.measured(bom.DEFAULT_PARTS_DIR)
+    if not volumes:
+        pytest.skip("connectors not built; run `make clamps` for the plastic")
+    listed = bom.printed(connectors.schedule(woven_m), volumes)
+    hubs = [r for r in listed["rows"] if r["id"].startswith("BASE")]
+    if not all(r["measured"] for r in hubs):
+        pytest.skip("base hubs not built for this rod size")
+
+    share = sum(r["cm3_total"] for r in hubs)
+    text = read("docs/bom.md")
+    assert f"{share:.0f} cm\u00b3 of {listed['cm3']:.0f}" in text
+    assert f"{share / listed['cm3'] * 100:.0f}%" in text

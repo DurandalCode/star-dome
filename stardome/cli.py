@@ -18,6 +18,7 @@ from pathlib import Path
 from . import (
     assembly,
     attachment,
+    bom,
     config,
     connectors,
     corridor,
@@ -295,6 +296,28 @@ def cmd_corridor(args) -> int:
     return 0
 
 
+def cmd_bom(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        # The schedule is always built on the woven route, for the same reason
+        # `connectors` builds it there: where a part goes and which way up is
+        # derived from the weave, not from the drawing convention.
+        data = model.build(variant, weave_mode="woven")
+        if args.json:
+            path = Path(args.out) / name / "bom.json"
+            export.write_json(
+                bom.analyse(data, connectors.schedule(data), args.parts), path
+            )
+            print(f"{name}: {path}")
+        else:
+            print(
+                bom.format_analysis(
+                    data, connectors.schedule(data), args.parts
+                )
+            )
+    return 0
+
+
 def cmd_span(args) -> int:
     ref_variant = config.load(args.reference, args.config)
     ref = span.reference(
@@ -375,6 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("attachment", cmd_attachment, "how the cover is held on, and on what"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
         ("span", cmd_span, "the longest unsupported span, and the ceiling it sets"),
+        ("bom", cmd_bom, "everything one dome is made of, counted in one place"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -470,6 +494,16 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
             p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+        if name == "bom":
+            p.add_argument(
+                "--parts",
+                default=bom.DEFAULT_PARTS_DIR,
+                help="where the built connector meshes are; their solid "
+                     "volume is read off them rather than kept in the source",
+            )
+            p.add_argument("--json", action="store_true",
+                           help="write the list instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "span":
             p.add_argument(
                 "--holds",

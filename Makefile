@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spanss covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans boms covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -31,6 +31,7 @@ help:
 	@echo "make attachment what holds the cover on, and on what"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make spans      the longest unsupported span, and the ceiling it sets"
+	@echo "make bom        everything one dome is made of, counted in one place"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make fitted     the same dome with every connector fitted (V=M)"
@@ -126,6 +127,14 @@ HOLDS ?= lashed
 
 spans:
 	@$(PYTHON) -m stardome span --all --holds $(HOLDS) --clamps
+
+# Everything one dome is made of. PARTS is where the built connector meshes
+# are: their solid volume is read off them, so the plastic column is present
+# after 'make clamps' and honestly absent before it.
+PARTS ?= exports/connectors
+
+bom:
+	@$(PYTHON) -m stardome bom --all --parts $(PARTS)
 
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
