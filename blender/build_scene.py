@@ -29,6 +29,18 @@ them from eye level, plus an orthographic plan and elevation::
 
     blender --background --factory-startup --python blender/build_scene.py -- \
         --model exports/model/star_dome_d6.json --hide-cuts --shots exports/shots
+
+``--spans FILE`` draws what ``stardome span`` measured: every bow goes grey,
+the points that hold it get a marker, and the longest unsupported runs are
+drawn over the top in red. It is the one picture that says why the family has
+a size ceiling -- see docs/span.md::
+
+    python3 -m stardome build D12 --polylines --weave-mode layered
+    python3 -m stardome span D12 --json
+    blender --background --factory-startup --python blender/build_scene.py -- \
+        --model exports/model/star_dome_d12.json \
+        --spans exports/model/D12/span.json \
+        --shots exports/shots
 """
 
 import argparse
@@ -68,6 +80,13 @@ BRACE_COLOUR = (0.35, 0.62, 0.78, 1.0)   # tension diagonals, not rod
 DOOR_COLOUR = (1.00, 0.78, 0.10, 1.0)      # the opening itself
 GHOST_COLOUR = (0.90, 0.10, 0.10, 1.0)     # a piece cut out
 COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)     # fabric: off-white, not a rod colour
+
+# The span overlay. The rods go quiet so that the two things being compared --
+# where a bow is held, and how far it runs unheld -- are the only things with
+# a colour in the frame.
+SPAN_QUIET_COLOUR = (0.52, 0.53, 0.55, 1.0)
+SPAN_WORST_COLOUR = (0.93, 0.16, 0.13, 1.0)
+SPAN_HELD_COLOUR = (0.12, 0.80, 0.42, 1.0)
 CORRIDOR_COLOUR = (0.62, 0.72, 0.58, 1.0)  # corridor hoops, distinct from dome rods
 JAMB_COLOUR = (1.00, 0.42, 0.05, 1.0)      # the two rods that frame it
 
@@ -162,6 +181,13 @@ def parse_args(argv):
     )
     p.add_argument("--out", default=None, help="write a .blend here")
     p.add_argument("--render", default=None, help="render a preview PNG here")
+    p.add_argument(
+        "--spans",
+        default=None,
+        metavar="FILE",
+        help="span.json from 'stardome span --json': draws the points that "
+             "hold each bow and the longest runs between them",
+    )
     p.add_argument("--no-human", action="store_true", help="omit the scale figure")
     p.add_argument(
         "--cover",
@@ -1096,6 +1122,110 @@ def shot_cameras(scene, radius_m, height_m, facing_deg):
     return made
 
 
+
+# --- the span overlay -------------------------------------------------------
+
+
+def point_at_t(rod, t_deg):
+    """A point on a bow, by the bow parameter, from the bow's own polyline.
+
+    The model samples t evenly from 0 to 180, so the index gives t back. A
+    value between two samples is interpolated along the chord the model
+    supplied rather than recomputed from the sphere: this script owns no
+    geometry, and at 48 segments the chord is under two millimetres off the
+    arc it stands in for. See docs/architecture.md.
+    """
+    points = rod["points"]
+    last = len(points) - 1
+    x = max(0.0, min(1.0, t_deg / 180.0)) * last
+    i = int(math.floor(x))
+    if i >= last:
+        return tuple(points[last])
+    a, b = points[i], points[i + 1]
+    f = x - i
+    return tuple(a[k] + (b[k] - a[k]) * f for k in range(3))
+
+
+def span_polyline(rod, t_lo, t_hi):
+    """The rod's own samples between two t values, with both ends pinned on."""
+    points = rod["points"]
+    last = len(points) - 1
+    out = [point_at_t(rod, t_lo)]
+    for i, point in enumerate(points):
+        t = 180.0 * i / last
+        if t_lo + 1e-9 < t < t_hi - 1e-9:
+            out.append(tuple(point))
+    out.append(point_at_t(rod, t_hi))
+    return out
+
+
+def add_spans(data, analysis, rod_radius_m, root, lift):
+    """Draw what `stardome span` measured, over the top of the bows.
+
+    Three things go in the frame and nothing else: the points that hold each
+    bow, the longest unsupported runs between them, and -- as a marker a shade
+    smaller -- the crossings that would hold it if the thirty unlashed
+    contacts were clamped. The difference between those two is the whole
+    finding.
+    """
+    spans = analysis["spans"]
+    worst = spans["worst"]["arc_deg"]
+    by_name = {rod["name"]: rod for rod in data["rods"]}
+
+    worst_coll = new_collection("Span_Worst", root)
+    held_coll = new_collection("Span_Held", root)
+    worst_mat = make_material("Span_Worst", SPAN_WORST_COLOUR)
+    held_mat = make_material("Span_Held", SPAN_HELD_COLOUR)
+
+    drawn = 0
+    held_at = {}
+    for name, items in spans["per_rod"].items():
+        rod = by_name.get(name)
+        if rod is None or "points" not in rod:
+            continue
+        held_at.setdefault(name, set())
+        for item in items:
+            held_at[name].add(item["t_lo_deg"])
+            held_at[name].add(item["t_hi_deg"])
+            if abs(item["arc_deg"] - worst) > 1e-6:
+                continue
+            rod_object(
+                rod,
+                rod_radius_m,
+                worst_mat,
+                worst_coll,
+                lift,
+                span_polyline(rod, item["t_lo_deg"], item["t_hi_deg"]),
+                f"_span{drawn}",
+                bevel=rod_radius_m * 2.2,
+            )
+            drawn += 1
+
+    held = 0
+    for name, ts in held_at.items():
+        rod = by_name.get(name)
+        if rod is None or "points" not in rod:
+            continue
+        for t in sorted(ts):
+            marker(
+                f"Held_{name}_{t:.0f}",
+                point_at_t(rod, t),
+                rod_radius_m * 4.5,
+                held_mat,
+                held_coll,
+                lift,
+            )
+            held += 1
+
+    print(
+        f"[star-dome] spans: {drawn} runs of {worst:.4f} deg "
+        f"({spans['worst']['length_mm']:.0f} mm) on family "
+        f"{spans['worst']['family']}, {held} holding points, "
+        f"held at {analysis['holds']}"
+    )
+    return {"worst_runs": drawn, "held_points": held}
+
+
 def build(args):
     with open(args.model) as fh:
         data = json.load(fh)
@@ -1142,7 +1272,11 @@ def build(args):
     base_coll = new_collection("Nodes_Base", root)
     site_coll = new_collection("Site", root)
 
-    materials = {f: make_material(f"Rod_{f}", c) for f, c in FAMILY_COLOUR.items()}
+    if args.spans:
+        quiet = make_material("Rod_Quiet", SPAN_QUIET_COLOUR)
+        materials = {f: quiet for f in FAMILY_COLOUR}
+    else:
+        materials = {f: make_material(f"Rod_{f}", c) for f, c in FAMILY_COLOUR.items()}
     tied_mat = make_material("Node_Tied", TIED_COLOUR)
     untied_mat = make_material("Node_Untied", UNTIED_COLOUR)
     base_mat = make_material("Node_Base", BASE_COLOUR)
@@ -1287,6 +1421,16 @@ def build(args):
         add_corridor(
             data["corridor"], rod_radius_m, new_collection("Corridor", root), lift
         )
+
+    if args.spans:
+        with open(args.spans) as fh:
+            analysis = json.load(fh)
+        if analysis["variant"] != meta["variant"]:
+            raise SystemExit(
+                f"--spans is {analysis['variant']}'s analysis and --model is "
+                f"{meta['variant']}'s; they have to be the same dome"
+            )
+        add_spans(data, analysis, rod_radius_m, root, lift)
 
     if not args.no_ground:
         add_ground(radius_m * 2.0, site_coll)

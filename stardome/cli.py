@@ -27,6 +27,7 @@ from . import (
     export,
     interior,
     model,
+    span,
     tolerance,
     topology,
     verify,
@@ -289,6 +290,38 @@ def cmd_corridor(args) -> int:
     return 0
 
 
+def cmd_span(args) -> int:
+    ref_variant = config.load(args.reference, args.config)
+    ref = span.reference(
+        model.build(ref_variant, weave_mode=args.weave_mode), args.holds
+    )
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        if args.json:
+            out = span.analyse(data, ref, args.holds)
+            # Both readings, because a consumer drawing the spans wants to
+            # show what the thirty clamps are worth rather than pick a side.
+            out["clamp_value"] = span.clamp_value(data)
+            out["spans_contact"] = span.spans(data, "contact")
+            path = Path(args.out) / name / "span.json"
+            export.write_json(out, path)
+            print(f"{name}: {path}")
+            continue
+        print(span.format_analysis(data, ref, args.holds))
+        if args.clamps:
+            v = span.clamp_value(data)
+            print(
+                f"  clamping the free crossings: "
+                f"{v['lashed']['length_mm']:.0f} mm on "
+                f"{v['lashed']['family']} -> {v['contact']['length_mm']:.0f} mm "
+                f"on {v['contact']['family']}, "
+                f"{v['span_ratio']:.2f}x in span and "
+                f"{v['rod_diameter_ratio']:.2f}x in rod diameter"
+            )
+    return 0
+
+
 def cmd_scad_config(args) -> int:
     """Regenerate configs/variants.scad from configs/variants.toml."""
     variants = config.load_all(args.config)
@@ -336,6 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("cover", cmd_cover, "fabric area, and how few gores it sews from"),
         ("attachment", cmd_attachment, "how the cover is held on, and on what"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
+        ("span", cmd_span, "the longest unsupported span, and the ceiling it sets"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -431,6 +465,27 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
             p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+        if name == "span":
+            p.add_argument(
+                "--holds",
+                default="lashed",
+                choices=span.HOLDS,
+                help="what holds a bow: lashed (feet and tie marks, the "
+                     "conservative reading) or contact (every crossing clamped)",
+            )
+            p.add_argument(
+                "--reference",
+                default=span.REFERENCE_VARIANT,
+                help="the dome everything is scaled against",
+            )
+            p.add_argument(
+                "--clamps",
+                action="store_true",
+                help="also price the thirty free crossings, in span and in rod",
+            )
+            p.add_argument("--json", action="store_true",
+                           help="write the analysis instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "assembly":
             p.add_argument("--json", action="store_true", help="write the analysis instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)
