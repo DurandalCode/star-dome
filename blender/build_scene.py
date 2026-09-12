@@ -137,6 +137,10 @@ STAKE_ABOVE_GROUND = 2.0 / 3.0
 # hardware nobody has specified. The placement's local +Y is outward, so the
 # offset is negative along it and the mirrored feet get it on the right side.
 STAKE_SLOT_INSET_M = 0.036
+# How far the angle stands up into the hub's slot when it is a post rather
+# than a stake -- the base point is then the top of the member, not a point
+# part way along it. Drawing only.
+STAKE_SLOT_ENGAGEMENT_M = 0.060
 
 # Two figures, not one. 1.8 m is a person; 2.2 m is a costumed character on
 # stilts or in a frame, and whether that gets through the door is a question a
@@ -290,7 +294,7 @@ def marker(name, xyz_mm, radius_m, material, collection, lift=0.0):
 
 
 def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift,
-              brace_material=None, place=None):
+              brace_material=None, place=None, draw_posts=True):
     """Posts, a ring at each end, and the diagonals that stop it racking.
 
     The model keeps the dome's base ring at z = 0 and hangs the skirt below it
@@ -315,6 +319,14 @@ def add_skirt(skirt, radius_m, rod_radius_m, material, collection, lift,
         obj.name = f"Skirt_{post['name']}"
         obj.data.materials.append(material)
         made.append(move_to(obj, collection))
+    if not draw_posts:
+        # The post and the stake are one member -- the same steel angle, the
+        # ground a skirt-height further down (decision 0017). When the
+        # connectors are being placed, the stake proxy IS the post and drawing
+        # this as well would put two members in one place.
+        for obj in made:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        made = []
 
     for tag in ("top_ring", "bottom_ring"):
         for seg in skirt.get(tag, ()):
@@ -865,10 +877,25 @@ def proxy_size(spot, part, rod_d):
         # Local +Z points down the way it is driven, so a positive shift sinks
         # it. Standing it proud takes a negative one. Local +Y is outward, and
         # the slot is inboard of the foot.
-        above = STAKE_LENGTH_M * STAKE_ABOVE_GROUND
-        below = STAKE_LENGTH_M - above
+        #
+        # Under a skirt this member is the POST as well -- the same angle, the
+        # ground a skirt-height further down -- so how much of it stands above
+        # the soil comes from the schedule rather than from the constant. See
+        # docs/decisions/0017.
+        standing = part.get("standing_mm")
+        if standing:
+            # The origin is the base point, which under a skirt is the TOP of
+            # the post: the member runs down from here to the ground and on
+            # into it, and only enough sticks up to sit in the hub's slot.
+            above = STAKE_SLOT_ENGAGEMENT_M
+            below = standing * MM + STAKE_LENGTH_M * (1.0 - STAKE_ABOVE_GROUND)
+            length = above + below
+        else:
+            above = STAKE_LENGTH_M * STAKE_ABOVE_GROUND
+            length = STAKE_LENGTH_M
+            below = length - above
         return (
-            (STAKE_LEG_M, STAKE_LEG_M, STAKE_LENGTH_M),
+            (STAKE_LEG_M, STAKE_LEG_M, length),
             -(above - below) / 2.0,
             -STAKE_SLOT_INSET_M,
         )
@@ -1389,6 +1416,7 @@ def build(args):
             skirt_coll,
             lift,
             make_material("Skirt_Brace", BRACE_COLOUR),
+            draw_posts=args.connectors == "none",
         )
 
     facing = None
