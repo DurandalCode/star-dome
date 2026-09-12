@@ -119,6 +119,7 @@ def plate_names(arm_count):
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
+    ("rodNominalDiameter",     0.0,  "mm",  "the rod as a structural member, when that is not what a caliper reads across it -- composite rebar is named by its equivalent diameter and measures more over its winding. 0 means the two are the same"),
     ("rodClearance",           1.4,  "mm",  "diametral clearance on each rod channel. A slide fit, not a clamp fit: the stack is bolted up first and the bow ends pushed in afterwards, which is a far better field sequence than laying a rod, closing a plate, laying the next. The rod is then LOCATED by the channel and HELD by the pin -- see rodPinDiameter"),
     ("rodPinDiameter",         0.0,  "mm",  "cross pin through arm and rod, once the rod is in. Without it a slide fit locates the rod and holds it against nothing"),
     ("rodPinAt",              40.0,  "mm",  "how far along the arm the pin sits"),

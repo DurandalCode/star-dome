@@ -63,6 +63,7 @@ USE_SPREADSHEET_IF_PRESENT = True
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
+    ("rodNominalDiameter",     0.0,  "mm",  "the rod as a structural member, when that is not what a caliper reads across it -- composite rebar is named by its equivalent diameter and measures more over its winding. 0 means the two are the same"),
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
     ("crossingAngle",         72.0,  "deg", "angle between the two rod axes in plan view"),
     ("channelLength",         55.0,  "mm",  "length of each rod channel through the body"),

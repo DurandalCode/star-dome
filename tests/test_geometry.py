@@ -153,3 +153,40 @@ def test_a_variant_can_be_named_in_any_case():
     with pytest.raises(KeyError) as caught:
         config.resolve("D7")
     assert "D6=M" in str(caught.value)
+
+
+def test_the_rod_has_two_diameters_and_they_do_different_jobs():
+    """A rod that measures more than it is called.
+
+    Composite rebar is named by its equivalent diameter and carries a winding
+    that stands proud of it, so one number cannot both size a channel and size
+    a bolt. This checks the split: the fit diameter drives everything the rod
+    has to pass through, and the nominal drives everything that carries load.
+    """
+    from stardome import config, model
+
+    plain = config.load("M")
+    assert plain.rod_outer_diameter == 0.0
+    assert plain.rod_fit_diameter == plain.rod_diameter
+
+    ribbed = config.load("M", rod_outer_diameter=11.5)
+    assert ribbed.rod_diameter == 10.0
+    assert ribbed.rod_fit_diameter == 11.5
+
+    one = model.build(plain)
+    two = model.build(ribbed)
+
+    # Fit: the weave spaces rods by what they measure, and the fabric rests on
+    # the outside of the outermost one.
+    assert two["cover"]["radius_mm"] > one["cover"]["radius_mm"]
+    assert two["meta"]["rod_fit_diameter"] == 11.5
+    # Strength: unchanged, and still carried for whoever sizes a fastener.
+    assert two["meta"]["rod_diameter"] == 10.0
+
+    # A rod that measures more blocks more of the doorway, so the opening the
+    # dome admits shrinks. This is the check that would catch the fit diameter
+    # quietly not being threaded anywhere.
+    assert (
+        two["doorway"]["bay"]["clear_height_mm"]
+        < one["doorway"]["bay"]["clear_height_mm"]
+    )
