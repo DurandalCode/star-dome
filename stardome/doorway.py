@@ -495,60 +495,195 @@ def admits(
     return admits_env(data, env, clearance_mm, skirt_mm)
 
 
-def place(
+def _eligible_bays(data, env, level, clearance_mm):
+    """The bays a door of this cut level can go in.
+
+    A portal is a low bay opened up; everything else is a tall bay. That is
+    not a preference -- the cuts are different cuts, and each only makes sense
+    against the bay it was worked out for.
+    """
+    if level == "portal":
+        return low_bays(data, env, clearance_mm)
+    return tall_bays(data, env, clearance_mm)
+
+
+def _aim(candidates: list, facing: float | None) -> dict:
+    """The bay a door asked for: nearest to ``facing``, else the first.
+
+    ``None`` keeps the behaviour every variant had before a dome could have
+    two doors -- take the first eligible bay by azimuth.
+    """
+    if not candidates:
+        raise ValueError("no eligible bay found; this dome has nowhere to put a door")
+    if facing is None:
+        return candidates[0]
+    return min(
+        candidates, key=lambda b: _angular_gap(b["centre_azimuth_deg"], facing)
+    )
+
+
+def cuts_for(data: dict, level: str, target: dict) -> dict:
+    """The spans one door takes out, at the bay it was aimed at."""
+    if level == "none":
+        return {}
+    if level == "portal":
+        return portal_cut(data, target)
+    info = frame(data, target["apex_azimuth_deg"])
+    return CUT_LEVELS[level](data, info) or {}
+
+
+def merge_cuts(every: list) -> dict:
+    """Every door's cuts, as one set of removed spans per rod.
+
+    Two doors on one dome are not two independent questions. A cut takes rod
+    out of the envelope everywhere, not only in front of the door that asked
+    for it, so the opening each one leaves has to be measured after all of
+    them are made.
+    """
+    out: dict = {}
+    for cuts in every:
+        for rod, spans in cuts.items():
+            out.setdefault(rod, []).extend(tuple(s) for s in spans)
+    for rod, spans in out.items():
+        spans.sort()
+        merged = [list(spans[0])]
+        for lo, hi in spans[1:]:
+            if lo <= merged[-1][1] + 1e-9:
+                merged[-1][1] = max(merged[-1][1], hi)
+            else:
+                merged.append([lo, hi])
+        out[rod] = [tuple(s) for s in merged]
+    return out
+
+
+def removed_spans(data: dict) -> dict:
+    """Every span any doorway took out of any bow, keyed by rod.
+
+    Read off the rods rather than off the doors, because a rod carries the
+    union and a door carries only its own share -- and once a dome has more
+    than one door those stop being the same thing.
+    """
+    out = {}
+    for rod in data.get("rods", []):
+        spans = rod.get("cut_spans_deg")
+        if spans:
+            out[rod["name"]] = [tuple(s) for s in spans]
+    return out
+
+
+def landless_bows(data: dict) -> list:
+    """Bows that no longer reach the ground, because cuts took both ends.
+
+    One door cannot do this -- its two jamb pieces come off two different
+    bows. Two doors can, and the result is a bow that is still continuous and
+    still carries load but stands on nothing: it hangs in the lattice between
+    its crossings. Not an error, and not something a reader should have to
+    notice for themselves.
+    """
+    out = []
+    for rod in data.get("rods", []):
+        spans = rod.get("cut_spans_deg") or []
+        starts = any(lo <= 1e-6 for lo, _ in spans)
+        ends = any(hi >= 180.0 - 1e-6 for _, hi in spans)
+        if starts and ends:
+            out.append(rod["name"])
+    return out
+
+
+def doors_on(data: dict) -> list:
+    """Every doorway on a built model, however old the model is."""
+    doors = data.get("doorways")
+    if doors:
+        return doors
+    one = data.get("doorway")
+    return [one] if one else []
+
+
+def place_all(
     data: dict,
-    template_name: str = DEFAULT_TEMPLATE,
+    doors,
     clearance_mm: float = 0.0,
     samples: int = 32,
-    cut: str = "none",
-) -> dict:
-    """The chosen doorway, ready to serialise into the model.
+) -> list:
+    """Every doorway on one dome, each measured on the dome all of them leave.
 
-    (``jamb_cut`` and ``cut_pieces`` live below, under the cutting section.)
-
-    With ``cut`` the two jamb pieces are taken out and everything reported
-    afterwards describes the opening that leaves. The uncut lancet is still
-    reported as ``frame``, because that is what was cut, and the cut itself
-    is reported as ``cut`` with its cost.
+    Doors are aimed rather than placed: a door can only sit in a bay, there
+    are ten of them, and the eligible ones depend on the cut. Each door takes
+    the eligible bay nearest the azimuth it asked for, and the record says
+    where it actually landed.
     """
     plain = entrance.door_envelope(data, clearance_mm=clearance_mm)
-    tall = tall_bays(data, plain, clearance_mm)
-    if not tall:
-        raise ValueError("no tall bay found; this dome has nowhere to put a door")
-    info = frame(data, tall[0]["apex_azimuth_deg"])
 
-    level = "none" if cut in (None, False) else ("jambs" if cut is True else cut)
-    if level not in CUT_LEVELS:
-        raise ValueError(f"unknown cut level {cut!r}; know {sorted(CUT_LEVELS)}")
-    cuts = CUT_LEVELS[level](data, info) or None
+    resolved = []
+    for index, door in enumerate(doors):
+        level = door.cut
+        if level not in CUT_LEVELS:
+            raise ValueError(f"unknown cut level {level!r}; know {sorted(CUT_LEVELS)}")
+        target = _aim(_eligible_bays(data, plain, level, clearance_mm), door.facing)
+        resolved.append((door, level, target))
+
+    # Two doors in one bay is a configuration mistake rather than a very wide
+    # door, and it would quietly cut the same rod twice.
+    taken: dict = {}
+    for index, (door, level, target) in enumerate(resolved):
+        key = round(target["centre_azimuth_deg"], 3)
+        if key in taken:
+            raise ValueError(
+                f"doors {taken[key]} and {index} both land in the bay at "
+                f"{key} deg; a dome has ten bays and each holds one door"
+            )
+        taken[key] = index
+
+    plain_tall = len(tall_bays(data, plain, clearance_mm))
+    every = [cuts_for(data, level, target) for _, level, target in resolved]
+    union = merge_cuts(every)
     env = (
-        entrance.door_envelope(data, clearance_mm=clearance_mm, removed=cuts)
-        if cuts
+        entrance.door_envelope(data, clearance_mm=clearance_mm, removed=union)
+        if union
         else plain
     )
+
+    out = []
+    for (door, level, target), cuts in zip(resolved, every):
+        out.append(
+            _record(
+                data, door, level, target, cuts or None, env, clearance_mm,
+                samples, plain_tall,
+            )
+        )
+    return out
+
+
+def _record(data, door, level, target, cuts, env, clearance_mm, samples,
+            bay_count) -> dict:
+    """One doorway, measured on the finished dome."""
+    wanted = target["centre_azimuth_deg"]
     if level == "portal":
-        # The portal is a low bay opened up, not a tall one, so the door is
-        # somewhere else entirely on the dome.
-        wanted = low_bays(data, plain, clearance_mm)[0]["centre_azimuth_deg"]
         bay = min(
             bays(data, env, clearance_mm),
             key=lambda b: _angular_gap(b["centre_azimuth_deg"], wanted),
         )
-    elif cuts:
-        # A cut can change where the bays fall, so pick the one still centred
-        # on this door rather than whichever comes first by azimuth.
-        wanted = tall[0]["centre_azimuth_deg"]
-        bay = min(
-            tall_bays(data, env, clearance_mm),
-            key=lambda b: _angular_gap(b["centre_azimuth_deg"], wanted),
-        )
+        info = None
     else:
-        bay = tall[0]
+        info = frame(data, target["apex_azimuth_deg"])
+        if cuts:
+            # A cut can change where the bays fall, so pick the one still
+            # centred on this door rather than whichever comes first.
+            bay = min(
+                tall_bays(data, env, clearance_mm),
+                key=lambda b: _angular_gap(b["centre_azimuth_deg"], wanted),
+            )
+        else:
+            bay = target
+
     skirt = data["meta"].get("skirt_height", 0.0)
     return {
         "bay": bay,
-        "bay_count": len(tall),
-        "frame": info if level != "portal" else None,
+        "bay_count": bay_count,
+        "facing_deg": door.facing,
+        "landed_deg": bay["centre_azimuth_deg"],
+        "template": door.template,
+        "frame": info,
         "cut": (
             {
                 "level": level,
@@ -576,7 +711,7 @@ def place(
         "skirt_height_mm": skirt,
         "opening_height_mm": round(bay["clear_height_mm"] + skirt, 1),
         "in_bay": bay_clearance(env, bay),
-        "door": fit(data, template_name, env, clearance_mm),
+        "door": fit(data, door.template, env, clearance_mm),
         # Everything that gets through, largest last. Naming only the chosen
         # silhouette hides both failures and headroom: it cannot show that a
         # dome admits nothing, nor that it would take much more.
@@ -588,6 +723,33 @@ def place(
         ),
     }
 
+
+def place(
+    data: dict,
+    template_name: str = DEFAULT_TEMPLATE,
+    clearance_mm: float = 0.0,
+    samples: int = 32,
+    cut: str = "none",
+) -> dict:
+    """The chosen doorway, ready to serialise into the model.
+
+    One door, placed where this dome puts its first one -- which is what every
+    variant asked for before a dome could have several. ``place_all`` is the
+    general form; this is it with a single unaimed door, and returns the same
+    record.
+
+    With ``cut`` the two jamb pieces are taken out and everything reported
+    afterwards describes the opening that leaves. The uncut lancet is still
+    reported as ``frame``, because that is what was cut, and the cut itself
+    is reported as ``cut`` with its cost.
+    """
+    from .config import Door
+
+    level = "none" if cut in (None, False) else ("jambs" if cut is True else cut)
+    if level not in CUT_LEVELS:
+        raise ValueError(f"unknown cut level {cut!r}; know {sorted(CUT_LEVELS)}")
+    doors = (Door(cut=level, facing=None, template=template_name),)
+    return place_all(data, doors, clearance_mm, samples)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -960,6 +1122,71 @@ def analyse(
         "bays": all_bays,
         "doorway": place(data, template_name, clearance_mm, cut=cut),
     }
+
+
+def format_doors(data: dict) -> str:
+    """Every door on a built dome, and where each one landed.
+
+    The single-door report says everything about one opening; this says which
+    openings a dome has, which way each faces, and what each one cost. A door
+    that asked for an azimuth and got a bay two degrees away is worth seeing,
+    because a bay is where a door can go and the wish is only a wish.
+    """
+    doors = doors_on(data)
+    meta = data["meta"]
+    lines = [
+        f"--- {meta['variant']} doors  ({len(doors)} on a dome with "
+        f"{len(bays(data))} bays)"
+    ]
+    for i, d in enumerate(doors):
+        bay = d["bay"]
+        cut = d.get("cut") or {}
+        asked = d.get("facing_deg")
+        aim = (
+            f"asked {asked:.0f} deg, landed {bay['centre_azimuth_deg']:.1f}"
+            if asked is not None
+            else f"placed at {bay['centre_azimuth_deg']:.1f} deg"
+        )
+        lines.append(
+            f"  {i}  {aim}  --  {bay['kind']} bay, clear "
+            f"{bay['clear_height_mm']:.0f} mm, {bay['open_area_m2']:.2f} m2"
+        )
+        lines.append(
+            f"     cut {cut.get('level', 'none')}"
+            + (
+                f", {cut['cost']['rod_removed_mm'] / 1000.0:.1f} m of rod "
+                f"({cut['cost']['rod_removed_fraction'] * 100:.1f}%), "
+                + (
+                    "severs nothing"
+                    if cut["cost"]["severs_nothing"]
+                    else "SEVERS " + ", ".join(cut["cost"]["severed_bows"])
+                )
+                if cut
+                else " -- nothing removed, the bay is the opening"
+            )
+        )
+        lines.append(
+            f"     sized to {d.get('template') or DEFAULT_TEMPLATE}; "
+            f"admits {', '.join(d['admits']) or 'nothing'}"
+        )
+    landless = landless_bows(data)
+    if landless:
+        lines.append(
+            "  no longer standing on the ground: "
+            + ", ".join(landless)
+            + " -- cut at both ends, so still continuous and still loaded, "
+            "but held only by its crossings"
+        )
+    removed = removed_spans(data)
+    if removed:
+        lines.append(
+            "  rod taken out, all doors together: "
+            + ", ".join(
+                f"{rod} " + " ".join(f"{lo:.0f}-{hi:.0f}" for lo, hi in spans)
+                for rod, spans in sorted(removed.items())
+            )
+        )
+    return "\n".join(lines)
 
 
 def format_analysis(

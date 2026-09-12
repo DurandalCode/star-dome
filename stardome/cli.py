@@ -196,6 +196,11 @@ def cmd_doorway(args) -> int:
         variant = config.load(name, args.config, **overrides)
         template = args.template or variant.door or doorway.DEFAULT_TEMPLATE
         data = model.build(variant, weave_mode=args.weave_mode)
+        # A dome with one door reports it the way it always did. With more
+        # than one, which openings it has comes first -- the single-door
+        # report cannot say that.
+        if len(doorway.doors_on(data)) > 1:
+            print(doorway.format_doors(data))
         print(doorway.format_analysis(data, template, clearance_mm=args.clearance))
         if args.cut:
             cuts = doorway.jamb_cut(data)

@@ -83,9 +83,10 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     # so those two gather two arms and not three. Eight identical hubs and two
     # different ones is the truth; ten identical hubs is a part that does not
     # fit where it matters most.
-    cuts = {}
-    if door and door.get("cut"):
-        cuts = {r: [tuple(s) for s in v] for r, v in door["cut"]["spans"].items()}
+    # Every door's cuts, not the first one's: a dome with two doors releases
+    # bow ends at four feet, and a schedule that saw one door would ask for
+    # two hubs that do not fit.
+    cuts = doorway.removed_spans(data)
     released = doorway.feet_released(data, cuts) if cuts else {}
     for name, rods in released.items():
         at_base[name] -= len(rods)
@@ -470,10 +471,7 @@ def splice_joints(data: dict, section: float, sleeve: float) -> list:
     radius = data["meta"]["dome_radius"]
     mm_per_deg = math.pi * radius / 180.0
     keep_out = sleeve
-    door = data.get("doorway")
-    cuts = {}
-    if door and door.get("cut"):
-        cuts = {r: [tuple(sp) for sp in v] for r, v in door["cut"]["spans"].items()}
+    cuts = doorway.removed_spans(data)
 
     crossing_ts: dict = {}
     for c in data["crossings"]:
@@ -633,11 +631,9 @@ def placements(data: dict, parts: list) -> list:
 
 
 def _released(data: dict) -> dict:
-    door = data.get("doorway")
-    if not door or not door.get("cut"):
-        return {}
-    cuts = {r: [tuple(s) for s in v] for r, v in door["cut"]["spans"].items()}
-    return doorway.feet_released(data, cuts)
+    """Bow ends every doorway took off a foot, not just the first door's."""
+    cuts = doorway.removed_spans(data)
+    return doorway.feet_released(data, cuts) if cuts else {}
 
 
 def _line_gap_deg(a, b) -> float:

@@ -15,6 +15,26 @@ DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "variants.
 
 
 @dataclass(frozen=True)
+class Door:
+    """One doorway: how far it is cut open, and which way it faces.
+
+    ``facing`` is an azimuth in degrees, and it is a *wish* rather than a
+    position: a door can only go in a bay, there are ten of them, and which
+    ones are eligible depends on the cut -- a portal is a low bay opened up
+    and everything else is a tall one. The placement takes the eligible bay
+    nearest the wish and reports where the door actually landed.
+
+    ``None`` means "wherever this dome puts its first one", which is what
+    every variant meant before a dome could have two.
+    """
+
+    cut: str = "none"
+    facing: float | None = None
+    # Silhouette this door is sized to. Empty means the variant's own `door`.
+    template: str = ""
+
+
+@dataclass(frozen=True)
 class Variant:
     """One named dome variant, with every dimension resolved."""
 
@@ -55,6 +75,33 @@ class Variant:
     # Zero means they are the same, which is true of plain round rod and is
     # what every variant says until somebody measures one.
     rod_outer_diameter: float = 0.0
+    # Every door on this dome. A camp is domes with doors facing each other,
+    # so how many and which way is a property of the dome rather than
+    # something the geometry picks -- see docs/doorway.md. Empty falls back to
+    # the single door `door` and `door_cut` describe.
+    doors: tuple = ()
+
+    @property
+    def doorways(self) -> tuple:
+        """Every door on this dome, however the config spelled it.
+
+        One reading for consumers, whether the variant carries a `doors`
+        array or the older single `door` + `door_cut` pair.
+
+        `door_cut` is normalised here as well as at load, because an override
+        goes straight into the dataclass and skips the loader -- and the field
+        still accepts the bool it used to be.
+        """
+        if self.doors:
+            return tuple(
+                Door(cut=_cut_level(d.cut), facing=d.facing, template=d.template)
+                for d in self.doors
+            )
+        if self.door:
+            return (
+                Door(cut=_cut_level(self.door_cut), facing=None, template=self.door),
+            )
+        return ()
 
     @property
     def rod_fit_diameter(self) -> float:
@@ -105,6 +152,47 @@ def _cut_level(value) -> str:
     return text
 
 
+def _doors(body, defaults) -> tuple:
+    """Parse `[[variants.X.doors]]`, or fall back to the single-door pair.
+
+    An empty tuple means "there is no array here"; the variant's `door` and
+    `door_cut` then describe the one door, exactly as they always did.
+    """
+    raw = body.get("doors")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("doors must be an array of tables, one per doorway")
+    fallback = str(body.get("door", defaults.get("door", "")))
+    out = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            raise ValueError(f"doors[{i}] must be a table")
+        unknown = set(entry) - {"cut", "facing", "template"}
+        if unknown:
+            raise ValueError(
+                f"doors[{i}] has unknown keys {sorted(unknown)}; "
+                "a door takes cut, facing and template"
+            )
+        facing = entry.get("facing")
+        template = str(entry.get("template", "")) or fallback
+        if not template:
+            raise ValueError(
+                f"doors[{i}] has no template and the variant has no `door` "
+                "to fall back on; a doorway is sized to a silhouette"
+            )
+        out.append(
+            Door(
+                cut=_cut_level(entry.get("cut")),
+                facing=None if facing is None else float(facing) % 360.0,
+                template=template,
+            )
+        )
+    if not out:
+        raise ValueError("doors is empty; leave it out to have no door at all")
+    return tuple(out)
+
+
 def load_all(path=None) -> dict:
     """Load every named variant, with ``[defaults]`` folded in."""
     path = Path(path) if path is not None else DEFAULT_CONFIG
@@ -133,6 +221,7 @@ def load_all(path=None) -> dict:
             alias=str(body.get("alias", "")),
             door=str(body.get("door", defaults.get("door", ""))),
             door_cut=_cut_level(body.get("door_cut", defaults.get("door_cut"))),
+            doors=_doors(body, defaults),
         )
     if not variants:
         raise ValueError(f"no [variants.*] tables found in {path}")

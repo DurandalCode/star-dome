@@ -557,55 +557,68 @@ def build(
     }
     if skirt is not None:
         out["skirt"] = skirt
-    if variant.door:
+    doors = variant.doorways
+    if doors:
         # Computed last, because choosing the doorway means reading the model
         # back: which bay is tall, which node heads it, which rods frame it.
         # Consumers get the opening as finished geometry and never rediscover
         # it -- the same contract the rest of this file keeps.
         from . import doorway
 
-        out["doorway"] = doorway.place(out, variant.door, cut=variant.door_cut)
+        out["doorways"] = doorway.place_all(out, doors)
+        # The first door is the one a consumer means when it says "the
+        # doorway": the corridor hangs off it, the cover's first seam falls on
+        # it, and everything written before a dome could have two reads it.
+        out["doorway"] = out["doorways"][0]
 
         if skirt is not None:
             # The bay under the door cannot be braced: a diagonal across the
             # doorway is a doorway with a diagonal across it. The rings still
             # close round it, so the rest of the skirt holds this bay square.
-            centre = out["doorway"]["bay"]["centre_azimuth_deg"]
-            best = None
-            for i, post in enumerate(skirt["posts"]):
-                nxt = skirt["posts"][(i + 1) % skirt["bay_count"]]
-                mid = math.degrees(
-                    math.atan2(
-                        post["y"] + nxt["y"], post["x"] + nxt["x"]
-                    )
-                ) % 360.0
-                gap = abs((mid - centre + 180.0) % 360.0 - 180.0)
-                if best is None or gap < best[0]:
-                    best = (gap, i)
-            open_bay = best[1]
-            skirt["open_bays"] = [open_bay]
-            skirt["braces"] = [b for b in skirt["braces"] if b["bay"] != open_bay]
+            open_bays = []
+            for door in out["doorways"]:
+                centre = door["bay"]["centre_azimuth_deg"]
+                best = None
+                for i, post in enumerate(skirt["posts"]):
+                    nxt = skirt["posts"][(i + 1) % skirt["bay_count"]]
+                    mid = math.degrees(
+                        math.atan2(
+                            post["y"] + nxt["y"], post["x"] + nxt["x"]
+                        )
+                    ) % 360.0
+                    gap = abs((mid - centre + 180.0) % 360.0 - 180.0)
+                    if best is None or gap < best[0]:
+                        best = (gap, i)
+                if best[1] not in open_bays:
+                    open_bays.append(best[1])
+            open_bay = open_bays[0]
+            skirt["open_bays"] = open_bays
+            skirt["braces"] = [
+                b for b in skirt["braces"] if b["bay"] not in open_bays
+            ]
             skirt["brace_total_length"] = _r(
                 sum(b["length"] for b in skirt["braces"])
             )
             _open_door_bay(skirt, out, radius)
             skirt["note"] += (
-                f" Bay {open_bay} is left open for the door: no diagonal, and "
-                "neither ring runs across it. A header over the opening takes "
-                "the hoop force round."
+                f" Bay {', '.join(str(b) for b in open_bays)} is left open for "
+                "the door: no diagonal, and neither ring runs across it. A "
+                "header over the opening takes the hoop force round."
             )
 
-        cut = out["doorway"].get("cut")
-        if cut:
-            # Carry the removed spans on the rods themselves so a consumer can
-            # draw what is actually there without re-deriving the cut. The
-            # rod's own length fields stay nominal: the dome underneath is
-            # still the whole Takekawa dome, and the cut is a modification of
-            # it that verify checks separately.
-            for rod in out["rods"]:
-                spans = cut["spans"].get(rod["name"])
-                if spans:
-                    rod["cut_spans_deg"] = spans
+        # Carry the removed spans on the rods themselves so a consumer can
+        # draw what is actually there without re-deriving the cut. The rod's
+        # own length fields stay nominal: the dome underneath is still the
+        # whole Takekawa dome, and the cut is a modification of it that verify
+        # checks separately. Several doors cut several bows, so what a rod
+        # carries is the union over all of them.
+        removed = doorway.merge_cuts(
+            [d["cut"]["spans"] for d in out["doorways"] if d.get("cut")]
+        )
+        for rod in out["rods"]:
+            spans = removed.get(rod["name"])
+            if spans:
+                rod["cut_spans_deg"] = [list(s) for s in spans]
 
     # The fabric and anything hung off the doorway come last, for the same
     # reason the doorway does: they read the finished model back rather than

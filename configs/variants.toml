@@ -79,6 +79,37 @@ weave_gap = 1.0
 # 100 mm to spare. See docs/doorway.md. To re-solve one:
 #
 #     python3 -m stardome doorway <name> --skirt 0 --skirt-for carry
+#
+# ---------------------------------------------------------------------------
+# MORE THAN ONE DOOR
+#
+# `door` and `door_cut` describe a dome with one door, placed wherever the
+# geometry puts the first one. A dome in a camp usually wants more than that,
+# and wants them pointing somewhere in particular -- at the yard, at the
+# corridor to the next dome -- so how many doors and which way they face is a
+# property of the dome, not something the geometry should pick.
+#
+# Write them out instead, one table per door:
+#
+#     [[variants.D10.doors]]
+#     cut = "portal"      # none | jambs | head | portal
+#     facing = 18         # azimuth in degrees
+#
+#     [[variants.D10.doors]]
+#     cut = "none"        # the bay as it stands, nothing removed
+#     facing = 198
+#     template = "tall"   # optional; defaults to this variant's `door`
+#
+# `facing` is a wish, not a position. A door can only sit in a bay and there
+# are ten, so the nearest eligible one takes it -- low bays for a portal, tall
+# bays for everything else -- and the report says where it landed. Two doors
+# aimed at the same bay is an error rather than a wider door.
+#
+# Worth knowing before choosing `cut` on a big dome: past about 8.7 m the
+# uncut tall bay already admits everything this project measures, and past
+# 9.8 m it takes the 2.2 m character too. On D10 and D12 a cut buys width and
+# head height, not admission -- and costs two more part types. See
+# docs/span.md and docs/doorway.md.
 # ---------------------------------------------------------------------------
 
 [variants.D3]

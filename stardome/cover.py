@@ -106,27 +106,54 @@ def areas(data: dict) -> dict:
 
 
 def opening(data: dict) -> dict:
-    """The hole the doorway makes in the cover.
+    """The holes the doorways make in the cover.
 
-    The bay's open area is what the fabric loses; the outline is what it is
-    cut to. Both come from ``doorway`` -- this module does not rediscover
-    which bay the door is in.
+    Each bay's open area is what the fabric loses there; each outline is what
+    it is cut to. Both come from ``doorway`` -- this module does not
+    rediscover which bay a door is in. A dome may have several, so the totals
+    are sums and ``each`` carries them one by one.
     """
-    door = data.get("doorway")
-    if not door:
-        return {"area_mm2": 0.0, "present": False, "note": "no doorway on this variant"}
-    bay = door["bay"]
-    outline = door.get("outline") or {}
+    from . import doorway as _doorway
+
+    doors = _doorway.doors_on(data)
+    if not doors:
+        return {
+            "area_mm2": 0.0,
+            "area_m2": 0.0,
+            "count": 0,
+            "each": [],
+            "present": False,
+            "note": "no doorway on this variant",
+        }
+    each = []
+    for door in doors:
+        bay = door["bay"]
+        outline = door.get("outline") or {}
+        each.append(
+            {
+                "area_m2": bay["open_area_m2"],
+                "centre_azimuth_deg": bay["centre_azimuth_deg"],
+                "span_deg": bay["span_deg"],
+                "outline_points": outline.get("point_count", 0),
+            }
+        )
+    total = sum(e["area_m2"] for e in each)
+    first = each[0]
     return {
         "present": True,
-        "area_mm2": bay["open_area_m2"] * 1e6,
-        "area_m2": bay["open_area_m2"],
-        "centre_azimuth_deg": bay["centre_azimuth_deg"],
-        "span_deg": bay["span_deg"],
-        "outline_points": outline.get("point_count", 0),
+        "count": len(each),
+        "each": each,
+        "area_mm2": total * 1e6,
+        "area_m2": round(total, 6),
+        # The first door is what "the doorway" means to anything that was
+        # written before a dome could have two -- the seam phase above all.
+        "centre_azimuth_deg": first["centre_azimuth_deg"],
+        "span_deg": first["span_deg"],
+        "outline_points": first["outline_points"],
         "note": (
-            "Cut to the doorway outline, which traces the two framing bows and "
-            "the ground. The cover loses this area; the door panel is made of it."
+            "Cut to each doorway outline, which traces the two framing bows "
+            "and the ground. The cover loses this area; the door panels are "
+            "made of it."
         ),
     }
 

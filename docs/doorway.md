@@ -148,3 +148,91 @@ the row shows its blank side.
 other is the question. On M the 2.2 m one is taller than the whole opening,
 on L it is head and shoulders above it, and on XL it walks in — which is the
 size argument in a single picture.
+
+
+## More than one door
+
+A dome on its own has one door. A dome in a camp usually wants two or three,
+pointing at particular things — the yard, the corridor to the next dome — so
+**how many doors and which way they face is a property of the dome**, not
+something the geometry should pick. It is written out in
+`configs/variants.toml`, one table per door:
+
+```toml
+[[variants.D10.doors]]
+cut = "portal"      # none | jambs | head | portal
+facing = 18         # azimuth in degrees
+
+[[variants.D10.doors]]
+cut = "none"
+facing = 198
+template = "tall"   # optional; defaults to the variant's own `door`
+```
+
+`door` and `door_cut` still describe a dome with a single door, placed where
+the geometry puts the first one, and every variant in the file still uses them.
+
+**`facing` is a wish, not a position.** A door can only sit in a bay, there are
+ten, and which are eligible depends on the cut — a portal is a low bay opened
+up and everything else is a tall one. The nearest eligible bay takes the door
+and the report says where it landed. Two doors aimed at the same bay is an
+error rather than a wider door.
+
+### The doors are not independent
+
+A cut takes rod out of the free-height envelope **everywhere**, not only in
+front of the door that asked for it. So every opening is measured after all the
+cuts are made, not each on the dome as it stood before its neighbour was cut.
+That is the one thing a per-door loop would get wrong, and it is why placement
+resolves every door, unions the cuts, and only then measures.
+
+Two consequences worth knowing before choosing:
+
+- **Two portals can leave a bow standing on nothing.** One door's two jamb
+  pieces come off two different bows; two doors can take both ends off the same
+  bow. It is still continuous and still carries load, but it reaches no foot
+  and hangs in the lattice between its crossings. The report names it.
+- **Everything downstream counts doors, not the door.** Four released feet want
+  four two-armed hubs and four terminations; the cover loses every opening; the
+  hem is dead-ended at each one. The first door keeps its privileges — the
+  corridor hangs off it and the cover's first seam falls on it — because that
+  is the one azimuth on a built dome anybody can find without measuring.
+
+```bash
+python3 -m stardome doorway XL     # lists every door when there is more than one
+```
+
+## A big dome does not need the cut at all
+
+Past a certain size the uncut tall bay — the lancet, a pointed arch of two G
+bows — is already a door. Solved rather than guessed:
+
+| silhouette | uncut lancet first admits it at |
+|---|---|
+| `walk` | D 8063 mm |
+| `walk_wide` | D 8626 mm |
+| `carry` | D 8656 mm |
+| `tall` (a 2.2 m character) | D 9848 mm |
+
+So on D10 and D12 a cut buys **width and head height, not admission**:
+
+| D10, tall bay | uncut | portal |
+|---|---|---|
+| clear height | 2548 mm | 3029 mm |
+| width at 1800 mm | 1091 mm | 2313 mm |
+| open area | 4.20 m² | 7.21 m² |
+| admits | everything | everything |
+| distinct part types | **5** | 7 |
+| rod removed | none | 6.6 m |
+
+[Decision 0007](decisions/0007-the-door-is-a-portal-not-a-lancet.md) put the
+door in a low bay as a portal, and it was right: on D6 the cut is the
+difference between stooping and walking in. That premise simply stops holding
+at the XL end, where the bay is a door as it stands. The two extra part types
+are `BASE2` and `TERM`, and `TERM` is one of the two joints the roadmap records
+as having no calculation behind it at all.
+
+This document does not change what D10 and D12 are — that is a choice for
+`configs/variants.toml`, and [decision 0008](decisions/0008-the-config-records-what-a-dome-admits.md)
+says the config records what a dome admits rather than what anyone would like.
+It records what the choice now costs.

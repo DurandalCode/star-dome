@@ -629,8 +629,8 @@ def add_corridor(corridor, rod_radius_m, collection, lift):
     return move_to(obj, collection)
 
 
-def add_doorway(door, rod_radius_m, collection, lift):
-    """Draw the chosen opening: its outline, its frame, and the hole itself.
+def add_doorway(door, rod_radius_m, collection, lift, suffix=""):
+    """Draw one opening: its outline, its frame, and the hole itself.
 
     The outline comes straight from the model as rod centrelines, so nothing
     here decides where the door is -- see stardome/doorway.py. The filled
@@ -640,7 +640,7 @@ def add_doorway(door, rod_radius_m, collection, lift):
     """
     points = [(x * MM, y * MM, z * MM + lift) for x, y, z in door["outline"]["points"]]
 
-    curve = bpy.data.curves.new("DoorwayOutline", "CURVE")
+    curve = bpy.data.curves.new(f"DoorwayOutline{suffix}", "CURVE")
     curve.dimensions = "3D"
     # Thicker than the rods it lies on, so the frame reads as a highlight
     # rather than as one more line among fifteen.
@@ -654,7 +654,7 @@ def add_doorway(door, rod_radius_m, collection, lift):
     spline.use_cyclic_u = True
 
     outline_mat = make_material("Doorway_Outline", DOOR_COLOUR)
-    obj = bpy.data.objects.new("Doorway_Outline", curve)
+    obj = bpy.data.objects.new(f"Doorway_Outline{suffix}", curve)
     obj.data.materials.append(outline_mat)
     collection.objects.link(obj)
 
@@ -665,7 +665,7 @@ def add_doorway(door, rod_radius_m, collection, lift):
         sum(p[1] for p in points) / len(points),
         sum(p[2] for p in points) / len(points),
     )
-    mesh = bpy.data.meshes.new("DoorwayPanel")
+    mesh = bpy.data.meshes.new(f"DoorwayPanel{suffix}")
     verts = [centre] + points
     faces = [
         (0, i + 1, (i + 1) % len(points) + 1) for i in range(len(points))
@@ -677,7 +677,7 @@ def add_doorway(door, rod_radius_m, collection, lift):
         make_material("Doorway_Panel", DOOR_COLOUR), 0.16
     )
 
-    panel = bpy.data.objects.new("Doorway_Panel", mesh)
+    panel = bpy.data.objects.new(f"Doorway_Panel{suffix}", mesh)
     panel.data.materials.append(panel_mat)
     if hasattr(panel, "visible_shadow"):
         panel.visible_shadow = False
@@ -1392,10 +1392,16 @@ def build(args):
         )
 
     facing = None
-    if door and not args.no_doorway:
+    # Every door the dome has, not only the one the corridor hangs off. The
+    # camera still faces the first: it is the one the model calls "the
+    # doorway" and the one a person is put in front of.
+    every_door = data.get("doorways") or ([door] if door else [])
+    if every_door and not args.no_doorway:
         door_coll = new_collection("Doorway", root)
-        add_doorway(door, rod_radius_m, door_coll, lift)
-        facing = door_azimuth_deg(door)
+        for index, one in enumerate(every_door):
+            add_doorway(one, rod_radius_m, door_coll, lift, suffix=f"_{index}"
+                        if len(every_door) > 1 else "")
+        facing = door_azimuth_deg(every_door[0])
 
     if data.get("cover", {}).get("mesh") and args.cover:
         cover_coll = new_collection("Cover", root)
