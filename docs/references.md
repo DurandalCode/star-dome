@@ -35,6 +35,15 @@ Source images used to check the reconstruction (full-size versions live under
   [`dome/README.md`](../dome/README.md) confirmed from the source, not inferred.
   See [`tied-node.md`](tied-node.md).
 
+- **How the reference cuts the cover.** Two ways, and it gives both: a patchwork
+  of **6 pentagons and 10 triangles, all of side `s`** — which is the
+  icosidodecahedron hemisphere, and which this project's own geometry contains
+  exactly (20 vertices, 35 edges of `R/phi`, 25 of them on the G bows) — or "a
+  leaf-like cover, e.g. choose 5 or 10 leafs, and have one larger triangle at
+  the base be the entry", which is the gore cut. Takekawa also recommends
+  making the cover **10% larger** if it goes over the construction. Both are
+  computed and compared in [`cover.md`](cover.md).
+
 ## Questions to resolve
 
 - Rod/tube material properties for candidate fiberglass products.

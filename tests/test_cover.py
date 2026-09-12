@@ -137,3 +137,79 @@ def test_bigger_domes_need_more_fabric_and_more_seams():
         seams.append(d["cover"]["gores"]["count"])
     assert areas == sorted(areas)
     assert seams == sorted(seams)
+
+
+def test_the_dome_is_an_icosidodecahedron_and_the_cover_can_follow_it():
+    """The result that gives this cover a second, better way to be cut.
+
+    The ten feet and the ten lashed nodes are the twenty vertices of an
+    icosidodecahedron hemisphere. Its edge is the base chord, which is R/phi
+    exactly, and its faces are six pentagons and ten triangles with every edge
+    the same length -- which is the cover the reference cuts.
+
+    Derived rather than asserted: the vertices come from the model, the edges
+    from the distances between them, and the faces from walking the graph. If
+    the topology stopped being this solid, the counts would stop matching.
+    """
+    phi = (1.0 + 5.0 ** 0.5) / 2.0
+    built = model.build(config.load("M"))
+    faces = cover.panel_faces(built)
+
+    assert faces["edge_mm"] == pytest.approx(
+        built["meta"]["dome_radius"] / phi, abs=0.2
+    )
+    assert faces["edge_mm"] == pytest.approx(
+        built["meta"]["base_edge_chord"], abs=0.01
+    )
+    assert faces["vertices"] == 20
+    assert faces["edges"] == 35
+    assert faces["faces"] == 16
+    assert faces["by_sides"] == {3: 10, 5: 6}
+    assert len(faces["boundary"]) == 10
+
+
+def test_every_face_seam_but_the_base_ring_lands_on_a_bow():
+    """This is what the face cut buys, and the whole reason to consider it.
+
+    A seam on a member is not merely a join in cloth: the cover can be held
+    along it. Ten of the 35 edges are the base ring, where there is no rod and
+    no second panel -- that edge is the hem, not a seam.
+    """
+    faces = cover.panel_faces(model.build(config.load("M")))
+    assert faces["edges_on_a_bow"] == 25
+    assert faces["edges_on_the_base_ring"] == 10
+    assert faces["edges_on_a_bow"] + faces["edges_on_the_base_ring"] == 35
+
+
+@pytest.mark.parametrize(
+    "roll,pieces,strips5,strips3",
+    [(1500, 32, 2, 2), (2000, 22, 2, 1), (3200, 16, 1, 1)],
+)
+def test_the_roll_decides_which_cut_is_cheaper(roll, pieces, strips5, strips3):
+    """Neither cut wins outright; the roll width decides, and the crossover
+    sits close to the 1500 mm fabric anybody actually buys.
+
+    A pentagon's narrowest way across is 2853 mm, not the 3154 mm of its long
+    diagonal -- so it takes two strips of a 1500 mm roll and not three. That
+    one number is the difference between the face cut looking affordable and
+    looking absurd.
+    """
+    built = model.build(config.load("M"))
+    cut = cover.panels(built, roll)
+    assert cut["pieces"] == pieces
+    assert cut["shapes"][5]["strips"] == strips5
+    assert cut["shapes"][3]["strips"] == strips3
+    assert cut["shapes"][5]["min_width_mm"] == pytest.approx(2853.0, abs=1.0)
+
+    both = cover.layouts(built, roll)
+    assert both["gores"]["seams_on_a_bow"] == 0
+    assert both["faces"]["seams_on_a_bow"] == 25
+
+    # The face cut never wins on seam length, at any roll, and it is worth a
+    # test saying so because the arithmetic invites the opposite conclusion.
+    # A face is small and fixed, so widening the roll only saves its internal
+    # cuts; a gore is as wide as the roll allows, so widening the roll deletes
+    # whole gores and whole seams with them. Compared at the SAME roll the
+    # gore cut is always shorter, and what the faces buy is elsewhere: seams
+    # that land on a member, and a crown that is a pentagon.
+    assert both["faces"]["seam_mm"] > both["gores"]["seam_mm"]

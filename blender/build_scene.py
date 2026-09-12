@@ -87,6 +87,13 @@ PART_COLOUR = {
 # parts nobody has designed is a picture of a dome that does not exist.
 UNDESIGNED_COLOUR = (0.90, 0.10, 0.10, 1.0)
 
+# The cover and what holds it on. The seam has to read against the fabric it
+# is sewn into, so it is the one thing here darker than the cloth.
+SEAM_COLOUR = (0.15, 0.13, 0.11, 1.0)
+STRAP_COLOUR = (0.95, 0.35, 0.10, 1.0)
+ROPE_COLOUR = (0.10, 0.35, 0.85, 1.0)
+LOOP_COLOUR = (1.00, 0.80, 0.10, 1.0)
+
 # The ground stake: 30 mm steel angle, 500 mm long, and how much of it stands
 # out of the soil.
 #
@@ -162,6 +169,19 @@ def parse_args(argv):
         help="draw the fabric cover; needs a model built with --polylines",
     )
     p.add_argument("--no-ground", action="store_true", help="omit the ground plane")
+    p.add_argument(
+        "--attachment",
+        action="store_true",
+        help=(
+            "draw what holds the cover on: the hem rope, its ten loops, and "
+            "the straps over the crown. Derived, see stardome/attachment.py"
+        ),
+    )
+    p.add_argument(
+        "--no-seams",
+        action="store_true",
+        help="omit the gore seams from the cover",
+    )
     p.add_argument(
         "--connectors",
         choices=("none", "real", "proxy"),
@@ -379,6 +399,167 @@ def add_cover(cover, collection, lift):
     mat = make_transparent(make_material("Cover", COVER_COLOUR), 0.28)
     obj.data.materials.append(mat)
     return move_to(obj, collection)
+
+
+def surface_frame(point):
+    """Outward radial and a tangent basis at a point on the cover.
+
+    The cover is a sphere about the origin, so the outward normal is the point
+    itself. Everything laid ON the fabric -- a seam, a strap -- needs that, or
+    it comes out as a tube floating near the surface rather than something
+    lying on it.
+    """
+    out = Vector(point)
+    out.normalize()
+    up = Vector((0.0, 0.0, 1.0))
+    side = out.cross(up)
+    if side.length < 1e-6:
+        side = out.cross(Vector((1.0, 0.0, 0.0)))
+    side.normalize()
+    return out, side
+
+
+def add_ribbon(points, width_m, lift_m, material, collection, name, lift=0.0):
+    """A flat strap lying on the cover: a quad strip, not a tube.
+
+    Webbing is flat and it lies down. Drawn as a bevelled curve it comes out
+    round, which reads as rope and hides the one thing a strap picture is for
+    -- that it bears on the fabric over its whole width.
+    """
+    verts, faces = [], []
+    for i, p in enumerate(points):
+        out, _ = surface_frame(p)
+        along = Vector(points[min(i + 1, len(points) - 1)]) - Vector(
+            points[max(i - 1, 0)]
+        )
+        if along.length < 1e-9:
+            continue
+        along.normalize()
+        across = out.cross(along)
+        across.normalize()
+        seat = Vector(p) + out * lift_m
+        verts.append(tuple(seat - across * (width_m / 2.0)))
+        verts.append(tuple(seat + across * (width_m / 2.0)))
+    for i in range(len(verts) // 2 - 1):
+        a = 2 * i
+        faces.append((a, a + 1, a + 3, a + 2))
+    if not faces:
+        return None
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata([(v[0], v[1], v[2] + lift) for v in verts], [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(material)
+    return move_to(obj, collection)
+
+
+def add_seams(cover, collection, lift):
+    """The gore seams, drawn where the cover is actually sewn.
+
+    The cover is not a surface, it is `n` tapered strips joined along
+    meridians, and the seams are the one feature of it a build ever has to
+    line up. Drawn proud of the fabric so they read against it, and at the
+    fabric's own radius so they are on the cloth rather than near it.
+    """
+    gores = cover.get("gores") or {}
+    count = gores.get("count")
+    radius = cover.get("radius_mm")
+    if not count or not radius:
+        return 0
+
+    r = radius * MM
+    # Opaque, unlike the cloth: a seam seen through a translucent cover on the
+    # far side is not a seam anybody can count.
+    mat = make_material("Cover_Seam", SEAM_COLOUR)
+    # A seam runs pole to base along a meridian. The phase is not set by
+    # anything yet -- see docs/cover.md -- so the first seam is put on the
+    # doorway's centre, which is the one azimuth on the dome anybody can find.
+    phase = cover.get("seam_phase_deg", 0.0)
+    made = 0
+    for k in range(count):
+        azimuth = math.radians(phase + 360.0 * k / count)
+        points = []
+        for j in range(41):
+            theta = (math.pi / 2.0) * j / 40.0
+            points.append((
+                math.cos(azimuth) * r * math.sin(theta),
+                math.sin(azimuth) * r * math.sin(theta),
+                r * math.cos(theta),
+            ))
+        # 30 mm is a flat-felled seam at this scale, and the seam is the one
+        # feature of the cover a build has to line up -- so it is drawn proud
+        # enough to read against the cloth rather than scaled to disappear.
+        add_ribbon(points, 0.030, 0.008, mat, collection, f"Seam_{k:02d}", lift)
+        made += 1
+    return made
+
+
+def add_attachment(data, collection, lift):
+    """What holds the cover on: hem rope, loops, and the straps over the crown.
+
+    All of it comes from `stardome.attachment`, which derives it -- five
+    straps because the strap family has five bows and each runs foot to foot,
+    ten loops because there are ten feet, and a rope broken where the doorway
+    is. Nothing here chooses any of it.
+    """
+    spec = data.get("attachment")
+    if not spec:
+        return {}
+
+    cover_r = data["cover"]["radius_mm"] * MM
+    strap_mat = make_material("Strap", STRAP_COLOUR)
+    rope_mat = make_material("HemRope", ROPE_COLOUR)
+    loop_mat = make_material("HemLoop", LOOP_COLOUR)
+
+    made = {"straps": 0, "loops": 0, "rope": 0}
+
+    family = spec["straps"]["family"]
+    for rod in data["rods"]:
+        if rod["family"] != family:
+            continue
+        scale = cover_r / (data["meta"]["dome_radius"] * MM)
+        points = [tuple(c * MM * scale for c in p) for p in rod["points"]]
+        add_ribbon(points, 0.050, 0.006, strap_mat, collection,
+                   f"Strap_{rod['name']}", lift)
+        made["straps"] += 1
+
+    # The rope, broken where the doorway takes it out.
+    door = (data.get("doorway") or {}).get("bay") or {}
+    half = door.get("span_deg", 0.0) / 2.0
+    centre = door.get("centre_azimuth_deg", 0.0)
+    run = []
+    for i in range(721):
+        azimuth = 360.0 * i / 720.0
+        gap = abs((azimuth - centre + 180.0) % 360.0 - 180.0)
+        if half and gap <= half:
+            if len(run) > 1:
+                add_ribbon(run, 0.016, 0.004, rope_mat, collection,
+                           f"HemRope_{made['rope']}", lift)
+                made["rope"] += 1
+            run = []
+            continue
+        t = math.radians(azimuth)
+        run.append((math.cos(t) * cover_r, math.sin(t) * cover_r, 0.010))
+    if len(run) > 1:
+        add_ribbon(run, 0.016, 0.004, rope_mat, collection,
+                   f"HemRope_{made['rope']}", lift)
+        made["rope"] += 1
+
+    for base in data["base_nodes"]:
+        azimuth = math.atan2(base["y"], base["x"])
+        bpy.ops.mesh.primitive_torus_add(
+            major_radius=0.055, minor_radius=0.010,
+            location=(math.cos(azimuth) * cover_r,
+                      math.sin(azimuth) * cover_r, 0.055 + lift),
+            rotation=(math.pi / 2.0, 0.0, azimuth),
+        )
+        obj = bpy.context.active_object
+        obj.name = f"HemLoop_{base['name']}"
+        obj.data.materials.append(loop_mat)
+        move_to(obj, collection)
+        made["loops"] += 1
+    return made
 
 
 def add_corridor(corridor, rod_radius_m, collection, lift):
@@ -1083,7 +1264,24 @@ def build(args):
         facing = door_azimuth_deg(door)
 
     if data.get("cover", {}).get("mesh") and args.cover:
-        add_cover(data["cover"], new_collection("Cover", root), lift)
+        cover_coll = new_collection("Cover", root)
+        add_cover(data["cover"], cover_coll, lift)
+        if not args.no_seams:
+            seams = add_seams(
+                data["cover"], new_collection("Cover_Seams", root), lift
+            )
+            print(
+                f"[cover] {seams} gore seams, first on the doorway at "
+                f"{data['cover'].get('seam_phase_deg', 0.0):.1f} deg"
+            )
+
+    if args.attachment:
+        made = add_attachment(data, new_collection("Attachment", root), lift)
+        if made:
+            print(
+                f"[attachment] {made['straps']} straps over the crown, "
+                f"{made['loops']} hem loops, rope in {made['rope']} run(s)"
+            )
 
     if data.get("corridor", {}).get("present"):
         add_corridor(

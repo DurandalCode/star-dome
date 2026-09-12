@@ -38,6 +38,65 @@ big as easily as too small, and only one of those is obvious on site.
 `test_the_cover_radius_is_the_weave_and_not_a_drawing_convention` checks the
 closed form against the route `weave.global_profile` actually solves.
 
+## Two ways to cut it
+
+The dome can be cut like a sphere or like itself, and the two are genuinely
+different answers rather than a matter of taste.
+
+**Gores** are meridian strips, the answer for any sphere: one shape, the
+fewest pieces, and the fewest seams at every roll width. They are what
+`gores()` computes and what this document described on its own for a long
+time.
+
+**Faces** are the answer for this dome, which is not a sphere with a lattice
+drawn on it. Its ten feet and its ten lashed nodes are the twenty vertices of
+an **icosidodecahedron hemisphere** — edge `R/phi`, which is the base chord,
+1854.1 mm on M — and its faces are **six pentagons and ten triangles with
+every edge the same length**. That is the cut the reference gives, and it took
+going back to the source to find it.
+
+| roll | gores | faces |
+|---|---|---|
+| 1500 mm | 13 pieces, 61.7 m | 32 pieces, 77.1 m |
+| 2000 mm | 10 pieces, 47.4 m | 22 pieces, 63.2 m |
+| 3200 mm | 6 pieces, 28.5 m | 16 pieces, 46.4 m |
+
+**Gores always win on seam length, at every roll**, and the arithmetic invites
+the opposite conclusion so it is worth saying plainly. A face is small and
+fixed, so a wider roll only saves its internal cuts; a gore is as wide as the
+roll allows, so a wider roll deletes whole gores and whole seams with them.
+`test_the_roll_decides_which_cut_is_cheaper` asserts the direction.
+
+### What the faces buy instead
+
+- **25 of the 35 edges lie along the G bows.** The other ten are the base
+  ring, where there is no rod and no second panel — that edge is the hem. So a
+  seam is not merely a join in cloth: it lands on a member, and the cover can
+  be held along it rather than only at its edge.
+- **Panel corners land on connectors that already exist** — the base hub and
+  the four-rod fan, the two strongest points in the structure.
+- **Every edge is the same length.** One number for the whole cover, against a
+  gore whose every section is a different width.
+- **The crown is a pentagon.** Gores bring all 13 seams to a point at the
+  pole, which is not sewable and wants a crown patch; the face cut has no such
+  place.
+
+### What they cost, on the 1500 mm roll anybody buys
+
+A pentagon's narrowest way across is **2853 mm** — across the flats, not the
+3154 mm of its long diagonal, and getting that wrong makes the face cut look
+absurd rather than merely dearer. So on a 1500 mm roll a pentagon is two
+strips and one internal seam of 2.8 m, a triangle two strips and 1.4 m, and
+the total comes to 32 pieces against 13, and 77.1 m of seam against 61.7.
+
+Those internal seams land on nothing. They are the price of a narrow roll, and
+they disappear entirely at 3200.
+
+**Flat faces are not a sphere.** Six pentagons and ten triangles come to
+50.4 m² flat against the shell's 57.3 m², so a panel wants easing onto the
+curve — the reference says make it 10% larger — and none of that is in these
+numbers.
+
 ## How much there is
 
 | variant | dome | skirt | doorway | total | gores |
