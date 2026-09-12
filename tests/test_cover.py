@@ -27,17 +27,40 @@ def test_the_fabric_rests_outside_the_nominal_sphere(built):
     assert r > built["meta"]["dome_radius"]
 
 
-def test_the_cover_radius_ignores_the_drawing_convention():
-    """flat vs layered is how the model is *drawn*; the dome is woven either way.
+def test_the_cover_radius_is_the_weave_and_not_a_drawing_convention():
+    """How the model is *drawn* must not change how much fabric gets cut.
 
-    This is the bug the ``max_diameter_woven`` field exists to prevent: a
-    model built flat used to report a cover 70 mm smaller, which is 5% of D6's
-    fabric and 5% of its sail area.
+    Two conventions were wrong here in turn. Reading a flat model put the
+    fabric on the nominal sphere, which is 15 mm under the outermost rod.
+    Reading a layered one put it on r = 3075, which is 55 mm over: `layered`
+    gives each of the 15 bows its own shell and spreads them across fourteen
+    rod diameters, and the dome is built on a weave that spans three.
+
+    The right figure is a closed form. A four-rod stack is three diameters
+    tall, so the outermost rod sits 1.5 diameters off the nominal sphere and
+    the fabric clears its surface half a diameter further: r + 2d.
     """
-    flat = model.build(config.load("D6"), weave_mode="flat")
-    layered = model.build(config.load("D6"), weave_mode="layered")
-    assert cover.radius(flat) == cover.radius(layered)
-    assert cover.radius(flat) == pytest.approx(3075.0, abs=0.5)
+    rod = config.load("D6").rod_diameter
+    want = 3000.0 + 2.0 * rod
+
+    built = {
+        mode: model.build(config.load("D6"), weave_mode=mode)
+        for mode in ("flat", "layered", "woven")
+    }
+    radii = {mode: cover.radius(d) for mode, d in built.items()}
+    assert len(set(radii.values())) == 1, radii
+    assert radii["flat"] == pytest.approx(want, abs=0.5)
+
+    # And it agrees with the route the weave solver actually finds, which is
+    # what `verify` bounds at 1.5 rod diameters.
+    band = max(
+        abs(v)
+        for r in model.build(
+            config.load("D6"), weave_mode="woven", include_polylines=True
+        )["rods"]
+        for _t, v in r.get("radial_profile", [])
+    )
+    assert band == pytest.approx(1.5 * rod, abs=1e-6)
 
 
 def test_the_dome_fabric_is_a_hemisphere(built):

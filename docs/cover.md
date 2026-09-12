@@ -11,37 +11,43 @@ fabric is a sphere, and everything below follows from which sphere.
 ## It is not the nominal sphere
 
 The fabric rides on the **outermost rod surface**, not on the nominal
-centreline sphere. In the layered weave a bow leaves its great circle by up to
-a rod diameter and a half, and the cover goes over whichever rod ends up
-furthest out.
+centreline sphere. A four-rod stack is three diameters tall, so the rod on the
+outside of it sits 1.5 diameters off its great circle, and the fabric clears
+that rod's surface half a diameter further out again: **r + 2d**.
 
 | | D6 |
 |---|---|
 | nominal radius | 3000 mm |
-| cover radius | 3075 mm |
-| more radius | +2.5% |
-| **more fabric** | **+5.1%** |
+| cover radius | 3020 mm |
+| more radius | +0.7% |
+| **more fabric** | **+1.3%** |
 
-Three square metres on a sixty square metre cover — and 5.1% more sail area to
-hold down, which is the part that matters later.
+The model carries this as `meta.max_diameter_woven`, and it is the same figure
+whatever weave mode was asked for — how the model is *drawn* must not change
+how much fabric gets cut.
 
-The model carries this as `meta.max_diameter_woven`, computed from the layered
-offsets **whatever weave mode was asked for**. The weave is a fact about the
-built dome; `flat` and `layered` are drawing conventions. Reading
-`max_diameter_incl_rod` from a flat-mode model understates every cover in the
-family, and `test_the_cover_radius_ignores_the_drawing_convention` exists to
-stop that coming back.
+**Two conventions were wrong here in turn, and the second was worse.** Reading
+a flat model put the fabric on the nominal sphere, 15 mm under the outermost
+rod. Reading a `layered` one — which is what this document used to quote — put
+it on r = 3075, **55 mm over**: `layered` gives each of the 15 bows its own
+shell and spreads them across fourteen rod diameters, and the dome is built on
+a weave that spans three. That is 3.7% too much fabric on M, cut into a cover
+that then has 3.7% too much of itself to flog in the wind. A cover can be too
+big as easily as too small, and only one of those is obvious on site.
+
+`test_the_cover_radius_is_the_weave_and_not_a_drawing_convention` checks the
+closed form against the route `weave.global_profile` actually solves.
 
 ## How much there is
 
 | variant | dome | skirt | doorway | total | gores |
 |---|---|---|---|---|---|
-| D3 + 1000 skirt | 15.29 | 9.80 | — | 25.09 | 7 |
-| D4 + 1350 skirt | 26.66 | 17.47 | 1.15 | 42.98 | 9 |
-| D6 bare | 59.41 | — | 2.59 | 56.82 | 13 |
-| D8 bare | 104.34 | — | 4.62 | 99.72 | 18 |
-| D10 bare | 162.79 | — | 7.21 | 155.57 | 22 |
-| D12 bare | 233.03 | — | 10.39 | 222.64 | 26 |
+| D3 + 1000 skirt | 14.44 | 9.53 | — | 23.97 | 7 |
+| D4 + 1350 skirt | 25.54 | 17.10 | 1.15 | 41.48 | 9 |
+| D6 bare | 57.31 | — | 2.59 | 54.71 | 13 |
+| D8 bare | 101.54 | — | 4.62 | 96.92 | 17 |
+| D10 bare | 158.59 | — | 7.21 | 151.38 | 22 |
+| D12 bare | 228.01 | — | 10.39 | 217.62 | 26 |
 
 All m², gores on a 1500 mm roll. The dome is a hemisphere zone, `2*pi*R^2`;
 the skirt is a cylinder under it; the doorway is cut out and is also the piece

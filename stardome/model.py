@@ -467,13 +467,24 @@ def build(
 
     # What the fabric actually rests on. The weave is a fact about the built
     # dome, not a drawing convention -- a rod really does sit further out than
-    # its neighbour -- so this is taken from the layered offsets whatever mode
-    # was asked for. Reading the flat figure instead understates D6's cover by
-    # 5% of its area, which is 5% of the wind load with it.
-    woven_offsets = topology._radial_offsets(
-        bows, variant.rod_diameter, "layered", variant.weave_gap
-    )
-    max_woven_radius = max(radius + o for o in woven_offsets.values())
+    # its neighbour -- so this cannot be read off a flat model, which puts
+    # every centreline on the nominal sphere.
+    #
+    # Nor off a layered one, which is what this used to do. ``layered`` gives
+    # each of the 15 bows its own shell and spreads them over 14 rod
+    # diameters; the route the dome is actually built on spans three, because
+    # a four-rod stack is three diameters tall and the outermost rod in it
+    # sits 1.5 out. That is a closed form and needs no solver: the widest a
+    # rod gets is 1.5 diameters off the nominal sphere, and the fabric clears
+    # its surface half a diameter further.
+    #
+    # It matters by more than it sounds. On M the layered figure put the
+    # fabric on r = 3075 against the real 3020 -- 3.5% more area, cut into a
+    # cover that then has 3.5% too much of itself to flog in the wind.
+    # A centreline, like max_drawn_radius beside it: the meta entry below adds
+    # the rod's own diameter to reach the surface the fabric touches.
+    weave_band = 1.5 * variant.rod_diameter
+    max_woven_radius = radius + weave_band
     tilt_u = geometry.family_tilts()["U"]
     height_measured = max(
         (radius + offsets[b.name]) * math.sin(math.radians(b.tilt_deg)) for b in bows
