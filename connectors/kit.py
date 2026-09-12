@@ -439,3 +439,115 @@ def export_solid(shape, stem, out_dir):
     )
     mesh.write(stl_path)
     return step_path, stl_path, mesh.CountFacets
+
+
+# --------------------------------------------------------------------------
+# fasteners, sized from the rod
+# --------------------------------------------------------------------------
+# Every connector here used to carry an M5 set as a constant, whatever rod it
+# was drawn around. That is why a clamp on a 6 mm rod came out eight times the
+# rod across and one on a 16 mm rod only three and a half: the part was sized
+# by the bolt, and the bolt never moved.
+#
+# **The rule is a convention, not a derivation.** Nothing in this project
+# computes force, so nothing here can tell you what bolt a joint needs. What
+# it can do is stop the bolt being a constant: the bolt is taken as half the
+# rod, snapped to the nearest size in the M3-M8 family. That keeps M5 on the
+# 10 mm rod the whole project is drawn around, so the parts already built do
+# not move, and it gives the other diameters something proportionate instead
+# of something inherited.
+#
+# Values are ISO clearance holes (ISO 273 medium), DIN 125 washer outside
+# diameters -- the generators counterbore for a washer, not a bare head -- and
+# ISO 4032 nuts with the same 0.3 mm across-flats fit the M5 set always had.
+# The two cones are the printable transitions off the counterbore and the nut
+# pocket, kept at the proportion the M5 set used.
+FASTENERS = {
+    3: dict(clearance=3.4, washer=7.0, nut_af=5.8, nut_depth=2.6,
+            head_depth=2.8, head_cone=1.8, nut_cone=1.4),
+    4: dict(clearance=4.5, washer=9.0, nut_af=7.3, nut_depth=3.4,
+            head_depth=3.6, head_cone=2.3, nut_cone=1.8),
+    5: dict(clearance=5.5, washer=10.0, nut_af=8.3, nut_depth=4.6,
+            head_depth=4.4, head_cone=2.8, nut_cone=2.2),
+    6: dict(clearance=6.6, washer=12.0, nut_af=10.3, nut_depth=5.4,
+            head_depth=5.2, head_cone=3.4, nut_cone=2.6),
+    8: dict(clearance=9.0, washer=16.0, nut_af=13.3, nut_depth=7.0,
+            head_depth=6.8, head_cone=4.5, nut_cone=3.5),
+}
+
+# Cross pins, where a slide fit locates a rod and something has to hold it.
+# Roughly four tenths of the rod, on stock sizes, which keeps the 4 mm pin the
+# base hub already uses on its 10 mm rod.
+PIN_SIZES = (2.0, 2.5, 3.0, 4.0, 5.0, 6.0)
+
+# The wall has a floor that has nothing to do with the rod: below about 3 mm a
+# printed wall is perimeters and not structure, whatever it is wrapped around.
+# Above that it follows the rod.
+MINIMUM_WALL_FLOOR = 3.0
+WALL_PER_ROD = 0.4
+
+
+def fastener_size_for(rod_diameter):
+    """Which metric bolt a rod of this size gets. Half the rod, snapped."""
+    want = rod_diameter / 2.0
+    return min(FASTENERS, key=lambda m: (abs(m - want), m))
+
+
+def pin_for(rod_diameter):
+    """Cross-pin diameter for a rod: about 0.4 of it, on a stock size."""
+    want = 0.4 * rod_diameter
+    return min(PIN_SIZES, key=lambda d: (abs(d - want), d))
+
+
+def wall_for(rod_diameter):
+    """Structural wall for a rod, with a printing floor under it."""
+    return max(MINIMUM_WALL_FLOOR, WALL_PER_ROD * rod_diameter)
+
+
+# Inputs a generator can leave at zero and have filled in from the rod. The
+# key is the generator's alias; the value says where the number comes from.
+SCALED_INPUTS = {
+    "fastenerDiameter": lambda f, rod: f["clearance"],
+    "fastenerHeadDiameter": lambda f, rod: f["washer"],
+    "headBoreDepth": lambda f, rod: f["head_depth"],
+    "headConeHeight": lambda f, rod: f["head_cone"],
+    "nutConeHeight": lambda f, rod: f["nut_cone"],
+    "nutAcrossFlats": lambda f, rod: f["nut_af"],
+    "nutRecessDepth": lambda f, rod: f["nut_depth"],
+    "minimumWall": lambda f, rod: wall_for(rod),
+    "rodPinDiameter": lambda f, rod: pin_for(rod),
+}
+
+
+def scale_to_rod(values):
+    """Fill in every scalable input the caller left at zero.
+
+    Zero means "take it from the rod". A real number means the person wanted
+    that number and gets it -- which is what keeps the parameter spreadsheet
+    an override and not a decoration.
+
+    ``fastenerSize`` pins the bolt family: zero chooses it from the rod, and
+    3, 4, 5, 6 or 8 forces one. Returns what it decided, for the parameter
+    sheet to report, because a part whose bolt was chosen for it should say
+    which bolt that was.
+    """
+    rod = values["rodDiameter"]
+    size = int(values.get("fastenerSize") or 0) or fastener_size_for(rod)
+    if size not in FASTENERS:
+        raise ValueError(
+            f"no M{size} in the fastener table; known: "
+            + ", ".join("M%d" % m for m in sorted(FASTENERS))
+        )
+    fastener = FASTENERS[size]
+
+    chosen = {"fastenerSize": size}
+    for alias, source in SCALED_INPUTS.items():
+        if alias not in values:
+            continue
+        if values[alias]:          # a real number the caller asked for
+            continue
+        values[alias] = source(fastener, rod)
+        chosen[alias] = values[alias]
+    if "fastenerSize" in values:
+        values["fastenerSize"] = size
+    return chosen

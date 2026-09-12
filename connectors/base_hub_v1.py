@@ -120,13 +120,13 @@ INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
     ("rodClearance",           1.4,  "mm",  "diametral clearance on each rod channel. A slide fit, not a clamp fit: the stack is bolted up first and the bow ends pushed in afterwards, which is a far better field sequence than laying a rod, closing a plate, laying the next. The rod is then LOCATED by the channel and HELD by the pin -- see rodPinDiameter"),
-    ("rodPinDiameter",         4.0,  "mm",  "cross pin through arm and rod, once the rod is in. Without it a slide fit locates the rod and holds it against nothing"),
+    ("rodPinDiameter",         0.0,  "mm",  "cross pin through arm and rod, once the rod is in. Without it a slide fit locates the rod and holds it against nothing"),
     ("rodPinAt",              40.0,  "mm",  "how far along the arm the pin sits"),
     ("rodGap",                 0.0,  "mm",  "gap between adjacent rods; stack pitch is rodDiameter + this"),
     ("rodEngagement",         60.0,  "mm",  "how far a bow end is held inside its channel; sets arm length"),
     ("refRodLength",         300.0,  "mm",  "how far the reference rods are drawn past the hub. Drawing only, except that a longer rod makes the interference check strictly stricter -- there is no part out there for it to hit"),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body"),
-    ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
+    ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm. A real number overrides"),
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with"),
@@ -136,12 +136,13 @@ INPUTS = [
     ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
     ("stakeClearance",         0.6,  "mm",  "fit clearance on the stake slot, per side"),
     ("stakeBoltDiameter",      8.5,  "mm",  "M8 clearance hole through the stake slot"),
-    ("fastenerDiameter",       5.5,  "mm",  "M5 clearance hole diameter"),
-    ("fastenerHeadDiameter",  10.0,  "mm",  "M5 head / washer outside diameter"),
+    ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
+    ("fastenerDiameter",       0.0,  "mm",  "clearance hole for the bolt. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("fastenerHeadDiameter",  0.0,  "mm",  "head / washer outside diameter. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("headClearance",          0.6,  "mm",  "diametral clearance for the head counterbore"),
-    ("headBoreDepth",          4.4,  "mm",  "counterbore depth for head + washer"),
-    ("nutAcrossFlats",         8.3,  "mm",  "M5 nut across flats + fit clearance"),
-    ("nutRecessDepth",         4.6,  "mm",  "captive nut pocket depth"),
+    ("headBoreDepth",          0.0,  "mm",  "counterbore depth for head + washer. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutAcrossFlats",         0.0,  "mm",  "nut across flats + fit clearance. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutRecessDepth",         0.0,  "mm",  "captive nut pocket depth. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("hubRadiusFactor",        2.2,  "-",   "hub radius as a multiple of rodDiameter"),
     ("armWidthFactor",         1.6,  "-",   "arm width as a multiple of the boss diameter"),
@@ -267,6 +268,9 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
 
 
 def build(values, fan_gaps=None):
+    # The bolt, the pin and the wall come from the rod unless somebody
+    # typed them in; see kit.scale_to_rod.
+    chosen = kit.scale_to_rod(values)
     gaps = list(fan_gaps or DEFAULT_FAN_GAPS)
     if not 1 <= len(gaps) <= 2:
         raise ValueError(
@@ -536,6 +540,7 @@ def build(values, fan_gaps=None):
         "stake": stake,
     }
     dims = {
+        "chosen_from_rod": chosen,
         "fan_gaps_deg": gaps,
         "arm_azimuths_deg": azimuths,
         "fan_spread_deg": azimuths[-1] - azimuths[0],
@@ -690,6 +695,13 @@ def verify(geo, dims, values):
 
 def derived_rows(dims, values):
     return [
+        (
+            "fastenerChosen",
+            dims["chosen_from_rod"].get("fastenerSize", 0),
+            "M",
+            "which metric bolt this part was drawn for. Chosen from the rod "
+            "unless fastenerSize said otherwise -- half the rod, snapped",
+        ),
         ("fanSpread", round(dims["fan_spread_deg"], 4), "deg",
          "angle from the lowest arm to the highest"),
         ("emptySector", round(dims["empty_sector_deg"], 4), "deg",
