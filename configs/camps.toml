@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# configs/camps.toml -- named camps: which domes stand where, joined by what.
+#
+# THIS FILE IS THE SOURCE OF TRUTH FOR SITE LAYOUT.
+#
+# A dome is described in configs/variants.toml. A camp is not a property of a
+# dome, so it does not live there: it is where several of them stand and which
+# of their doors face each other.
+#
+# All positions in millimetres, on the ground plane, x east and y north.
+#
+# ---------------------------------------------------------------------------
+# WHAT IS WRITTEN DOWN AND WHAT IS DERIVED
+#
+# Written: which domes, at what coordinates, and which pairs are joined.
+#
+# Derived: the bearing from each dome to its neighbour, the door that bearing
+# wants, how far the corridor has to span between the two covers, and where
+# its two mouths land. None of those is typed in, because typing a bearing in
+# both this file and variants.toml is how the two stop agreeing.
+#
+# So a link says only what it connects. Move a dome and everything follows.
+#
+# `turn` rotates a dome on the ground, and its doors turn with it. That is how
+# a door comes to face a neighbour -- a dome is not re-drilled for a site. Two
+# neighbours want two doors, though, and no turn substitutes for the second:
+# that is a change to configs/variants.toml, and `stardome camp` says so.
+# ---------------------------------------------------------------------------
+
+[camps.yard]
+note = "Three domes round a yard: the hall, a kitchen and a store"
+
+[[camps.yard.domes]]
+# `name` is the dome's name in this camp, not its variant: a camp can hold
+# two of the same size and they still have to be told apart.
+name = "hall"
+variant = "L"
+at = [0, 0]
+# Faces the kitchen. It cannot also face the store on one door, and the plan
+# reports that rather than pretending -- the hall wants a second doorway.
+turn = 354.8
+
+[[camps.yard.domes]]
+name = "kitchen"
+variant = "M"
+at = [11000, 2500]
+turn = 174.8
+
+[[camps.yard.domes]]
+name = "store"
+variant = "S"
+at = [4000, -9500]
+turn = 94.8
+
+[[camps.yard.links]]
+between = ["hall", "kitchen"]
+
+[[camps.yard.links]]
+between = ["hall", "store"]
+
+# A pair of the same size, to check that a camp can hold two of one variant.
+[camps.pair]
+note = "Two M domes on one corridor, the simplest camp there is"
+
+[[camps.pair.domes]]
+name = "east"
+variant = "M"
+at = [0, 0]
+turn = 342
+
+[[camps.pair.domes]]
+name = "west"
+variant = "M"
+at = [10000, 0]
+turn = 162
+
+[[camps.pair.links]]
+between = ["east", "west"]

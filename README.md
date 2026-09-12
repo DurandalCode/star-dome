@@ -26,7 +26,7 @@ No paid CAD subscription is required by the intended workflow.
 
 ```text
 docs/           design notes, roadmap, architecture, references
-configs/        named dome variants (variants.toml is the source of truth)
+configs/        named dome variants and camps (the source of truth for both)
 stardome/       Python geometry core — source of truth for the dome maths
 tests/          invariants, golden summaries, OpenSCAD parity checks
 dome/           OpenSCAD model: viewer and independent cross-check
@@ -45,6 +45,7 @@ python3 -m stardome assembly --all    # the order the bows go up in
 python3 -m stardome tolerance --all   # what the tape measure has to achieve
 python3 -m stardome span --all        # the longest unsupported span, and the ceiling
 python3 -m stardome bom --all         # everything one dome is made of
+python3 -m stardome camp yard         # domes joined by corridors, from a plan
 make venv && make check               # invariants + test suite
 ```
 
@@ -71,6 +72,7 @@ single interchange format every other tool reads — see
 - How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)
 - How far it scales, and why: [`docs/span.md`](docs/span.md)
 - What one dome is made of: [`docs/bom.md`](docs/bom.md)
+- A camp of them: [`docs/camp.md`](docs/camp.md)
 
 ## Sizes
 
