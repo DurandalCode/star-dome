@@ -644,3 +644,96 @@ def test_the_stake_knows_which_way_is_out_and_which_way_is_down():
         # Right-handed, like every other placement.
         det = sum(ex[i] * vec.cross(ey, ez)[i] for i in range(3))
         assert abs(det - 1.0) < 1e-9, spot["at"]
+
+
+# --------------------------------------------------------------------------
+# the fastener schedule
+# --------------------------------------------------------------------------
+# What this guards is not arithmetic -- it is the distinction the schedule
+# was missing entirely until decision 0020: a bolt done up on a bench and a
+# bolt done up at head height are not the same item, and rule 1 of this
+# project only cares about the second. See docs/quick-release.md.
+def test_every_part_says_what_holds_it_together(sched):
+    """No part is silently left without a fastener row.
+
+    A kind with no entry reads exactly like a kind with nothing to fasten,
+    and the two are very different: the splice genuinely has no bolts, and a
+    part somebody forgot to list would quietly stop being counted.
+    """
+    known = set(connectors._FASTENERS)
+    kinds = {p["kind"] for p in sched["parts"]}
+    assert kinds <= known, f"no fastener row for {sorted(kinds - known)}"
+
+
+def test_the_tally_is_the_parts_added_up(sched):
+    """The totals are the rows, not a second count that can drift."""
+    tally = sched["fasteners"]
+    by_hand = 0
+    for part in sched["parts"]:
+        for row in part.get("fasteners") or []:
+            by_hand += row["count"] * part["count"]
+    assert tally["total"] == by_hand
+    assert tally["field_total"] + tally["shop_total"] == tally["total"]
+
+
+def test_the_base_hub_does_its_bolts_at_home(sched):
+    """Where each generator says the work happens.
+
+    `base_hub_v1`: "the stack is assembled once, on the ground or at home,
+    and the bow ends go in afterwards" -- so its bolts are shop work and its
+    pins are field work. `fan_node_v2` opens its stack at the dome, so its
+    are not. If a generator's field sequence ever changes, this is what
+    notices.
+    """
+    hub = [p for p in sched["parts"] if p["kind"] == "base_hub"]
+    assert hub, "every dome has base points"
+    for part in hub:
+        rows = {(r["type"], r["worked"]): r["count"] for r in part["fasteners"]}
+        assert rows[(connectors.BOLT, connectors.SHOP)] == 2
+        assert rows[(connectors.PIN, connectors.FIELD)] == part["bow_ends"]
+
+    fan = _part(sched, "four_rod_fan")
+    assert all(r["worked"] == connectors.FIELD for r in fan["fasteners"])
+
+
+def test_the_field_bolts_are_most_of_the_bolts(sched):
+    """The number the whole quick-release argument rests on.
+
+    On a bare dome it is 84 against 20 -- and it is the same 84 at every
+    size, because the topology is. A skirt adds its collars on top.
+    """
+    tally = sched["fasteners"]
+    assert tally["field"][connectors.BOLT] > tally["shop"][connectors.BOLT]
+    if not any(p["kind"] == "skirt_collar" for p in sched["parts"]):
+        assert tally["field"][connectors.BOLT] == 84
+    assert tally["shop"][connectors.BOLT] == 20
+
+
+def test_hinging_the_clamp_moves_work_out_of_the_field(sched):
+    """Decision 0020, counted rather than claimed.
+
+    The hinged closure turns one of a clamp's two bolts into a pin that is
+    fitted once, so every clamp and every termination gives up exactly one
+    field bolt -- and nothing anywhere gets more field work than it had.
+    """
+    bolted = sched["closures"][connectors.BOLTED]
+    hinged = sched["closures"][connectors.HINGED]
+
+    hinged_kinds = ("two_rod_clamp", "cut_termination")
+    moved = sum(p["count"] for p in sched["parts"] if p["kind"] in hinged_kinds)
+    # Thirty untied crossings at every size, plus one termination per bow the
+    # doorway cuts -- which is two on a dome with a door and none on D3,
+    # where the schedule carries no doorway at all.
+    assert moved >= 30
+
+    assert hinged["field"][connectors.BOLT] == bolted["field"][connectors.BOLT] - moved
+    assert hinged["shop"][connectors.PIN] == moved
+    assert hinged["total"] == bolted["total"], "same joints, closed differently"
+    for kind in (connectors.BOLT, connectors.PIN):
+        assert hinged["field"][kind] <= bolted["field"][kind]
+
+
+def test_the_bolt_is_the_one_decision_0013_chose(sched):
+    """One rule for the bolt size, and the schedule reads it from source."""
+    rod = _part(sched, "four_rod_fan")["rod_diameter"]
+    assert sched["fasteners"]["size"] == connectors.fastener_for(rod)

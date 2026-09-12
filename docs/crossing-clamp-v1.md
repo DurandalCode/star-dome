@@ -34,6 +34,18 @@ So `verticalSeparation` is **driven**, not free: the generator forces it to
 do not share a point in 3D — they touch tangentially at the crossing, which is
 what the original lashed Star Dome joint does anyway.
 
+## Two ways to close it
+
+Everything below describes the joint as V1 drew it: two halves, two bolts, two
+nuts. The generator now also draws a second closure — `fastenerStyle = 1` —
+which hinges the cap to the bottom half on a steel pin and leaves a single bolt
+standing in an open-ended slot, so the connector is one object even while it is
+open. The channels, the saddle, the flares, the fillet rules and the governing
+constraint below are identical in both; only the two fastener stations differ.
+See [`quick-release.md`](quick-release.md) and
+[decision 0020](decisions/0020-the-hinge-is-worth-more-than-the-lever.md).
+The bolted closure is the default and its output is unchanged to the byte.
+
 ## Architecture
 
 - **BottomClamp** — holds the lower rod in a 180° U-channel that is open
