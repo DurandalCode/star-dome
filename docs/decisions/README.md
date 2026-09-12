@@ -74,6 +74,7 @@ writing the next.
 | [0014](0014-the-cover-hangs-on-the-stakes.md) | The cover hangs on the stakes the dome already stands on, with no new part | accepted |
 | [0015](0015-a-reinforcement-is-judged-by-the-span-it-removes.md) | A reinforcement is judged by the span it removes, because the rod goes as the span squared | accepted |
 | [0016](0016-a-domes-doors-are-written-in-its-config.md) | A dome's doors are written in its config and aimed by azimuth | accepted |
+| [0017](0017-the-skirt-post-is-the-stake-made-longer.md) | The skirt post is the stake made longer, and the skirt's own members go on a collar | accepted |
 
 ## Not here yet
 

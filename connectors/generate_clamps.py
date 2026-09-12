@@ -79,6 +79,7 @@ FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
 BASE_SOURCE = os.path.join(REPO, "connectors", "base_hub_v1.py")
 TERM_SOURCE = os.path.join(REPO, "connectors", "term_clamp_v1.py")
 SPLICE_SOURCE = os.path.join(REPO, "connectors", "rod_splice_v2.py")
+COLLAR_SOURCE = os.path.join(REPO, "connectors", "skirt_collar_v1.py")
 LOADED = {}
 
 
@@ -270,6 +271,49 @@ def run():
                     "fcstd": fcstd,
                     "files": [os.path.basename(f) for f in files],
                     "mesh_facets": facets,
+                    "checks": checks,
+                }
+            )
+            continue
+
+        if generator == "skirt_collar_v1":
+            collar = load_module(COLLAR_SOURCE)
+            values = {alias: value for (alias, value, _u, _n) in collar["INPUTS"]}
+            values["rodDiameter"] = float(part["rod_diameter"])
+            values["rodNominalDiameter"] = float(
+                part.get("rod_nominal_diameter") or part["rod_diameter"]
+            )
+            # Both angles come off the dome, not out of the generator: the
+            # chord azimuth from the post count and the brace rise from the
+            # skirt's own proportions.
+            values["chordAzimuth"] = float(part["chord_azimuths_deg"][0])
+            values["braceRise"] = float(part["brace_rise_deg"])
+            geo, dims = collar["build"](values)
+
+            doc = fresh_document(part["id"])
+            collar["populate"](doc, geo)
+            kit.write_parameters(
+                doc, None, collar["INPUTS"], values,
+                collar["derived_rows"](dims, values), collar["TITLE"],
+            )
+            doc.recompute()
+            fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
+            doc.saveAs(fcstd)
+            checks = collar["verify"](geo, dims, values)
+
+            step_path, stl_path, facet_count = export_solid(
+                geo["collar"], part["id"] + "_Collar"
+            )
+            report["built"].append(
+                {
+                    "id": part["id"],
+                    "kind": part["kind"],
+                    "generator": generator,
+                    "rod_diameter": part["rod_diameter"],
+                    "count_needed": part["count"],
+                    "fcstd": fcstd,
+                    "files": [os.path.basename(f) for f in (step_path, stl_path)],
+                    "mesh_facets": {"Collar": facet_count},
                     "checks": checks,
                 }
             )

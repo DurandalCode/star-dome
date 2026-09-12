@@ -123,26 +123,131 @@ def test_schedule_scales_only_in_rod_diameter():
     assert len(heights) == len(diameters)
 
 
-def test_the_base_point_is_the_busiest_joint_in_the_structure():
-    """Eight members at one point on a skirted dome, and nothing designed.
+def test_a_skirt_does_not_make_the_base_point_a_different_joint():
+    """It used to be eight members and nothing designed. It is three.
 
-    Three bow ends arrive at three different inclinations, the post head from
-    below, two ring chords pulling sideways and two brace heads pulling
-    diagonally. That is twice the four-rod fan, which does have a part.
+    The old reading put the post head, two ring chords and two brace heads on
+    the hub, which made the busiest joint in the structure the one place no
+    part existed for. None of them has to go there. The hub already carries a
+    through slot for a driven steel angle; a post is that same angle made
+    longer, so it is no more a member of this joint than a stake is, and the
+    skirt's own members land on a collar clamped to the post below the hub.
+
+    What that buys is that a skirted dome and a bare one use the SAME base
+    hub -- see docs/decisions/0017.
+    """
+    from stardome import connectors, model
+
+    skirted = connectors.schedule(model.build(config.load("S")))
+    bare = connectors.schedule(model.build(config.load("M")))
+
+    def hubs(sched):
+        return {p["id"].split("-")[0]: p for p in sched["parts"]
+                if p["kind"] == "base_hub"}
+
+    with_skirt, without = hubs(skirted), hubs(bare)
+    assert set(with_skirt) == set(without) == {"BASE3", "BASE2"}
+    for key in with_skirt:
+        assert with_skirt[key]["members"] == without[key]["members"]
+        assert with_skirt[key]["count"] == without[key]["count"]
+        assert with_skirt[key]["generator"] == "base_hub_v1"
+        assert with_skirt[key]["state"] == connectors.GENERATED
+        # The angle in the slot reaches the ground either way.
+        assert with_skirt[key]["anchored_by_stake"] is True
+
+    assert sum(h["count"] for h in with_skirt.values()) == 10
+
+
+def test_the_post_and_the_stake_are_one_member():
+    """A post and a stake at one point would be two things in one place."""
+    from stardome import connectors, model
+
+    skirted = connectors.schedule(model.build(config.load("S")))
+    bare = connectors.schedule(model.build(config.load("M")))
+
+    here = _part(skirted, "ground_stake")
+    there = _part(bare, "ground_stake")
+    assert here["count"] == there["count"] == 10
+    assert here["state"] == there["state"] == connectors.HARDWARE
+    assert there["standing_mm"] == 0.0
+    assert here["standing_mm"] == config.load("S").skirt_height
+    assert here["is_the_post"] is True
+    assert there["is_the_post"] is False
+
+
+def test_the_skirt_joins_on_one_collar_used_at_both_ends_of_every_post():
+    """Two ring chords and two brace ends, at each end of each post.
+
+    The two ends are the same shape: the chords leave level on both and the
+    braces leave at the same angle, down at the head and up at the foot. So it
+    is one geometry turned over, not two parts -- twenty of one thing.
     """
     from stardome import connectors, model
 
     sched = connectors.schedule(model.build(config.load("S")))
-    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
-    assert hubs
-    assert max(h["members"] for h in hubs) == 8
-    assert sum(h["count"] for h in hubs) == 10
-    # Eight members on top of a post is a different problem from three on the
-    # ground, and the generator does not claim it.
-    assert all(h["generator"] is None for h in hubs)
+    collar = _part(sched, "skirt_collar")
+    data = model.build(config.load("S"))
+    posts = data["skirt"]["post_count"]
 
-    fan = _part(sched, "four_rod_fan")
-    assert max(h["members"] for h in hubs) > fan["count"] // 2  # 8 > 5
+    assert collar["count"] == 2 * posts
+    assert collar["ends_per_post"] == 2
+    assert collar["generator"] == "skirt_collar_v1"
+    assert collar["state"] == connectors.GENERATED
+
+    # Derived from the post count, not typed in: the chord to the next post
+    # round a regular decagon leaves at 90 + 180/10 from the outward radius.
+    assert collar["chord_azimuths_deg"][0] == pytest.approx(90.0 + 180.0 / posts)
+    assert sum(collar["chord_azimuths_deg"]) == pytest.approx(360.0)
+    assert collar["brace_rise_deg"] == pytest.approx(
+        data["skirt"]["brace_angle_deg"]
+    )
+
+    # The two posts beside the doorway carry one empty side, at both ends.
+    assert len(collar["one_side_unused"]) == 2 * len(data["skirt"]["open_bays"])
+
+
+def test_a_foot_collar_is_a_head_collar_turned_over():
+    """The claim the part rests on, checked in the placements rather than in
+    the drawing: the two bases differ by a half turn about the outward radius,
+    which is what makes one printed geometry serve both ends."""
+    from stardome import connectors, model
+
+    data = model.build(config.load("S"), weave_mode="woven")
+    spots = [
+        s for s in connectors.schedule(data)["placements"]
+        if s["kind"] == "skirt_collar"
+    ]
+    assert len(spots) == 2 * data["skirt"]["post_count"]
+
+    by_post = {}
+    for spot in spots:
+        post, end = spot["at"].rsplit("_", 1)
+        by_post.setdefault(post, {})[end] = spot
+
+    for post, ends in by_post.items():
+        head, foot = ends["head"], ends["foot"]
+        assert head["turned_over"] is False
+        assert foot["turned_over"] is True
+        # Same outward radius, opposite axis, and a right-handed frame either
+        # way -- exactly a half turn about local +X.
+        assert head["basis"][0] == foot["basis"][0], post
+        assert head["basis"][1] == [-c for c in foot["basis"][1]], post
+        assert head["basis"][2] == [-c for c in foot["basis"][2]], post
+        assert head["origin_mm"][2] == 0.0
+        assert foot["origin_mm"][2] == pytest.approx(
+            -data["skirt"]["height"]
+        )
+
+
+def test_nothing_in_the_skirt_is_left_without_a_part_except_the_header():
+    """The skirt used to contribute twelve parts with nothing at all."""
+    from stardome import connectors, model
+
+    sched = connectors.schedule(model.build(config.load("S")))
+    nothing = [
+        p for p in sched["parts"] if p.get("state") == connectors.UNDESIGNED
+    ]
+    assert [p["kind"] for p in nothing] == ["header_clamp"]
 
 
 def test_a_bare_dome_anchors_its_feet_with_a_stake_and_still_needs_a_hub():
@@ -229,26 +334,6 @@ def test_a_cut_bow_ends_in_a_crossing_and_wants_a_part_that_knows_it():
     assert {e["other_rod"] for e in ends} == {"U1", "U4"}
     assert {e["approach"] for e in ends} == {"+", "-"}
     assert all(e["ends_above"] for e in ends)
-
-
-def test_the_skirted_base_point_is_out_of_a_stake_s_reach():
-    """S's busiest joint sits 1.35 m up on top of a post.
-
-    That is the one place the stake argument does not reach, and it is also
-    the joint with the most members in the structure.
-    """
-    from stardome import connectors, model
-
-    sched = connectors.schedule(model.build(config.load("S")))
-    hubs = [p for p in sched["parts"] if p["kind"] == "base_hub"]
-    assert max(h["members"] for h in hubs) == 8
-    assert all(h["state"] == connectors.UNDESIGNED for h in hubs)
-    assert all(h["anchored_by_stake"] is False for h in hubs)
-
-    # The post feet below them, by contrast, are hardware.
-    feet = [p for p in sched["parts"] if p["kind"] == "post_foot"]
-    assert feet
-    assert all(f["state"] == connectors.HARDWARE for f in feet)
 
 
 def test_splices_are_the_largest_part_count_on_any_real_size(sched):

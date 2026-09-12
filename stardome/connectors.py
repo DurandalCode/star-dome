@@ -74,9 +74,16 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
 
     # --- base points ---------------------------------------------------------
     #
-    # Three rod ends meet here in any case. With a skirt they are joined by the
-    # post head, two ring chords and two brace heads: eight members at one
-    # point, which is more than the four-rod fan and has no design at all.
+    # Three rod ends meet here, and that is all that meets here -- with a skirt
+    # as well as without one.
+    #
+    # The hub already carries a through slot for a driven steel angle and two
+    # bolts across it. A skirt post is that same angle, longer: driven at the
+    # bottom, standing in the slot at the top, one member doing both jobs. So
+    # the post is not an extra member at this point any more than the stake
+    # is, and the skirt's own members -- two ring chords and two brace heads --
+    # land on a collar clamped to the post below the hub rather than on the
+    # hub. See COLLAR below and docs/skirt.md.
     at_base = {b["name"]: 3 for b in data["base_nodes"]}
 
     # A doorway cut takes a bow end off the two feet the door stands between,
@@ -91,36 +98,25 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     for name, rods in released.items():
         at_base[name] -= len(rods)
 
-    if skirt:
-        for post in skirt["posts"]:
-            at_base[post["base_node"]] += 1
-        for seg in skirt["top_ring"]:
-            at_base[seg["from"]] += 1
-            at_base[seg["to"]] += 1
-        by_point = {
-            (round(post["x"]), round(post["y"])): post for post in skirt["posts"]
-        }
-        for brace in skirt["braces"]:
-            head = by_point[(round(brace["b"][0]), round(brace["b"][1]))]
-            at_base[head["base_node"]] += 1
-
     fan = weave.base_fan(data, removed=released)
 
     grouped: dict = {}
     for name, count in at_base.items():
         grouped.setdefault(count, []).append(name)
     for count, names in sorted(grouped.items(), reverse=True):
-        on_ground = not skirt
+        # Whether the angle in the hub's slot is driven straight into the
+        # ground or is a post with the ground a skirt-height further down
+        # changes its length and nothing else about this part. Either way the
+        # hub is held down by the thing standing in its slot.
+        on_ground = True
         # Every point in a group has the same member count, and the fan is
         # the same shape at all of them up to the mirror, so one of them
         # describes the part. Take the first by name so the answer does not
         # depend on dict order.
         here = fan["by_base"][sorted(names)[0]]
         bows_here = len(here["arms"])
-        # The generator draws a flat fan of bow ends, however many. What it
-        # cannot draw is the skirted hub, where the post head, two ring chords
-        # and the brace heads arrive on top of the bows: that is a different
-        # problem and still has nothing.
+        # The generator draws a flat fan of bow ends, however many, plus the
+        # slot the angle stands in. Nothing else arrives here.
         drawable = count == bows_here
         parts.append(
             {
@@ -151,20 +147,15 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "handed": fan["mirror_pairs"],
                 "note": (
                     f"{bows_here} bow ends"
-                    + (
-                        ", the post head, two ring chords and the brace heads"
-                        if count > bows_here
-                        else ""
-                    )
                     + ". They arrive at "
                     + ("two" if bows_here == 2 else "three")
                     + " different inclinations and have to be held to each "
-                    "other"
+                    "other and to the angle standing in the slot under them"
                     + (
-                        ", 1.35 m in the air on top of a post, where no stake "
-                        "can reach."
-                        if count > bows_here
-                        else " and to the stake under them."
+                        " -- which on a skirted dome is the post, not a short "
+                        "stake, and reaches the ground a skirt-height below."
+                        if skirt
+                        else "."
                     )
                     + (
                         "  This is a doorway jamb: the cut took its third bow "
@@ -177,70 +168,109 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             }
         )
 
-    if not skirt:
+    # The angle in the hub's slot. On a bare dome it is a stake and nothing
+    # else; under a skirt the same member keeps going down to the ground and
+    # is the post as well. One item on the list either way, and the only thing
+    # that changes is how much of it stands above the soil.
+    standing = skirt["height"] if skirt else 0.0
+    parts.append(
+        {
+            "id": "STAKE-BASE",
+            "kind": "ground_stake",
+            "rod_diameter": rod_diameter,
+            "rod_nominal_diameter": nominal,
+            "count": len(data["base_nodes"]),
+            "nodes": sorted(b["name"] for b in data["base_nodes"]),
+            "tied": False,
+            "members": 1,
+            "generator": None,
+            "state": HARDWARE,
+            "standing_mm": round(standing, 3),
+            "is_the_post": bool(skirt),
+            "note": (
+                "A driven steel angle at each base point. This is what "
+                "resists the dome spreading at its feet -- through soil, "
+                "the way a tent peg does -- and it is a size and a length "
+                "to specify rather than a shape to design. It does not "
+                "gather the three bow ends; that is BASE3."
+                + (
+                    f"  Under a skirt it is also the post: the same angle, "
+                    f"{standing:.0f} mm of it standing, carrying the collars "
+                    "and running on into the ground. A post and a stake at the "
+                    "same point would be two members competing for one place."
+                    if skirt
+                    else ""
+                )
+                + "  How far it is driven is the ground's answer, not this "
+                "project's."
+            ),
+        }
+    )
+
+    # --- the skirt's own joints ---------------------------------------------
+    #
+    # Everything the skirt adds at a post -- two ring chords and two brace
+    # ends -- lands on a collar clamped to the post, at both ends of it. The
+    # two are the same shape: the chords leave level on both, and the braces
+    # leave at the same angle, downward at the head and upward at the foot.
+    # Turn the part over about the outward radius and one serves the other.
+    if skirt:
+        posts = skirt["posts"]
+        count_posts = len(posts)
+        # The chord to the next post round a regular polygon, measured from
+        # the outward radius. Derived from the post count, not typed in.
+        chord_azimuth = 90.0 + 180.0 / count_posts
+        rise = skirt["brace_angle_deg"]
+
+        # A doorway bay has neither ring chord nor brace, so the two posts
+        # beside it carry a collar with one side unused -- at both ends.
+        beside_a_door = set()
+        for bay in skirt.get("open_bays") or []:
+            beside_a_door.add(posts[bay % count_posts]["name"])
+            beside_a_door.add(posts[(bay + 1) % count_posts]["name"])
+
         parts.append(
             {
-                "id": "STAKE-BASE",
-                "kind": "ground_stake",
+                "id": f"COLLAR-{rod_diameter:g}",
+                "kind": "skirt_collar",
                 "rod_diameter": rod_diameter,
                 "rod_nominal_diameter": nominal,
-                "count": len(data["base_nodes"]),
-                "nodes": sorted(b["name"] for b in data["base_nodes"]),
-                "tied": False,
-                "members": 1,
-                "generator": None,
-                "state": HARDWARE,
+                "count": 2 * count_posts,
+                "nodes": sorted(post["name"] for post in posts),
+                "tied": True,
+                "members": 5,
+                "generator": "skirt_collar_v1",
+                "state": GENERATED,
+                "ends_per_post": 2,
+                "chord_azimuths_deg": [
+                    round(chord_azimuth, 6),
+                    round(360.0 - chord_azimuth, 6),
+                ],
+                "brace_rise_deg": round(rise, 6),
+                "chord_length_mm": round(skirt["top_ring"][0]["length"], 3),
+                "brace_length_mm": round(skirt["braces"][0]["length"], 3),
+                "post_length_mm": round(skirt["height"], 3),
+                "one_side_unused": sorted(beside_a_door),
                 "note": (
-                    "A driven steel angle at each base point. This is what "
-                    "resists the dome spreading at its feet -- through soil, "
-                    "the way a tent peg does -- and it is a size and a length "
-                    "to specify rather than a shape to design. It does not "
-                    "gather the three bow ends; that is BASE3."
+                    f"Two ring chords and two brace ends, at {chord_azimuth:.4f} "
+                    f"deg either side of the outward radius -- the chords level "
+                    f"and the braces at {rise:.4f} deg, down at the head and up "
+                    f"at the foot. One geometry serves both ends: turned over "
+                    f"about the radius, a head collar is a foot collar. "
+                    + (
+                        f"{len(beside_a_door) * 2} of them stand beside a "
+                        "doorway and carry nothing on the door side."
+                        if beside_a_door
+                        else ""
+                    )
+                    + " What the collar does NOT do is decide what the ring "
+                    "chord is made of. A GFRP rod of the dome's own diameter "
+                    "buckles at well under a hundred newtons over this span, "
+                    "so the ring is a section to specify -- milestone 8. See "
+                    "docs/skirt.md."
                 ),
             }
         )
-
-    # --- post feet -----------------------------------------------------------
-    if skirt:
-        at_foot = {post["name"]: 1 for post in skirt["posts"]}  # the post itself
-        for seg in skirt["bottom_ring"]:
-            at_foot[seg["from"]] += 1
-            at_foot[seg["to"]] += 1
-        by_point = {
-            (round(post["x"]), round(post["y"])): post for post in skirt["posts"]
-        }
-        for brace in skirt["braces"]:
-            foot = by_point[(round(brace["a"][0]), round(brace["a"][1]))]
-            at_foot[foot["name"]] += 1
-
-        grouped = {}
-        for name, count in at_foot.items():
-            grouped.setdefault(count, []).append(name)
-        for count, names in sorted(grouped.items(), reverse=True):
-            parts.append(
-                {
-                    "id": f"FOOT{count}-{rod_diameter:g}",
-                    "kind": "post_foot",
-                    "rod_diameter": rod_diameter,
-                "rod_nominal_diameter": nominal,
-                    "count": len(names),
-                    "nodes": sorted(names),
-                    "tied": True,
-                    "members": count,
-                    "generator": None,
-                    "state": HARDWARE,
-                    "anchored_by_stake": True,
-                    "note": (
-                        "Post foot, two ring chords and the brace feet, all "
-                        "gathered on the driven steel angle that anchors this "
-                        "point anyway. Hardware rather than a part: what has "
-                        "to be decided is the stake and whether the post is "
-                        "pinned or fixed to it, which is what turns racking "
-                        "into a bending problem at the feet. See "
-                        "docs/skirt.md."
-                    ),
-                }
-            )
 
         header = skirt.get("header")
         if header:
@@ -621,6 +651,8 @@ def placements(data: dict, parts: list) -> list:
         elif kind == "base_hub":
             for name in part["nodes"]:
                 out.append(_base_placement(part, bases[name], fan, bows))
+        elif kind == "skirt_collar":
+            out.extend(_collar_placements(data, part))
         elif kind == "ground_stake":
             for name in part["nodes"]:
                 out.append(_stake_placement(part, bases[name], fan))
@@ -894,6 +926,45 @@ def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
         "basis": _basis(along, outward, down),
         "driven": True,
     }
+
+
+def _collar_placements(data: dict, part: dict) -> list:
+    """Both collars on every post: one at the head, one at the foot.
+
+    ``skirt_collar_v1`` bores along local +Z and puts its lug arms at the
+    chord azimuth either side of local +X, with the brace arms below them. So
+    +X is the outward radius and +Z is up at a head -- and DOWN at a foot,
+    which is the whole point of the part: turned over about the outward
+    radius, a head collar is a foot collar.
+    """
+    import math
+
+    from . import vec
+
+    skirt = data.get("skirt") or {}
+    out = []
+    for post in skirt.get("posts", []):
+        azimuth = math.atan2(post["y"], post["x"])
+        outward = (math.cos(azimuth), math.sin(azimuth), 0.0)
+        for where, z, up in (
+            ("head", post["z_top"], (0.0, 0.0, 1.0)),
+            ("foot", post["z_bottom"], (0.0, 0.0, -1.0)),
+        ):
+            # Right-handed, with +X outward and +Z along the post's axis as
+            # this end sees it.
+            ey = vec.cross(up, outward)
+            out.append(
+                {
+                    "part": part["id"],
+                    "kind": part["kind"],
+                    "at": f"{post['name']}_{where}",
+                    "origin_mm": [post["x"], post["y"], _p(z)],
+                    "basis": _basis(outward, ey, up),
+                    "end": where,
+                    "turned_over": where == "foot",
+                }
+            )
+    return out
 
 
 def _foot_direction(bow, point):
