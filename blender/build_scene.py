@@ -25,7 +25,8 @@ Objects are named by their model IDs (``Rod_G1``, ``Node_N07``, ``Base_b0``)
 so a regenerated variant can be matched against an existing scene.
 
 ``--shots DIR`` renders a set of named views instead of one frame -- four of
-them from eye level, plus an orthographic plan and elevation::
+them from eye level, an orthographic plan and elevation, and one close-up per
+kind of joint the schedule places::
 
     blender --background --factory-startup --python blender/build_scene.py -- \
         --model exports/model/star_dome_d6.json --hide-cuts --shots exports/shots
@@ -992,7 +993,7 @@ def _aim(cam, at):
     cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
 
-def joint_cameras(scene, data, lift, rod_radius_m):
+def joint_cameras(scene, data, lift, rod_radius_m, placements=None):
     """Close on one joint of each kind, which is the only way to check one.
 
     A whole-dome view shows that connectors are there. It cannot show whether
@@ -1030,6 +1031,20 @@ def joint_cameras(scene, data, lift, rod_radius_m):
     else:
         jamb = feet[0]
     wanted.append(("foot", jamb))
+
+    # One close-up per KIND of part actually placed, so a joint that gets a
+    # generator gets a camera without anyone remembering to add one. The three
+    # above are the named views this project already had; everything else is
+    # aimed at the first placement of its kind.
+    already = {"four_rod_fan", "two_rod_clamp", "base_hub"}
+    seen = set()
+    for spot in placements or ():
+        kind = spot["kind"]
+        if kind in already or kind in seen:
+            continue
+        seen.add(kind)
+        x, y, z = spot["origin_mm"]
+        wanted.append((kind, {"x": x, "y": y, "z": z}))
 
     for name, node in wanted:
         at = (node["x"] * MM, node["y"] * MM, node["z"] * MM + lift)
@@ -1365,8 +1380,10 @@ def build(args):
             lift,
         )
 
+    schedule = None
     if args.connectors != "none":
-        add_connectors(args, load_schedule(args), root, lift, rod_radius_m)
+        schedule = load_schedule(args)
+        add_connectors(args, schedule, root, lift, rod_radius_m)
 
     if args.label_nodes:
         label_coll = new_collection("Labels", root)
@@ -1482,7 +1499,12 @@ def build(args):
     default_cam, _ = add_camera_and_light(scene, radius_m, height_m, facing,
                                           framing_m)
     shots = shot_cameras(scene, radius_m, height_m, facing)
-    shots.update(joint_cameras(scene, data, lift, rod_radius_m))
+    shots.update(
+        joint_cameras(
+            scene, data, lift, rod_radius_m,
+            (schedule or {}).get("placements") if args.connectors != "none" else None,
+        )
+    )
     data["_shot_cameras"] = shots
     data["_default_camera"] = default_cam
 
