@@ -531,3 +531,214 @@ def test_a_dome_with_no_door_keeps_its_rings_closed():
     assert len(skirt["top_ring"]) == skirt["bay_count"]
     assert len(skirt["braces"]) == 2 * skirt["bay_count"]
     assert "header" not in skirt
+
+
+# --- more than one door -----------------------------------------------------
+#
+# A dome in a camp wants doors facing particular ways, and a different number
+# of them per dome. What has to hold: the doors are aimed and land in real
+# bays, they are measured on the dome all of them leave rather than each on
+# its own, and every consumer that used to read "the doorway" now reads all of
+# them. The single-door path must come out byte-identical, which is what lets
+# every existing variant and every golden file stay put.
+
+
+from stardome import attachment, connectors, cover  # noqa: E402
+from stardome.config import Door  # noqa: E402
+
+
+def _multi(name="D10", doors=()):
+    return model.build(config.load(name, doors=doors))
+
+
+def test_one_unaimed_door_is_exactly_what_place_gave_before():
+    """The compatibility guarantee the whole refactor rests on."""
+    data = model.build(config.load("D6"))
+    one = doorway.place(data, "carry", cut="portal")
+    both = doorway.place_all(
+        data, (Door(cut="portal", facing=None, template="carry"),)
+    )[0]
+    for key in ("bay", "frame", "cut", "in_bay", "opening_height_mm", "admits"):
+        assert one[key] == both[key], key
+
+
+def test_the_model_still_calls_the_first_one_the_doorway():
+    data = _multi(doors=(Door("portal", 18.0, "carry"), Door("none", 198.0, "carry")))
+    assert data["doorway"] is data["doorways"][0]
+    assert len(data["doorways"]) == 2
+
+
+def test_a_door_lands_in_the_bay_nearest_the_way_it_faces():
+    data = _multi(
+        doors=(
+            Door("none", 198.0, "carry"),
+            Door("none", 270.0, "carry"),
+            Door("none", 54.0, "carry"),
+        )
+    )
+    landed = [round(d["bay"]["centre_azimuth_deg"]) for d in data["doorways"]]
+    assert landed == [198, 270, 54]
+    for door in data["doorways"]:
+        gap = abs(door["landed_deg"] - door["facing_deg"])
+        assert gap < 2.0, door
+
+
+def test_a_portal_takes_a_low_bay_and_a_lancet_a_tall_one():
+    """The cuts are different cuts; each only makes sense in its own bay."""
+    plain = model.build(config.load("D10", door="", door_cut="none"))
+    low = {round(b["centre_azimuth_deg"]) for b in doorway.low_bays(plain)}
+    tall = {round(b["centre_azimuth_deg"]) for b in doorway.tall_bays(plain)}
+    assert low.isdisjoint(tall)
+
+    # Aim both at the same azimuth and they still go to different bays.
+    data = _multi(doors=(Door("portal", 54.0, "carry"),))
+    assert round(data["doorways"][0]["bay"]["centre_azimuth_deg"]) in low
+
+    data = _multi(doors=(Door("none", 54.0, "carry"),))
+    assert round(data["doorways"][0]["bay"]["centre_azimuth_deg"]) in tall
+
+
+def test_two_doors_in_one_bay_is_an_error_not_a_wider_door():
+    with pytest.raises(ValueError, match="both land in the bay"):
+        _multi(doors=(Door("none", 198.0, "carry"), Door("none", 200.0, "carry")))
+
+
+def test_every_cut_lands_on_the_rods_not_just_the_first_doors():
+    data = _multi(doors=(Door("portal", 18.0, "carry"), Door("portal", 162.0, "carry")))
+    spans = doorway.removed_spans(data)
+    # Two portals cut three bows between them, and one of them at both ends.
+    assert len(spans) == 3
+    assert sum(len(v) for v in spans.values()) == 4
+
+
+def test_two_portals_leave_a_bow_standing_on_nothing():
+    """One door cannot do this; two can, and it must not pass unremarked."""
+    one = _multi(doors=(Door("portal", 18.0, "carry"),))
+    two = _multi(doors=(Door("portal", 18.0, "carry"), Door("portal", 162.0, "carry")))
+    assert doorway.landless_bows(one) == []
+    assert doorway.landless_bows(two) == ["L1"]
+    assert "no longer standing on the ground" in doorway.format_doors(two)
+
+
+def test_the_schedule_counts_every_doorway_not_the_first():
+    """Four released feet want four two-armed hubs, and four rod ends want
+    four terminations. A schedule that saw one door would ask for two of
+    each -- parts that do not fit where it matters most."""
+    data = model.build(
+        config.load(
+            "D10", doors=(Door("portal", 18.0, "carry"), Door("portal", 162.0, "carry"))
+        ),
+        weave_mode="woven",
+    )
+    counts = {p["id"]: p["count"] for p in connectors.schedule(data)["parts"]}
+    assert counts["BASE2-12"] == 4
+    assert counts["BASE3-12"] == 6
+    assert counts["TERM-12-70.5288"] == 4
+    assert counts["BASE2-12"] + counts["BASE3-12"] == len(data["base_nodes"])
+
+
+def test_the_cover_loses_every_opening():
+    one = _multi(doors=(Door("portal", 18.0, "carry"),))
+    three = _multi(
+        doors=(
+            Door("portal", 18.0, "carry"),
+            Door("none", 198.0, "carry"),
+            Door("none", 270.0, "carry"),
+        )
+    )
+    a, b = cover.analyse(one), cover.analyse(three)
+    assert a["opening"]["count"] == 1
+    assert b["opening"]["count"] == 3
+    assert b["opening"]["area_m2"] > a["opening"]["area_m2"]
+    assert b["areas"]["total_m2"] < a["areas"]["total_m2"]
+    # The seam still falls on the first door, which is the one azimuth anybody
+    # can find on a built dome.
+    assert three["cover"]["seam_phase_deg"] == pytest.approx(
+        three["doorways"][0]["bay"]["centre_azimuth_deg"]
+    )
+
+
+def test_the_hem_is_broken_once_per_door():
+    three = _multi(
+        doors=(
+            Door("portal", 18.0, "carry"),
+            Door("none", 198.0, "carry"),
+            Door("none", 270.0, "carry"),
+        )
+    )
+    hem = attachment.analyse(three)["hem"]
+    assert hem["doorway_count"] == 3
+    assert len(hem["doorway_gaps_mm"]) == 3
+    assert hem["rope_length_mm"] == pytest.approx(
+        hem["circumference_mm"] - sum(hem["doorway_gaps_mm"]), abs=0.2
+    )
+
+
+def test_a_skirt_opens_a_bay_for_every_door():
+    data = model.build(
+        config.load(
+            "D4", doors=(Door("portal", 18.0, "carry"), Door("portal", 162.0, "carry"))
+        )
+    )
+    assert len(data["skirt"]["open_bays"]) == 2
+    open_bays = set(data["skirt"]["open_bays"])
+    assert not [b for b in data["skirt"]["braces"] if b["bay"] in open_bays]
+
+
+# --- what the config accepts ------------------------------------------------
+
+
+def _write(tmp_path, body: str):
+    path = tmp_path / "variants.toml"
+    path.write_text(
+        "[defaults]\nrod_segments = 48\n\n"
+        "[variants.D6]\ndiameter = 6000\nrod_diameter = 10\n" + body,
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_the_config_reads_an_array_of_doors(tmp_path):
+    path = _write(
+        tmp_path,
+        'door = "carry"\n'
+        "[[variants.D6.doors]]\ncut = \"portal\"\nfacing = 18\n"
+        "[[variants.D6.doors]]\ncut = \"none\"\nfacing = 198\ntemplate = \"tall\"\n",
+    )
+    doors = config.load("D6", path).doorways
+    assert [d.cut for d in doors] == ["portal", "none"]
+    assert [d.facing for d in doors] == [18.0, 198.0]
+    # A door with no template of its own falls back to the variant's.
+    assert [d.template for d in doors] == ["carry", "tall"]
+
+
+def test_a_facing_is_taken_modulo_a_full_turn(tmp_path):
+    path = _write(
+        tmp_path,
+        'door = "carry"\n[[variants.D6.doors]]\ncut = "none"\nfacing = 378\n',
+    )
+    assert config.load("D6", path).doorways[0].facing == pytest.approx(18.0)
+
+
+def test_the_config_refuses_a_door_it_cannot_read(tmp_path):
+    with pytest.raises(ValueError, match="unknown keys"):
+        config.load(
+            "D6",
+            _write(tmp_path, 'door = "carry"\n[[variants.D6.doors]]\nwidth = 900\n'),
+        )
+    with pytest.raises(ValueError, match="no template"):
+        config.load(
+            "D6", _write(tmp_path, '[[variants.D6.doors]]\ncut = "none"\n')
+        )
+    with pytest.raises(ValueError, match="must be one of"):
+        config.load(
+            "D6",
+            _write(tmp_path, 'door = "carry"\n[[variants.D6.doors]]\ncut = "sawn"\n'),
+        )
+
+
+def test_the_single_door_pair_still_describes_one_door():
+    variant = config.load("D6")
+    assert not variant.doors
+    assert [d.cut for d in variant.doorways] == ["portal"]
+    assert config.load("D3").doorways == ()

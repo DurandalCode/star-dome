@@ -339,3 +339,54 @@ def test_span_doc_ceiling_table_matches_the_model(every_variant):
 def test_span_doc_quotes_the_reference_working_strain(every_variant):
     ref = span.reference(every_variant["D6"], "lashed")
     assert f"works its rod at {ref['bend_strain'] * 100:.3f}%" in read("docs/span.md")
+
+
+# --- the door a big dome already has ----------------------------------------
+#
+# docs/doorway.md states the diameter at which the uncut tall bay starts
+# admitting each silhouette. Those are the numbers that say a cut is optional
+# at the XL end, so they get pinned from both sides: admitted at the stated
+# diameter, and not admitted just under it.
+
+
+THRESHOLDS = {
+    "walk": 8063,
+    "walk_wide": 8626,
+    "carry": 8656,
+    "tall": 9848,
+}
+
+
+def _admits_uncut(diameter: float) -> set:
+    variant = config.load("D10", diameter=float(diameter), door_cut="none")
+    return set(model.build(variant)["doorway"]["admits"])
+
+
+def test_doorway_doc_thresholds_are_where_it_says(built):
+    text = read("docs/doorway.md")
+    for template, diameter in THRESHOLDS.items():
+        assert f"| `{template}`" in text or f"| `{template}` " in text, template
+        assert f"D {diameter} mm" in text, f"{template} {diameter}"
+        assert template in _admits_uncut(diameter), template
+        assert template not in _admits_uncut(diameter - 50), (
+            f"{template} still gets in 50 mm under the stated {diameter}"
+        )
+
+
+def test_doorway_doc_compares_the_xl_bay_against_its_portal():
+    """The table that says what the cut is still worth on D10."""
+    text = read("docs/doorway.md")
+    rows = {}
+    for level in ("none", "portal"):
+        data = model.build(config.load("D10", door_cut=level))
+        bay = data["doorway"]["bay"]
+        rows[level] = {
+            "clear": f"{bay['clear_height_mm']:.0f} mm",
+            "area": f"{bay['open_area_m2']:.2f} m\u00b2",
+            "width": f"{data['doorway']['in_bay']['widths_mm']['1800']:.0f} mm"
+            if "1800" in data["doorway"]["in_bay"]["widths_mm"]
+            else None,
+        }
+    for level in ("none", "portal"):
+        assert rows[level]["clear"] in text, (level, rows[level]["clear"])
+        assert rows[level]["area"] in text, (level, rows[level]["area"])

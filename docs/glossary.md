@@ -72,7 +72,15 @@ top, head at 0.3009 of the diameter. This is where the door goes —
 node at its point.
 
 **cut level** — how much rod a doorway takes out: `none`, `jambs`, `head` or
-`portal`. Set per variant in `configs/variants.toml`.
+`portal`. Set per door in `configs/variants.toml`.
+
+**facing** — the azimuth a door asks for. A wish rather than a position: a door
+can only sit in a bay, so the nearest eligible one takes it — low bays for a
+portal, tall bays for everything else — and the record says where it **landed**.
+
+**landless bow** — a bow whose ends were both cut away, so it is still
+continuous and still loaded but stands on no foot. One door cannot make one;
+two can.
 
 **admits** — the list of human silhouettes that actually fit through a given
 opening: `crawl`, `stoop`, `walk`, `walk_wide`, `carry`, `tall`. The config

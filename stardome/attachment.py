@@ -67,20 +67,28 @@ def hem(data: dict, hem_mm: float = DEFAULT_HEM_MM) -> dict:
     tension -- reported as the geometric shape only, because the tension is
     not known.
     """
+    from . import doorway as _doorway
+
     r = cover.radius(data)
     feet = data["base_nodes"]
-    door = data.get("doorway") or {}
-    bay = door.get("bay") or {}
+    doors = _doorway.doors_on(data)
 
     circumference = 2.0 * math.pi * r
-    span_deg = bay.get("span_deg", 0.0) if door else 0.0
-    interrupted = circumference * span_deg / 360.0
+    # Every door breaks the hem, not just the first: the rope dead-ends at
+    # both feet of each opening and the run between two doors is its own line.
+    gaps = [
+        circumference * door["bay"]["span_deg"] / 360.0 for door in doors
+    ]
+    interrupted = sum(gaps)
     spacing = circumference / len(feet)
 
     return {
         "cover_radius_mm": round(r, 1),
         "circumference_mm": round(circumference, 1),
         "doorway_gap_mm": round(interrupted, 1),
+        "doorway_count": len(doors),
+        "doorway_gaps_mm": [round(g, 1) for g in gaps],
+        "rope_runs": max(1, len(doors)),
         "rope_length_mm": round(circumference - interrupted, 1),
         "loops": len(feet),
         "loop_spacing_mm": round(spacing, 1),
