@@ -8,9 +8,13 @@ and its length is not a parameter at all.
 
 ```bash
 make camp                 # CAMP=yard by default
-make camp CAMP=pair
-python3 -m stardome camp yard
+make camp CAMP=tree       # an XL hub and six domes hanging off it
+python3 -m stardome camp tree
 ```
+
+Three camps ship: `pair`, two M domes on one corridor; `yard`, three round a
+yard; and `tree`, an XL hub with two L halls, two M off one hall and two S off
+one of those — seven domes and six corridors.
 
 ## What is written down, and what is derived
 
@@ -27,30 +31,43 @@ which pairs are joined. **That is all it says.** Everything else follows:
 A bearing typed into both files is a bearing that stops agreeing with itself, so
 it is typed into neither. Move a dome and everything moves with it.
 
-## A dome is turned, not re-drilled
+## One door per neighbour, and nobody writes them
 
-A door faces a neighbour because the dome was **turned on the ground**, not
-because a new doorway was cut for this site. `turn` rotates the dome and its
-doors with it, and a plan reports the turn each link would want:
+A dome joined to three others has three doors, pointing at the three. Neither
+the count nor the directions appear anywhere in either config: the links
+already determine both, and writing them down would be writing down something
+already determined.
 
-```
-    west        door at 18.0 deg, 162.0 off the bearing  -- turn to 162 deg
-```
+`configs/variants.toml` keeps describing a dome **standing on its own**, which
+is what it is for. A camp builds its own domes.
 
-What a turn cannot do is make one door face two neighbours. A dome in the middle
-of a camp needs a door per neighbour, and that is a change to
-`configs/variants.toml` — [decision 0016](decisions/0016-a-domes-doors-are-written-in-its-config.md)
-put doors there precisely so it could be made. The plan says which dome is short
-of one rather than quietly drawing a door that is not in the design:
+## Five places for a door, 72° apart
 
-```
-  will not build as drawn:
-    - hall's nearest door is 80 deg off the bearing to its neighbour -- turn hall to 275 deg
-```
+This is the constraint that decides how a camp is laid out, and it is not
+obvious until the first plan fails.
 
-That is the shipped `yard` camp, and it is shipped *wrong on purpose*: the hall
-has two neighbours and one door. `pair` is the other example — two M domes on
-one corridor, with nothing wrong with it at all.
+A door goes in a *bay*, and a dome has five of each kind, **72° apart**. So a
+dome cannot put a door on an arbitrary bearing: the best it can do is the
+nearest bay, up to 36° away. Which way the dome is set down therefore matters,
+and `turn` is derived — the turn that makes the worst of its doors the least
+bad, found by scanning, because the objective is a maximum of absolute
+differences and has corners everywhere.
+
+The sharp consequence:
+
+> **Two domes that face each other want their lattices half a bay apart.**
+> A bearing and its reverse differ by 180°, and 180 is not a multiple of 72, so
+> two domes turned the same way can never *both* have a door on the line
+> between them. Turn one by 36° and both can.
+
+A camp whose links form a tree can always be coloured that way, and the
+derived turns come out alternating 0° and 36° along every corridor — which is
+what the shipped `tree` does without anyone arranging it.
+
+The other half of the same constraint is on the positions: neighbours want to
+sit at bearings 72° apart from a common dome. The `tree` camp is laid out that
+way, and every one of its six corridors lands square on a door at both ends.
+Lay one out by eye instead and the plan says how far off each door is.
 
 ## The length is what is left between two covers
 

@@ -21,10 +21,21 @@
 #
 # So a link says only what it connects. Move a dome and everything follows.
 #
-# `turn` rotates a dome on the ground, and its doors turn with it. That is how
-# a door comes to face a neighbour -- a dome is not re-drilled for a site. Two
-# neighbours want two doors, though, and no turn substitutes for the second:
-# that is a change to configs/variants.toml, and `stardome camp` says so.
+# A dome in a camp carries ONE DOOR PER NEIGHBOUR, pointed at it, and neither
+# the count nor the directions are written here: the links already determine
+# both. `configs/variants.toml` keeps describing a dome standing on its own.
+#
+# `turn` is derived too, and is written here only to override it. A door goes
+# in a bay and a dome has five of them, 72 degrees apart, so which way it is
+# set down decides how near its doors get to its neighbours; the derived turn
+# is the one that makes the worst of them the least bad.
+#
+# Worth knowing before laying one out by eye: a bearing and its reverse differ
+# by 180, which is not a multiple of 72, so two domes turned the same way can
+# never both have a door on the line between them. One of every joined pair
+# comes out turned 36 degrees from the other. Put neighbours at bearings 72
+# apart and every corridor lands square; put them anywhere and the plan says
+# how far off each door is.
 # ---------------------------------------------------------------------------
 
 [camps.yard]
@@ -36,21 +47,16 @@ note = "Three domes round a yard: the hall, a kitchen and a store"
 name = "hall"
 variant = "L"
 at = [0, 0]
-# Faces the kitchen. It cannot also face the store on one door, and the plan
-# reports that rather than pretending -- the hall wants a second doorway.
-turn = 354.8
 
 [[camps.yard.domes]]
 name = "kitchen"
 variant = "M"
-at = [11000, 2500]
-turn = 174.8
+at = [-18895, 12963]
 
 [[camps.yard.domes]]
 name = "store"
 variant = "S"
 at = [4000, -9500]
-turn = 94.8
 
 [[camps.yard.links]]
 between = ["hall", "kitchen"]
@@ -66,13 +72,79 @@ note = "Two M domes on one corridor, the simplest camp there is"
 name = "east"
 variant = "M"
 at = [0, 0]
-turn = 342
 
 [[camps.pair.domes]]
 name = "west"
 variant = "M"
 at = [10000, 0]
-turn = 162
 
 [[camps.pair.links]]
 between = ["east", "west"]
+
+# ---------------------------------------------------------------------------
+# A tree: one big dome in the middle, and the camp hanging off it.
+#
+# The hub joins two halls, one hall joins two more domes, and one of those
+# joins two small ones. Nobody wrote a door anywhere in here: the hub has two
+# neighbours so it gets two doors, the west hall has three so it gets three.
+#
+# Positions are the two cover radii plus the free run wanted between them --
+# about 4 m for the big joins and 3.5 m for the small ones. `stardome camp`
+# reports any pair whose covers would touch.
+# ---------------------------------------------------------------------------
+
+[camps.tree]
+note = "An XL hub, two L halls, two M off one hall and two S off one of those"
+
+[[camps.tree.domes]]
+name = "hub"
+variant = "XL"
+at = [0, 0]
+
+[[camps.tree.domes]]
+name = "hall_west"
+variant = "L"
+at = [-12406, 4031]
+
+[[camps.tree.domes]]
+name = "hall_east"
+variant = "L"
+at = [-7667, -10553]
+
+[[camps.tree.domes]]
+name = "kitchen"
+variant = "M"
+at = [-18895, 12963]
+
+[[camps.tree.domes]]
+name = "workshop"
+variant = "M"
+at = [-22906, 619]
+
+[[camps.tree.domes]]
+name = "store_north"
+variant = "S"
+at = [-18895, 21499]
+
+[[camps.tree.domes]]
+name = "store_west"
+variant = "S"
+at = [-27013, 15601]
+
+[[camps.tree.links]]
+between = ["hub", "hall_west"]
+
+[[camps.tree.links]]
+between = ["hub", "hall_east"]
+
+[[camps.tree.links]]
+between = ["hall_west", "kitchen"]
+
+[[camps.tree.links]]
+between = ["hall_west", "workshop"]
+
+[[camps.tree.links]]
+between = ["kitchen", "store_north"]
+
+[[camps.tree.links]]
+between = ["kitchen", "store_west"]
