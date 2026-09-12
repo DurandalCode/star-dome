@@ -304,30 +304,34 @@ def cmd_camp(args) -> int:
         raise SystemExit(
             "give a camp name, or --all; this file has: " + ", ".join(camps)
         )
-    # One build per variant, however many domes use it: a camp of three M
-    # domes is one dome three times, and building it three times would be
-    # three chances for them to differ.
-    needed = {
-        config.resolve(dome["variant"], args.config)
-        for name in wanted
-        for dome in camps[name]["domes"]
-    }
-    models = {
-        name: model.build(config.load(name, args.config), weave_mode=args.weave_mode)
-        for name in sorted(needed)
-    }
     for name in wanted:
         if name not in camps:
             raise SystemExit(f"no camp {name!r}; this file has: " + ", ".join(camps))
+        # Every dome in a camp carries a door per neighbour and is set down
+        # at the turn that suits its bays, so the models come from the camp
+        # rather than from the variant alone.
+        ready = camp.prepare(
+            camps[name], args.config, args.weave_mode,
+            include_polylines=args.json,
+        )
+        plan, models = ready["plan"], ready["models"]
         kwargs = dict(width=args.width, height=args.height, pitch=args.pitch)
         if args.json:
-            path = Path(args.out) / name / "camp.json"
-            export.write_json(
-                camp.analyse(camps[name], models, **kwargs), path
-            )
-            print(f"{name}: {path}")
+            out = Path(args.out) / name
+            # Each dome in a camp is its own model -- it carries a door per
+            # neighbour -- so the plan ships with them rather than leaving a
+            # consumer to rebuild what it cannot know. Polylines and all: a
+            # scene draws rods and fabric, not summaries.
+            analysis = camp.analyse(plan, models, **kwargs)
+            for dome in analysis["domes"]:
+                where = out / "domes" / f"{dome['name']}.json"
+                export.write_json(models[dome["name"]], where)
+                dome["model"] = f"domes/{dome['name']}.json"
+            path = out / "camp.json"
+            export.write_json(analysis, path)
+            print(f"{name}: {path}  (+{len(models)} dome models)")
         else:
-            print(camp.format_analysis(name, camps[name], models, **kwargs))
+            print(camp.format_analysis(name, plan, models, **kwargs))
     return 0
 
 

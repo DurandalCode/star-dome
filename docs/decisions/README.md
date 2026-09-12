@@ -75,7 +75,8 @@ writing the next.
 | [0015](0015-a-reinforcement-is-judged-by-the-span-it-removes.md) | A reinforcement is judged by the span it removes, because the rod goes as the span squared | accepted |
 | [0016](0016-a-domes-doors-are-written-in-its-config.md) | A dome's doors are written in its config and aimed by azimuth | accepted |
 | [0017](0017-the-skirt-post-is-the-stake-made-longer.md) | The skirt post is the stake made longer, and the skirt's own members go on a collar | accepted |
-| [0018](0018-a-camp-is-a-plan-and-a-dome-is-turned-not-redrilled.md) | A camp is its own config, and a dome is turned to face a neighbour rather than re-drilled | accepted |
+| [0018](0018-a-camp-is-a-plan-and-a-dome-is-turned-not-redrilled.md) | A camp is its own config, and a dome is turned to face a neighbour rather than re-drilled | refined by 0019 |
+| [0019](0019-a-camp-builds-its-own-domes.md) | A camp derives its doors and turns from its links; a door sits on a 72° grid | accepted |
 
 ## Not here yet
 

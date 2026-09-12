@@ -141,9 +141,10 @@ def test_a_door_that_does_not_face_its_neighbour_says_what_turn_would(models):
     assert fixed["facing_it"] is True
 
 
-def test_the_shipped_pair_is_a_camp_that_works(models):
+def test_the_shipped_pair_is_a_camp_that_works():
     """`pair` is the example of a plan with nothing wrong with it."""
-    a = camp.analyse(CAMPS["pair"], models)
+    ready = camp.prepare(CAMPS["pair"])
+    a = camp.analyse(ready["plan"], ready["models"])
     assert a["problems"] == []
     assert len(a["links"]) == 1
     for door in a["links"][0]["doors"]:
@@ -151,19 +152,33 @@ def test_the_shipped_pair_is_a_camp_that_works(models):
         assert door["off_by_deg"] == pytest.approx(0.0, abs=0.01)
 
 
-def test_the_shipped_yard_reports_the_door_it_is_short_of(models):
-    """`yard` is the example of a plan that does not: the hall has two
-    neighbours and one door, and no turn substitutes for the second."""
-    a = camp.analyse(CAMPS["yard"], models)
-    assert any("hall" in problem for problem in a["problems"])
+def test_a_dome_gets_one_door_per_neighbour():
+    """The hall has two neighbours, so it has two doors -- and nobody wrote
+    either of them anywhere."""
+    ready = camp.prepare(CAMPS["yard"])
+    a = camp.analyse(ready["plan"], ready["models"])
     hall = next(d for d in a["domes"] if d["name"] == "hall")
-    assert len(hall["doors"]) == 1
+    assert len(hall["doors"]) == 2
+    assert len(next(d for d in a["domes"] if d["name"] == "kitchen")["doors"]) == 1
+
+
+def test_the_shipped_tree_is_a_camp_of_seven_that_works():
+    """An XL hub, two L, two M and two S, six corridors, nothing wrong."""
+    ready = camp.prepare(CAMPS["tree"])
+    a = camp.analyse(ready["plan"], ready["models"])
+    assert len(a["domes"]) == 7
+    assert len(a["links"]) == 6
+    assert a["problems"] == []
+    # Every dome faces every neighbour it has.
+    for one in a["links"]:
+        for door in one["doors"]:
+            assert door["facing_it"], one["between"]
 
 
 # --- what gets drawn --------------------------------------------------------
 
 
-def test_the_drawing_is_in_camp_coordinates(models):
+def test_the_drawing_is_in_camp_coordinates(models):  # noqa: ARG001
     """Blender consumes it and computes nothing, so the mouths have to arrive
     where the domes actually stand."""
     plan = CAMPS["pair"]

@@ -12,13 +12,11 @@ two ends, and its length is not a parameter at all.
 joined. That is all it says. Everything else follows:
 
 - the **bearing** from each dome to its neighbour, from the two positions;
-- the **door** that bearing wants, and whether the dome, as turned, has one
-  facing that way. A dome is not re-drilled to face a neighbour, it is turned
-  on the ground: `turn` rotates the whole dome and its doors with it, and the
-  plan reports what turn each link would want if the written one does not
-  suit. A dome with two neighbours needs two doors, and no turn substitutes
-  for the second -- that is a change to `configs/variants.toml`, and the plan
-  says so rather than pretending otherwise;
+- **how many doors each dome has, and which way each points.** A dome in a
+  camp needs one door per neighbour, and where they point is where the
+  neighbours are -- both facts about the site rather than about the dome, so
+  both are derived here. `configs/variants.toml` keeps describing a dome
+  standing on its own, which is what it is for;
 - the **length** of the corridor, which is the gap between the two covers
   along that bearing, not a number anybody chose;
 - the two **mouths**, one on each dome's cover.
@@ -113,6 +111,73 @@ def _check(name: str, camp: dict) -> None:
             raise ValueError(
                 f"camp {name!r}: {pair[0]!r} is linked to itself"
             )
+
+
+def bay_azimuths(data: dict, level: str = "none") -> list:
+    """Where a door can go on this dome: the eligible bays, in its own frame.
+
+    Five of them, 72 degrees apart -- a portal goes in a low bay and anything
+    else in a tall one, and each family is five. That spacing is the whole
+    reason a camp has to be laid out with the lattice in mind rather than
+    wherever the domes happen to look good.
+    """
+    kind = "low" if level == "portal" else "tall"
+    return sorted(
+        bay["centre_azimuth_deg"]
+        for bay in doorway.bays(data)
+        if bay["kind"] == kind
+    )
+
+
+def best_turn(bearings, bays, step: float = 0.25) -> dict:
+    """How far to turn a dome so its bays best suit the neighbours it has.
+
+    A door cannot go anywhere: there are five places for it, 72 degrees apart.
+    So a dome joined to two neighbours 100 degrees apart cannot face both, and
+    what it can do is share the error between them. This finds the turn that
+    makes the WORST of its doors the least bad, by scanning -- the objective
+    is a max of absolute differences and has corners everywhere, which is
+    exactly the shape that defeats anything cleverer.
+
+    **Two domes that face each other want their lattices half a bay apart.**
+    A bearing and its reverse differ by 180, and 180 is not a multiple of 72,
+    so two domes turned the same way can never both have a door on the line
+    between them. Turn one of them by 36 and both can. A camp whose links form
+    a tree can always be coloured that way.
+    """
+    if not bearings or not bays:
+        return {"turn_deg": 0.0, "worst_off_deg": None}
+    best = None
+    steps = int(round(72.0 / step))
+    for k in range(steps):
+        turn = k * step
+        worst = max(
+            min(_gap(bay + turn, bearing) for bay in bays)
+            for bearing in bearings
+        )
+        if best is None or worst < best[0] - 1e-9:
+            best = (worst, turn)
+    return {"turn_deg": round(best[1] % 360.0, 4), "worst_off_deg": round(best[0], 4)}
+
+
+def doors_needed(camp: dict) -> dict:
+    """``dome name -> [bearing to each neighbour]``, from the links alone.
+
+    A dome joined to three others needs three doors, and they point at the
+    three. Neither the count nor the directions are written anywhere: writing
+    them would be writing down something the links already determine, and the
+    first time a dome moved the two would stop agreeing.
+
+    A dome joined to nothing keeps whatever door its variant gives it -- it is
+    a dome standing on its own, which is the case `variants.toml` describes.
+    """
+    at = {dome["name"]: dome["at"] for dome in camp["domes"]}
+    out = {name: [] for name in at}
+    for link_spec in camp.get("links") or []:
+        a, b = link_spec["between"]
+        out[a].append(round(bearing_deg(at[a], at[b]), 6))
+        out[b].append(round(bearing_deg(at[b], at[a]), 6))
+    return {name: sorted(bearings) for name, bearings in out.items()}
 
 
 def bearing_deg(frm, to) -> float:
@@ -284,6 +349,67 @@ def link(a: dict, b: dict, width: float, height: float,
     }
 
 
+def prepare(camp: dict, config_path=None, weave_mode: str = "flat",
+            include_polylines: bool = False) -> dict:
+    """Build the model of every dome in a camp, as that camp needs it.
+
+    A dome in a camp is not the plain variant: it carries a door per
+    neighbour, pointed at it, and it is set down at whatever turn suits its
+    bays best. Both depend on where it stands, so the model does too -- and
+    two domes that come out identical are built once and shared, because
+    building them twice is two chances to differ.
+
+    Returns the models keyed by dome name and the plan with every derived
+    turn filled in, so what is analysed and what is drawn agree.
+    """
+    from . import model as _model
+
+    wanted = doors_needed(camp)
+    models, cache, bays, built = {}, {}, {}, {}
+    domes = []
+    for dome in camp["domes"]:
+        variant = config.load(dome["variant"], config_path)
+        bearings = tuple(wanted[dome["name"]])
+        if variant.name not in bays:
+            bays[variant.name] = bay_azimuths(
+                _model.build(variant, weave_mode="flat"), variant.door_cut
+            )
+        # A door can only go in one of five bays, 72 degrees apart, so which
+        # way the dome is set down decides how near its doors get to its
+        # neighbours. Derived unless the plan insists on a turn of its own.
+        turn = dome.get("turn")
+        if turn is None:
+            turn = best_turn(bearings, bays[variant.name])["turn_deg"]
+        turn = float(turn)
+
+        key = (variant.name, bearings, turn)
+        if key not in cache:
+            doors = tuple(
+                config.Door(
+                    cut=variant.door_cut,
+                    facing=bearing - turn,
+                    template=variant.door or doorway.DEFAULT_TEMPLATE,
+                )
+                for bearing in bearings
+            )
+            spec = (
+                config.load(dome["variant"], config_path, doors=doors)
+                if doors
+                else variant
+            )
+            cache[key] = _model.build(
+                spec, weave_mode=weave_mode, include_polylines=include_polylines
+            )
+            built[key] = spec
+        models[dome["name"]] = cache[key]
+        domes.append(dict(dome, turn=turn))
+
+    return {
+        "models": models,
+        "plan": dict(camp, domes=domes),
+    }
+
+
 def analyse(camp: dict, models: dict, width: float = corridor.DEFAULT_WIDTH_MM,
             height: float = corridor.DEFAULT_HEIGHT_MM,
             pitch: float = corridor.DEFAULT_PITCH_MM) -> dict:
@@ -295,8 +421,12 @@ def analyse(camp: dict, models: dict, width: float = corridor.DEFAULT_WIDTH_MM,
             "name": dome["name"],
             "variant": canonical,
             "at": [float(dome["at"][0]), float(dome["at"][1])],
+            # A door is placed at a bearing, so nothing has to be turned to
+            # face anything. `turn` stays for aiming a dome that is joined to
+            # nothing, or for turning one for reasons of its own.
             "turn": float(dome.get("turn", 0.0)) % 360.0,
-            "data": models[canonical],
+            "data": models[dome["name"]] if dome["name"] in models
+            else models[canonical],
         }
 
     links = []

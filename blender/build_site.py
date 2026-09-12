@@ -306,16 +306,27 @@ def load_plan(path):
         return json.load(handle)
 
 
-def plan_layout(plan, models):
-    """Match each dome in the plan to the model of its variant.
+def plan_layout(plan, models, plan_path):
+    """The model of each dome in the plan.
 
-    A camp can hold two domes of one variant -- they are one model placed
-    twice, which is also why the model is built once and shared.
+    A dome in a camp carries a door per neighbour, so it is not the plain
+    variant: the plan ships each one and names it, and that file is what gets
+    drawn. Falling back to the variant is for a plan written before they were
+    shipped, and it draws the wrong doors -- so it says so.
     """
     by_variant = {d["meta"]["variant"]: d for d in models}
+    beside = os.path.dirname(os.path.abspath(plan_path))
     out = []
     for dome in plan["domes"]:
-        data = by_variant.get(dome["variant"])
+        if dome.get("model"):
+            with open(os.path.join(beside, dome["model"])) as handle:
+                data = json.load(handle)
+        else:
+            print(
+                f"[site] {dome['name']}: the plan ships no model, drawing the "
+                f"plain {dome['variant']} -- its doors will be wrong"
+            )
+            data = by_variant.get(dome["variant"])
         if data is None:
             raise SystemExit(
                 f"the plan wants {dome['variant']} for {dome['name']!r} and no "
@@ -553,7 +564,11 @@ def build(args, models):
     placed = []
     max_radius = 0.0
     plan = load_plan(args.plan) if args.plan else None
-    layout = plan_layout(plan, models) if plan else [{"data": d} for d in models]
+    layout = (
+        plan_layout(plan, models, args.plan)
+        if plan
+        else [{"data": d} for d in models]
+    )
     # One import per printed piece for the whole site, shared between domes:
     # three domes of a hundred connectors each is over a thousand pieces.
     connector_meshes = {}
