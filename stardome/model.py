@@ -609,6 +609,21 @@ def build(
     if include_polylines:
         out["cover"]["mesh"] = _cover.mesh(out)
 
+    # Where the first seam falls. The gore count comes from the roll width and
+    # has no reason to divide into the dome's five-fold symmetry -- 13 on M --
+    # so the layout cannot be symmetric and the phase is a choice. It is put
+    # on the doorway's centre, because that is the one azimuth on a built dome
+    # anybody can find without measuring. See docs/cover.md.
+    door_centre = 0.0
+    if out.get("doorway"):
+        door_centre = out["doorway"]["bay"]["centre_azimuth_deg"]
+    out["cover"]["seam_phase_deg"] = _r(door_centre)
+
+    # What holds it on. Derived, not chosen: see stardome/attachment.py.
+    from . import attachment as _attachment
+
+    out["attachment"] = _attachment.analyse(out)
+
     if corridor_spec is not None:
         from . import corridor as _corridor
 

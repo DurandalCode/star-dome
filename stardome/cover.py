@@ -58,6 +58,11 @@ DEFAULT_ROLL_WIDTH_MM = 1500.0
 
 # Drawing resolution for the exported mesh. 60 meridians divides by 5, so the
 # dome's own symmetry lands on mesh edges rather than across them.
+# How many rods meet at a lashed node, and how close two vertices must be to
+# the base chord to count as an edge of the face cut.
+FOUR_ROD = 4
+EDGE_TOL = 1.0
+
 MESH_MERIDIANS = 60
 MESH_PARALLELS = 24
 
@@ -159,6 +164,223 @@ def gores(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
     }
 
 
+def panel_faces(data: dict) -> dict:
+    """The cover cut to the dome's own faces, instead of to meridian strips.
+
+    This dome is not a smooth sphere with a lattice drawn on it. Its ten feet
+    and its ten lashed nodes are the twenty vertices of an **icosidodecahedron
+    hemisphere** -- the edge is the base chord, R/phi, 1854.1 mm on M -- and
+    its faces are six pentagons and ten triangles, every edge the same length.
+
+    That is the cover the reference cuts, and it took going back to the source
+    to notice: `gores` is the answer for a sphere, and this is not one.
+
+    What it buys is that **25 of the 35 edges lie along the G bows**. The other
+    ten are the base ring, where there is no rod and no second panel -- that
+    edge is the hem. So a seam here is not merely a join in cloth: it lands on
+    a member, and the panel corners land on the two connectors that already
+    exist, the base hub and the four-rod fan.
+
+    Derived, not asserted: the vertices come from the model, the edges from
+    the distances between them, and the faces from walking the rotation system
+    of the graph. If the topology ever stopped being an icosidodecahedron this
+    would return something other than 6 and 10, and the tests say so.
+    """
+    from . import vec
+
+    edge = data["meta"]["base_edge_chord"]
+    points = {
+        n["name"]: (n["x"], n["y"], n["z"])
+        for n in data["nodes"]
+        if n["rod_count"] == FOUR_ROD
+    }
+    points.update(
+        {b["name"]: (b["x"], b["y"], b["z"]) for b in data["base_nodes"]}
+    )
+    names = sorted(points)
+
+    neighbours: dict = {name: [] for name in names}
+    edges = []
+    for i, one in enumerate(names):
+        for other in names[i + 1:]:
+            if abs(_distance(points[one], points[other]) - edge) < EDGE_TOL:
+                neighbours[one].append(other)
+                neighbours[other].append(one)
+                edges.append((one, other))
+
+    # Sort each vertex's neighbours by angle in its own tangent plane, which
+    # turns the graph into a surface and lets the faces be walked off it.
+    for name in names:
+        normal = vec.unit(points[name])
+        ref = (0.0, 0.0, 1.0) if abs(normal[2]) < 0.9 else (1.0, 0.0, 0.0)
+        e1 = vec.unit(vec.cross(ref, normal))
+        e2 = vec.cross(normal, e1)
+
+        def angle(other, here=name, u=e1, v=e2):
+            delta = tuple(
+                points[other][k] - points[here][k] for k in range(3)
+            )
+            return math.atan2(vec.dot(delta, v), vec.dot(delta, u))
+
+        neighbours[name].sort(key=angle)
+
+    following = {}
+    for name in names:
+        ring = neighbours[name]
+        for i, other in enumerate(ring):
+            following[(other, name)] = ring[(i - 1) % len(ring)]
+
+    seen: set = set()
+    walked = []
+    for start in list(following):
+        if start in seen:
+            continue
+        face, step = [], start
+        while step not in seen:
+            seen.add(step)
+            face.append(step[0])
+            step = (step[1], following[step])
+        walked.append(face)
+
+    # The longest walk is the outside of the hemisphere -- the base ring. It
+    # is not a panel; it is the hole the dome stands in, and the hem.
+    walked.sort(key=len)
+    boundary = walked[-1]
+    faces = walked[:-1]
+
+    by_size: dict = {}
+    for face in faces:
+        by_size.setdefault(len(face), []).append(sorted(face))
+
+    on_bow = 0
+    rods_at = {n["name"]: set(n["rods"]) for n in data["nodes"]}
+    rods_at.update({b["name"]: set(b["rods"]) for b in data["base_nodes"]})
+    for one, other in edges:
+        if rods_at[one] & rods_at[other]:
+            on_bow += 1
+
+    return {
+        "vertices": len(names),
+        "edge_mm": round(edge, 3),
+        "edges": len(edges),
+        "edges_on_a_bow": on_bow,
+        "edges_on_the_base_ring": len(edges) - on_bow,
+        "faces": len(faces),
+        "by_sides": {k: len(v) for k, v in sorted(by_size.items())},
+        "panels": {k: v for k, v in sorted(by_size.items())},
+        "boundary": sorted(boundary),
+        "note": (
+            "An icosidodecahedron hemisphere: 20 vertices, 35 edges all of "
+            "R/phi, 6 pentagons and 10 triangles. Every seam but the base "
+            "ring lies on a bow of family G."
+        ),
+    }
+
+
+def _distance(one, other) -> float:
+    return math.sqrt(sum((one[k] - other[k]) ** 2 for k in range(3)))
+
+
+def _regular(sides: int, edge: float) -> list:
+    """A regular polygon of this many sides, turned so its narrowest way across
+    lies along x -- which is the way it has to lie on a roll."""
+    circum = edge / (2.0 * math.sin(math.pi / sides))
+    # The narrowest direction is across a flat. Put that on x by starting the
+    # first vertex a half-step round.
+    start = math.pi / 2.0 + (math.pi / sides if sides % 2 else 0.0)
+    return [
+        (
+            circum * math.cos(2.0 * math.pi * k / sides + start),
+            circum * math.sin(2.0 * math.pi * k / sides + start),
+        )
+        for k in range(sides)
+    ]
+
+
+def _min_width(sides: int, edge: float) -> float:
+    """Narrowest strip a regular polygon fits in.
+
+    Across the flats for an even count, flat-to-vertex for an odd one -- which
+    is why a pentagon's 2853 mm and not the 3154 mm of its long diagonal. Get
+    that wrong and the pentagon looks like it needs three strips of a 1500 mm
+    roll when it needs two.
+    """
+    circum = edge / (2.0 * math.sin(math.pi / sides))
+    if sides % 2 == 0:
+        return 2.0 * circum * math.cos(math.pi / sides)
+    return circum * (1.0 + math.cos(math.pi / sides))
+
+
+def _chord(polygon: list, x: float) -> float:
+    """How long a straight cut across the polygon at this x is.
+
+    Measured rather than approximated by the circumdiameter, which overstates
+    a pentagon's mid-cut by 13% -- and that difference is metres of seam on a
+    cover with six of them.
+    """
+    ys = []
+    for i in range(len(polygon)):
+        one, other = polygon[i], polygon[(i + 1) % len(polygon)]
+        if (one[0] - x) * (other[0] - x) < 0.0:
+            t = (x - one[0]) / (other[0] - one[0])
+            ys.append(one[1] + t * (other[1] - one[1]))
+    return max(ys) - min(ys) if len(ys) >= 2 else 0.0
+
+
+def panels(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
+    """The face cut, priced against a roll: pieces, strips and seam length.
+
+    A panel wider than the roll is cut in strips and sewn back together, which
+    is cheap -- a pentagon on a 1500 mm roll is one extra seam of 2.8 m -- but
+    those seams land nowhere, unlike the 25 that lie on bows.
+    """
+    faces = panel_faces(data)
+    edge = faces["edge_mm"]
+
+    pieces = 0
+    internal_mm = 0.0
+    breakdown = {}
+    for sides, count in faces["by_sides"].items():
+        width = _min_width(sides, edge)
+        strips = max(1, math.ceil(width / roll_width_mm))
+        seam_each = 0.0
+        if strips > 1:
+            shape = _regular(sides, edge)
+            left = min(point[0] for point in shape)
+            for k in range(1, strips):
+                seam_each += _chord(shape, left + width * k / strips)
+        pieces += strips * count
+        internal_mm += seam_each * count
+        breakdown[sides] = {
+            "count": count,
+            "min_width_mm": round(width, 1),
+            "strips": strips,
+            "pieces": strips * count,
+            "internal_seam_each_mm": round(seam_each, 1),
+        }
+
+    seam_mm = faces["edges_on_a_bow"] * edge
+    return {
+        "roll_width_mm": round(roll_width_mm, 1),
+        "faces": faces["faces"],
+        "by_sides": faces["by_sides"],
+        "pieces": pieces,
+        "edge_mm": edge,
+        "panel_seam_mm": round(seam_mm, 1),
+        "internal_seam_mm": round(internal_mm, 1),
+        "seam_length_mm": round(seam_mm + internal_mm, 1),
+        "seams_on_a_bow": faces["edges_on_a_bow"],
+        "hem_mm": round(faces["edges_on_the_base_ring"] * edge, 1),
+        "shapes": breakdown,
+        "note": (
+            "Seams that land on a member, and panel corners that land on the "
+            "base hub and the four-rod fan. Flat faces come to less area than "
+            "the sphere they cover, so a panel wants easing -- the reference "
+            "says 10% -- and that is not in these numbers."
+        ),
+    }
+
+
 def gore_outline(data: dict, count: int, samples: int = 24) -> list:
     """One gore as a flat pattern: (along, half_width) in mm from the pole.
 
@@ -242,6 +464,49 @@ def mesh(
     }
 
 
+def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
+    """The two ways to cut this cover, side by side on one roll.
+
+    Kept together because the choice is not obvious and the numbers move with
+    the roll. Gores are the answer for a sphere; faces are the answer for this
+    dome, which is an icosidodecahedron with bows on its edges. On a narrow
+    roll the faces cost more seam, on a wide one they cost less, and the
+    crossover is close enough to standard fabric to be worth recomputing
+    rather than remembering.
+    """
+    strips = gores(data, roll_width_mm)
+    faces = panels(data, roll_width_mm)
+    hem = 2.0 * math.pi * radius(data)
+    return {
+        "roll_width_mm": round(roll_width_mm, 1),
+        "gores": {
+            "pieces": strips["count"],
+            "shapes": 1,
+            "seam_mm": strips["seam_length_mm"],
+            "seams_on_a_bow": 0,
+            "hem_mm": round(hem, 1),
+            "piece_mm": [strips["gore_width_mm"], strips["gore_length_mm"]],
+            "crown": (
+                f"{strips['count']} seams meet at a point; wants a crown patch"
+            ),
+        },
+        "faces": {
+            "pieces": faces["pieces"],
+            "shapes": len(faces["by_sides"]),
+            "seam_mm": faces["seam_length_mm"],
+            "seams_on_a_bow": faces["seams_on_a_bow"],
+            "hem_mm": faces["hem_mm"],
+            "piece_mm": [faces["edge_mm"]] * 2,
+            "crown": "a pentagon; nothing converges",
+        },
+        "note": (
+            "Seam totals exclude the hem, which both need and which is the "
+            "same length either way. Neither includes seam allowance, and "
+            "the face cut's flat panels want easing onto the sphere."
+        ),
+    }
+
+
 def analyse(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
     """Everything about the cover that is shape rather than structure."""
     meta = data["meta"]
@@ -256,6 +521,8 @@ def analyse(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
         "over_nominal_pct": round(100.0 * (r * r - nominal * nominal) / (nominal * nominal), 2),
         "areas": area,
         "gores": g,
+        "panels": panels(data, roll_width_mm),
+        "layouts": layouts(data, roll_width_mm),
         "opening": opening(data),
         "note": (
             "Fabric taken as lying on the sphere: no sag between rods, no seam "
@@ -283,9 +550,29 @@ def format_analysis(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) ->
     lines += [
         f"  total           {area['total_m2']:8.2f} m2",
         "",
-        f"  gores           {g['count']} of {g['gore_width_mm']:.0f} x "
-        f"{g['gore_length_mm']:.0f} mm, on a {g['roll_width_mm']:.0f} mm roll",
-        f"  seams           {g['seam_count']}, {g['seam_length_mm'] / 1000.0:.1f} m total",
+        f"  two ways to cut it, on a {roll_width_mm:.0f} mm roll:",
+        "",
+        "                  pieces  shapes   seam    on a bow   crown",
+    ]
+    for label, cut in (("gores", a["layouts"]["gores"]),
+                       ("faces", a["layouts"]["faces"])):
+        lines.append(
+            f"  {label:<14}{cut['pieces']:>5}{cut['shapes']:>8}"
+            f"{cut['seam_mm'] / 1000.0:>8.1f} m{cut['seams_on_a_bow']:>9}"
+            f"   {cut['crown']}"
+        )
+    faces = a["panels"]
+    lines += [
+        "",
+        f"  gore            {g['gore_width_mm']:.0f} x {g['gore_length_mm']:.0f} mm, "
+        f"tapered, every section a different width",
+        f"  face            {faces['edge_mm']:.1f} mm every edge; "
+        + ", ".join(
+            f"{v['count']}x{k}-sided in {v['strips']} strip(s)"
+            for k, v in faces["shapes"].items()
+        ),
+        f"  hem             {a['layouts']['gores']['hem_mm'] / 1000.0:.1f} m, "
+        "the same either way",
         "",
         "  Shape and area only. No sag, no seam allowance, no load claim.",
     ]
