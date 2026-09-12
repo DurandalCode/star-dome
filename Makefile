@@ -24,7 +24,7 @@ help:
 	@echo "make tolerance  how accurately the ground, rods and marks must be measured"
 	@echo "make doorways   the chosen door: which bay, framed by what"
 	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
-	@echo "make camp       one S, one M and one L round a yard, doors cut open"
+	@echo "make camp       one S, one M and one L round a yard, covered and fitted"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make covers     fabric area, and how few gores it sews from"
@@ -216,11 +216,16 @@ sizes:
 # One of each of the three sizes anyone camps in, standing round a yard with
 # the doorways actually cut out rather than ghosted. This is the picture of
 # the thing as built; `make sizes` is the picture of the decisions in it.
+# Woven, not layered: the connectors go on the rods, and layered spreads a
+# crossing over more than a connector stack is tall. What has no exported mesh
+# is reported and left out -- run `make clamps V=S`, `V=M`, `V=L` for the lot.
 camp:
-	$(PYTHON) -m stardome build S M L --polylines --weave-mode layered -o $(OUT)
+	$(PYTHON) -m stardome build S M L --polylines --weave-mode woven -o $(OUT)
+	$(PYTHON) -m stardome connectors S M L --json -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
 		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json $(OUT)/star_dome_d8.json \
 		--camp 4.0 --gap 3.0 --hide-cuts \
+		--cover --connectors real \
 		--out exports/blender/camp.blend \
 		--render exports/blender/camp.png
 

@@ -165,8 +165,31 @@ def import_stl(path):
     return fresh[0]
 
 
+def part_pieces(part_id, directory):
+    """Every printed piece of one part, in the order the generator wrote them.
+
+    A connector is not one solid: the fan is five plates, the base hub four,
+    the clamp a bottom and a cap. They are exported as separate STLs because
+    they are separate prints, and a scene wants all of them in place.
+
+    ``ref-`` files are reference rods and whole-node assemblies, drawn for
+    looking at inside FreeCAD. Importing them would double every rod.
+    """
+    import os
+
+    if not os.path.isdir(directory):
+        return []
+    prefix = f"{part_id}_"
+    names = [
+        f for f in sorted(os.listdir(directory))
+        if f.startswith(prefix) and f.endswith(".stl")
+        and not f[len(prefix):].startswith("ref-")
+    ]
+    return [os.path.join(directory, f) for f in names]
+
+
 def place_instance(name, mesh, origin_mm, basis, collection,
-                   lift=0.0, place=None):
+                   lift=0.0, place=None, spin_deg=0.0):
     """One connector, sharing its mesh with every other copy of the same part.
 
     A dome carries 107 connectors and several hundred printed pieces, so each
@@ -178,6 +201,10 @@ def place_instance(name, mesh, origin_mm, basis, collection,
     schedule derived them: rows are where local +X, +Y and +Z point. The
     matrix is built by columns because that is what transforms a local vector.
 
+    ``spin_deg`` turns the whole dome about its own axis, which a site scene
+    does to aim a doorway. The basis has to turn with it: ``place`` moves where
+    a part sits and would leave it facing the way the unspun dome faced.
+
     Colour rides on the mesh, not the object, because the mesh is the shared
     thing: one material per printed piece, set once when it is imported.
     """
@@ -185,6 +212,9 @@ def place_instance(name, mesh, origin_mm, basis, collection,
     collection.objects.link(obj)
 
     ex, ey, ez = (Vector(row) for row in basis)
+    if spin_deg:
+        turn = Matrix.Rotation(math.radians(spin_deg), 3, "Z")
+        ex, ey, ez = (turn @ ex, turn @ ey, turn @ ez)
     x, y = (place(origin_mm[0], origin_mm[1]) if place
             else (origin_mm[0] * MM, origin_mm[1] * MM))
     obj.matrix_world = Matrix((

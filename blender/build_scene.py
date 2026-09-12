@@ -61,6 +61,7 @@ from kit import (  # noqa: E402  -- needs the path set above
     material as make_material,
     mirror_mesh,
     move_to,
+    part_pieces,
     new_collection,
     place_instance,
     rod_runs,
@@ -746,27 +747,6 @@ def load_schedule(args):
             + (sched.get("placements_note") or "")
         )
     return sched
-
-
-def part_pieces(part_id, directory):
-    """Every printed piece of one part, in the order the generator wrote them.
-
-    A connector is not one solid: the fan is five plates, the base hub four,
-    the clamp a bottom and a cap. They are exported as separate STLs because
-    they are separate prints, and the scene wants all of them in place.
-
-    ``ref-`` files are reference rods and whole-node assemblies, drawn for
-    looking at inside FreeCAD. Importing them here would double every rod.
-    """
-    if not os.path.isdir(directory):
-        return []
-    prefix = f"{part_id}_"
-    names = [
-        f for f in sorted(os.listdir(directory))
-        if f.startswith(prefix) and f.endswith(".stl")
-        and not f[len(prefix):].startswith("ref-")
-    ]
-    return [os.path.join(directory, f) for f in names]
 
 
 def add_connectors(args, sched, root, lift, rod_radius_m):

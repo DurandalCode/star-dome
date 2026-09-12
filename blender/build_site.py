@@ -18,6 +18,22 @@ Domes are laid out in a row along X, ordered small to large, spaced by their
 radii plus --gap. The row is the point: a dome twice the diameter is nowhere
 near twice the useful volume, and standing them together is the only way that
 reads.
+
+``--cover`` drapes each dome in its fabric as one surface -- no seams and no
+hem, the way a corridor's skin is drawn. The single-dome scene draws those
+because there the question is how the cover is cut and held; here the question
+is what a camp looks like.
+
+``--connectors real`` stands the built parts on the rods. It needs a woven
+model, because layered spreads a crossing over more than a connector stack is
+tall, and it needs the meshes to have been exported. Whatever has none is
+reported and left out rather than quietly missing::
+
+    python3 -m stardome build S M L --polylines --weave-mode woven
+    python3 -m stardome connectors S M L --json
+    make clamps V=S && make clamps V=M && make clamps V=L
+    make camp
+
 """
 
 import argparse
@@ -33,10 +49,13 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kit import (  # noqa: E402  -- needs the path set above
     MM,
+    import_stl,
     make_transparent,
     material,
     move_to,
     new_collection,
+    part_pieces,
+    place_instance,
     rod_runs,
     segment,
 )
@@ -69,6 +88,24 @@ def parse_args(argv):
     p.add_argument("--out", default=None, help="write a .blend here")
     p.add_argument("--render", default=None, help="render a preview PNG here")
     p.add_argument("--gap", type=float, default=2.0, help="metres between domes")
+    p.add_argument(
+        "--cover",
+        action="store_true",
+        help="drape each dome in its fabric -- the surface only, no seams and "
+             "no hem, which is what a site view wants",
+    )
+    p.add_argument(
+        "--connectors",
+        choices=("none", "real"),
+        default="none",
+        help="stand the built connectors on the rods; needs a woven model and "
+             "`make clamps` to have run",
+    )
+    p.add_argument(
+        "--connector-dir",
+        default=None,
+        help="where the exported meshes are; defaults to exports/connectors",
+    )
     p.add_argument("--no-labels", action="store_true")
     p.add_argument(
         "--hide-cuts",
@@ -105,6 +142,9 @@ def load_models(args):
         if not data.get("rods") or "points" not in data["rods"][0]:
             print(f"[site] skipping {os.path.basename(path)}: no rod polylines")
             continue
+        # Kept so the schedule beside it can be found later, the same way
+        # build_scene keeps its cameras on the model it built them for.
+        data["_path"] = path
         models.append(data)
     if args.named_only:
         named = [d for d in models if d["meta"].get("alias")]
@@ -234,6 +274,115 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     return obj, panel
 
 
+COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)
+# Thinner than the single-dome scene's 0.28. A site view is looked at from
+# far enough away that the fabric stacks up over a whole hemisphere, and at
+# 0.28 it goes milky and hides the frame -- which is the one thing the
+# translucency exists to avoid.
+COVER_ALPHA = 0.14
+
+
+def connector_dir(model_path, override=None):
+    """Where the exported meshes live: beside the models, not among them."""
+    if override:
+        return override
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(model_path))),
+        "connectors",
+    )
+
+
+def load_schedule(model_path, override=None):
+    """The schedule that goes with one model, or None if there is not one.
+
+    A site is several domes and some of them may never have had their
+    connectors written. That is not a reason to refuse the whole scene the way
+    the single-dome script does -- it is a reason to say which dome went
+    without.
+    """
+    stem = os.path.splitext(model_path)[0]
+    path = f"{stem}_connectors.json"
+    if not os.path.exists(path):
+        return None
+    with open(path) as handle:
+        schedule = json.load(handle)
+    return schedule if schedule.get("placements") else None
+
+
+def add_cover(data, collection, origin_x, spin_deg, origin_y, lift):
+    """The fabric as one surface, and nothing else.
+
+    The single-dome scene draws the seams and the hem as well, because there
+    the question is how the cover is cut and held. Here the question is what
+    a camp looks like, so the cover is a skin -- the same way a corridor's is
+    -- and translucent, because an opaque one hides the structure the scene
+    exists to show.
+    """
+    mesh_data = (data.get("cover") or {}).get("mesh")
+    if not mesh_data:
+        return None
+    verts = []
+    for vx, vy, vz in mesh_data["vertices"]:
+        px, py = _place(vx, vy, origin_x, spin_deg, origin_y)
+        verts.append((px, py, vz * MM + lift))
+    mesh = bpy.data.meshes.new(f"Cover_{data['meta']['variant']}")
+    mesh.from_pydata(verts, [], [f[:] for f in mesh_data["faces"]])
+    mesh.update()
+    obj = bpy.data.objects.new(f"Cover_{data['meta']['variant']}", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(
+        make_transparent(material("Cover", COVER_COLOUR), COVER_ALPHA)
+    )
+    return move_to(obj, collection)
+
+
+def add_connectors(schedule, directory, collection, staging, origin_x,
+                   spin_deg, origin_y, lift, meshes):
+    """Stand the built connectors on one dome's rods.
+
+    Each printed piece is imported once for the whole site and instanced after
+    that -- three domes of a hundred connectors each is well over a thousand
+    pieces, and importing every one makes a file nobody can open. ``meshes``
+    is that cache, shared across the domes.
+
+    What has no exported mesh is not drawn, and the count comes back so the
+    caller can say so. A site view that quietly leaves out the parts nobody
+    has built would show a camp that cannot be put up as though it could.
+    """
+    placed = missing = 0
+    for spot in schedule.get("placements", ()):
+        key = spot["part"]
+        if key not in meshes:
+            loaded = []
+            for path in part_pieces(key, directory):
+                obj = import_stl(path)
+                if obj is None:
+                    continue
+                # The import is the source of the mesh, not a copy in the
+                # scene: every real one is an instance over this same data.
+                obj.hide_render = obj.hide_viewport = True
+                move_to(obj, staging)
+                loaded.append(obj.data)
+            meshes[key] = loaded
+        pieces = meshes[key]
+        if not pieces:
+            missing += 1
+            continue
+        for index, mesh in enumerate(pieces):
+            place_instance(
+                f"{key}_{spot['at']}_{index}",
+                mesh,
+                spot["origin_mm"],
+                spot["basis"],
+                collection,
+                lift,
+                place=lambda mx, my: _place(mx, my, origin_x, spin_deg, origin_y),
+                spin_deg=spin_deg,
+            )
+        placed += 1
+    return placed, missing
+
+
 def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
     """Both figures side by side. Proportions scale with height, so the tall
     one reads as tall rather than as one standing nearer the camera."""
@@ -299,6 +448,11 @@ def build(args, models):
     x = 0.0
     placed = []
     max_radius = 0.0
+    # One import per printed piece for the whole site, shared between domes:
+    # three domes of a hundred connectors each is over a thousand pieces.
+    connector_meshes = {}
+    fitted = {}
+    staging = new_collection("_ConnectorSource", root)
     # A camp rather than a size chart: the ends of the row swing back so the
     # domes stand round a yard, with every door still facing the open side.
     span_guess = sum(d["meta"]["dome_radius"] * MM * 2 for d in models) + (
@@ -359,6 +513,27 @@ def build(args, models):
                 data["skirt"], radius_m, rod_radius_m, skirt_mat, coll, x, lift,
                 spin, origin_y=y0, brace_material=brace_mat,
             )
+        if args.cover:
+            add_cover(data, coll, x, spin, y0, lift)
+        if args.connectors != "none":
+            if meta["weave_mode"] != "woven":
+                raise SystemExit(
+                    f"--connectors needs a woven model; {meta['variant']} is "
+                    f"{meta['weave_mode']!r}.\n"
+                    "'layered' is a drawing convention: it puts each bow on "
+                    "its own shell, up to 14 rod diameters apart at a "
+                    "crossing, and a connector stack is one. Rebuild with "
+                    "--weave-mode woven."
+                )
+            schedule = load_schedule(data["_path"])
+            if schedule is None:
+                fitted[meta["variant"]] = None
+            else:
+                fitted[meta["variant"]] = add_connectors(
+                    schedule,
+                    connector_dir(data["_path"], args.connector_dir),
+                    coll, staging, x, spin, y0, lift, connector_meshes,
+                )
         if door:
             add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
             # In the doorway, not beside it: the row exists to be read at a
@@ -396,6 +571,23 @@ def build(args, models):
     ground.scale = (span * 4.0, span * 3.0, 1.0)
     ground.data.materials.append(material("Ground", GROUND_COLOUR))
     move_to(ground, root)
+
+    for name, result in sorted(fitted.items()):
+        if result is None:
+            print(
+                f"[site]   {name}: no connector schedule -- write one with "
+                f"`python3 -m stardome connectors {name} --json`"
+            )
+            continue
+        done, short = result
+        print(
+            f"[site]   {name}: {done} connectors placed"
+            + (
+                f", {short} skipped with no exported mesh -- run `make clamps`"
+                if short
+                else ""
+            )
+        )
 
     return placed, span, max_radius
 
