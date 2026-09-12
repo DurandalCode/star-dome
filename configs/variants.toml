@@ -29,6 +29,22 @@
 # ---------------------------------------------------------------------------
 
 [defaults]
+# What a caliper reads across the rod, when that is not what the rod is called.
+# Zero means the two are the same, which is true of plain round rod.
+#
+# It will NOT be true of the rod this is most likely to be built from in
+# Russia: composite rebar (ГОСТ 31938) is named by its equivalent diameter --
+# the one its cross-section area gives -- and carries a winding that stands
+# proud of it, so a nominal 10 mm rod measures more across the ribs. Nobody
+# has measured one yet; see docs/roadmap.md milestone 3.
+#
+# The split matters because one number was doing two jobs. This one is the rod
+# as an object that has to FIT: channels, rod-on-rod contact at a node, the
+# weave's radial spacing, the doorway envelope, the sphere the fabric rests
+# on. `rod_diameter` stays the rod as a structural MEMBER: what the fastener
+# is sized from, what the splice sleeve is ten of, what bending is judged
+# against.
+rod_outer_diameter = 0
 # Straight segments used to sample one 180 deg bow into a polyline.
 rod_segments = 48
 # Vertical skirt the dome stands on, mm. Zero for every dome big enough to

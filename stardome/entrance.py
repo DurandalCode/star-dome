@@ -65,7 +65,7 @@ def door_envelope(
     removed = removed or {}
     meta = data["meta"]
     radius = meta["dome_radius"]
-    rod_radius = meta["rod_diameter"] / 2.0
+    rod_radius = meta.get("rod_fit_diameter", meta["rod_diameter"]) / 2.0
     keep_out = rod_radius + clearance_mm
 
     step = 360.0 / bins
@@ -282,7 +282,7 @@ def skirt_bay(data: dict, clearance_mm: float = 0.0) -> dict | None:
         return None
     meta = data["meta"]
     chord = meta["base_edge_chord"]
-    post_diameter = meta["rod_diameter"]
+    post_diameter = meta.get("rod_fit_diameter", meta["rod_diameter"])
     width = chord - post_diameter - 2.0 * clearance_mm
     return {
         "height_mm": round(skirt["height"], 1),
@@ -357,7 +357,7 @@ def skirt_for_door(
     env = env or door_envelope(data, clearance_mm=clearance_mm)
     meta = data["meta"]
     bay = skirt_bay(data, clearance_mm)
-    bay_width = bay["width_mm"] if bay else meta["base_edge_chord"] - meta["rod_diameter"]
+    bay_width = bay["width_mm"] if bay else meta["base_edge_chord"] - meta.get("rod_fit_diameter", meta["rod_diameter"])
 
     if width_mm > bay_width:
         return {

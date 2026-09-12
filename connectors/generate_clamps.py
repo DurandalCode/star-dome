@@ -112,6 +112,9 @@ def build_base(part):
     base = load_module(BASE_SOURCE)
     values = {alias: value for (alias, value, _u, _n) in base["INPUTS"]}
     values["rodDiameter"] = float(part["rod_diameter"])
+    values["rodNominalDiameter"] = float(
+        part.get("rod_nominal_diameter") or part["rod_diameter"]
+    )
     values["firstArmRise"] = float(part["arm_azimuths_deg"][0])
     geo, dims = base["build"](values, fan_gaps=part["fan_gaps_deg"])
     return base, geo, dims, values
@@ -122,6 +125,9 @@ def build_fan(part):
     fan = load_fan_module()
     values = {alias: value for (alias, value, _u, _n) in fan["INPUTS"]}
     values["rodDiameter"] = float(part["rod_diameter"])
+    values["rodNominalDiameter"] = float(
+        part.get("rod_nominal_diameter") or part["rod_diameter"]
+    )
     geo, dims = fan["build"](values, fan_gaps=part["fan_gaps_deg"])
     return geo, dims, values
 
@@ -158,6 +164,9 @@ def build_part(clamp, part):
     """Build one clamp at the schedule's rod diameter and crossing angle."""
     values = {alias: value for (alias, value, _u, _n) in clamp["INPUTS"]}
     values["rodDiameter"] = float(part["rod_diameter"])
+    values["rodNominalDiameter"] = float(
+        part.get("rod_nominal_diameter") or part["rod_diameter"]
+    )
     values["crossingAngle"] = float(part["crossing_angle"])
     # The two-piece drop-in constraint drives this; see docs/crossing-clamp-v1.md.
     values["verticalSeparation"] = values["rodDiameter"]
@@ -270,6 +279,9 @@ def run():
             splice = load_module(SPLICE_SOURCE)
             values = {alias: value for (alias, value, _u, _n) in splice["INPUTS"]}
             values["rodDiameter"] = float(part["rod_diameter"])
+            values["rodNominalDiameter"] = float(
+                part.get("rod_nominal_diameter") or part["rod_diameter"]
+            )
             # The ferrule is straight -- the section is straight when it goes
             # on -- but the bow is bent to the dome radius afterwards, and that
             # is what decides how much the middle has to be relieved by.
@@ -313,6 +325,9 @@ def run():
             term = load_module(TERM_SOURCE)
             values = {alias: value for (alias, value, _u, _n) in term["INPUTS"]}
             values["rodDiameter"] = float(part["rod_diameter"])
+            values["rodNominalDiameter"] = float(
+                part.get("rod_nominal_diameter") or part["rod_diameter"]
+            )
             values["crossingAngle"] = float(part["crossing_angle"])
             values["verticalSeparation"] = values["rodDiameter"]
             geo, dims = term["build"](values)

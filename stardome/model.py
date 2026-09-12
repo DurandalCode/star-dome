@@ -292,7 +292,7 @@ def build(
     xs = topology.crossings(
         bows,
         radius,
-        rod_diameter=variant.rod_diameter,
+        rod_diameter=variant.rod_fit_diameter,
         weave_mode=weave_mode,
         weave_gap=variant.weave_gap,
         offset_fn=offset_fn,
@@ -302,7 +302,7 @@ def build(
     class_sigs = topology.classes(xs)
 
     offsets = topology._radial_offsets(
-        bows, variant.rod_diameter, weave_mode, variant.weave_gap
+        bows, variant.rod_fit_diameter, weave_mode, variant.weave_gap
     )
 
     rods = []
@@ -483,7 +483,7 @@ def build(
     # cover that then has 3.5% too much of itself to flog in the wind.
     # A centreline, like max_drawn_radius beside it: the meta entry below adds
     # the rod's own diameter to reach the surface the fabric touches.
-    weave_band = 1.5 * variant.rod_diameter
+    weave_band = 1.5 * variant.rod_fit_diameter
     max_woven_radius = radius + weave_band
     tilt_u = geometry.family_tilts()["U"]
     height_measured = max(
@@ -497,6 +497,10 @@ def build(
         "dome_diameter": _r(variant.diameter),
         "dome_radius": _r(radius),
         "rod_diameter": _r(variant.rod_diameter),
+        # What a caliper reads. Equal to the above unless the rod carries a
+        # winding or a profile -- composite rebar does. Channels, contacts
+        # and the weave clear THIS; strength follows the one above.
+        "rod_fit_diameter": _r(variant.rod_fit_diameter),
         "weave_mode": weave_mode,
         "weave_gap": _r(variant.weave_gap),
         "rod_segments": variant.rod_segments,
@@ -514,8 +518,12 @@ def build(
         "dome_height_nominal": _r(radius * math.sin(math.radians(tilt_u))),
         "dome_height_measured": _r(height_measured),
         "max_diameter_measured": _r(2.0 * max_drawn_radius),
-        "max_diameter_incl_rod": _r(2.0 * max_drawn_radius + variant.rod_diameter),
-        "max_diameter_woven": _r(2.0 * max_woven_radius + variant.rod_diameter),
+        "max_diameter_incl_rod": _r(
+            2.0 * max_drawn_radius + variant.rod_fit_diameter
+        ),
+        "max_diameter_woven": _r(
+            2.0 * max_woven_radius + variant.rod_fit_diameter
+        ),
         "base_edge_arc": _r(2.0 * math.pi * radius / geometry.BASE_POINT_COUNT),
         "base_edge_chord": _r(2.0 * radius * math.sin(math.radians(18.0))),
         "alias": variant.alias,

@@ -514,6 +514,8 @@ SCALED_INPUTS = {
     "nutConeHeight": lambda f, rod: f["nut_cone"],
     "nutAcrossFlats": lambda f, rod: f["nut_af"],
     "nutRecessDepth": lambda f, rod: f["nut_depth"],
+    # Both follow the structural rod, not the caliper: a wall carries load and
+    # a pin shears, and neither cares how much winding is wrapped round it.
     "minimumWall": lambda f, rod: wall_for(rod),
     "rodPinDiameter": lambda f, rod: pin_for(rod),
 }
@@ -531,8 +533,14 @@ def scale_to_rod(values):
     sheet to report, because a part whose bolt was chosen for it should say
     which bolt that was.
     """
+    # The channel is cut to what the rod measures; the bolt is sized from what
+    # the rod IS. For plain round rod these are the same number and nothing
+    # changes. For composite rebar they are not: a nominal 10 mm rod measures
+    # about 11 over its winding, and sizing the bolt from the caliper reading
+    # buys an M6 to hold a rod an M5 is right for.
     rod = values["rodDiameter"]
-    size = int(values.get("fastenerSize") or 0) or fastener_size_for(rod)
+    strength = values.get("rodNominalDiameter") or rod
+    size = int(values.get("fastenerSize") or 0) or fastener_size_for(strength)
     if size not in FASTENERS:
         raise ValueError(
             f"no M{size} in the fastener table; known: "
@@ -546,7 +554,7 @@ def scale_to_rod(values):
             continue
         if values[alias]:          # a real number the caller asked for
             continue
-        values[alias] = source(fastener, rod)
+        values[alias] = source(fastener, strength)
         chosen[alias] = values[alias]
     if "fastenerSize" in values:
         values["fastenerSize"] = size

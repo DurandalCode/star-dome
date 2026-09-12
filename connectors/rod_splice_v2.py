@@ -76,6 +76,7 @@ USE_SPREADSHEET_IF_PRESENT = True
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
+    ("rodNominalDiameter",     0.0,  "mm",  "the rod as a structural member, when that is not what a caliper reads across it -- composite rebar is named by its equivalent diameter and measures more over its winding. 0 means the two are the same"),
     ("rodClearance",           0.4,  "mm",  "diametral clearance where the bore bears on the rod. A slide fit: the section goes in by hand and the pin holds it"),
     ("sleeveLength",         100.0,  "mm",  "overall length; ten rod diameters, five each side of the butt. Shorter is a hinge"),
     ("bearingLength",         22.0,  "mm",  "how much of each end actually bears on the rod. The middle is relieved"),

@@ -105,6 +105,7 @@ OVERHANG_LIMIT_DEG = kit.OVERHANG_LIMIT_DEG
 INPUTS = [
     # alias,                 value,  unit,  note
     ("rodDiameter",           10.0,  "mm",  "nominal GFRP rod diameter"),
+    ("rodNominalDiameter",     0.0,  "mm",  "the rod as a structural member, when that is not what a caliper reads across it -- composite rebar is named by its equivalent diameter and measures more over its winding. 0 means the two are the same"),
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
     ("rodGap",                 0.0,  "mm",  "gap between adjacent rods at the crossing; the stack pitch is rodDiameter + this. 0 means they bear on each other and the plate has a hole at the node centre. Every mm here thickens the rib by a mm at every radius and costs 3 mm of stack height."),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body; channel length is DERIVED"),

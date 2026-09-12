@@ -39,6 +39,27 @@ class Variant:
     # severs two bows and leaves the head node with nothing passing through
     # it. See doorway.CUT_LEVELS.
     door_cut: str = "none"
+    # What a caliper reads across the rod, when that is not what the rod is
+    # called. Composite rebar -- the fibreglass rod this is most likely to be
+    # built from in practice -- is named by its EQUIVALENT diameter, the one
+    # its cross-section area gives, while its surface carries a winding that
+    # stands proud of it. Nothing goes in a channel cut to the name.
+    #
+    # So the two jobs one number used to do are split. `rod_diameter` is the
+    # rod as a structural member: what the fastener is sized from, what the
+    # splice sleeve is ten of, what bending is judged against. This is the rod
+    # as an object that has to fit: channels, rod-on-rod contact at a node, the
+    # weave's radial spacing, the doorway envelope, and the sphere the fabric
+    # ends up resting on.
+    #
+    # Zero means they are the same, which is true of plain round rod and is
+    # what every variant says until somebody measures one.
+    rod_outer_diameter: float = 0.0
+
+    @property
+    def rod_fit_diameter(self) -> float:
+        """The diameter anything has to clear. See `rod_outer_diameter`."""
+        return self.rod_outer_diameter or self.rod_diameter
 
     @property
     def radius(self) -> float:
@@ -97,6 +118,9 @@ def load_all(path=None) -> dict:
             name=name,
             diameter=float(body["diameter"]),
             rod_diameter=float(body["rod_diameter"]),
+            rod_outer_diameter=float(
+                body.get("rod_outer_diameter", defaults.get("rod_outer_diameter", 0.0))
+            ),
             note=str(body.get("note", "")),
             rod_segments=int(body.get("rod_segments", defaults.get("rod_segments", 48))),
             section_length=float(

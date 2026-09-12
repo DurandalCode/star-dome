@@ -67,6 +67,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     include the busiest one in the whole structure.
     """
     meta = data["meta"]
+    nominal = meta["rod_diameter"]
     skirt = data.get("skirt")
     door = data.get("doorway")
     parts = []
@@ -125,6 +126,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "id": f"BASE{count}-{rod_diameter:g}",
                 "kind": "base_hub",
                 "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                 "count": len(names),
                 "nodes": sorted(names),
                 "tied": True,
@@ -180,6 +182,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "id": "STAKE-BASE",
                 "kind": "ground_stake",
                 "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                 "count": len(data["base_nodes"]),
                 "nodes": sorted(b["name"] for b in data["base_nodes"]),
                 "tied": False,
@@ -218,6 +221,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "id": f"FOOT{count}-{rod_diameter:g}",
                     "kind": "post_foot",
                     "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                     "count": len(names),
                     "nodes": sorted(names),
                     "tied": True,
@@ -245,6 +249,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "state": UNDESIGNED,
                     "kind": "header_clamp",
                     "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                     "count": len(header["rods"]),
                     "nodes": list(header["rods"]),
                     "tied": True,
@@ -278,6 +283,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "state": GENERATED,
                 "kind": "cut_termination",
                 "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                 "count": len(ends),
                 "nodes": sorted({e["node"] for e in ends}),
                 "tied": True,
@@ -309,6 +315,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "state": GENERATED,
                     "kind": "rod_splice",
                     "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                     "count": len(joints),
                     "nodes": [],
                     "tied": False,
@@ -927,7 +934,13 @@ def _splice_placement(part: dict, joint: dict, bows: dict, offset_at) -> dict:
 
 def schedule(data: dict) -> dict:
     """Derive the connector schedule for a built model."""
-    rod_diameter = data["meta"]["rod_diameter"]
+    meta = data["meta"]
+    # The part is named and sized by the rod it HOLDS, so that is the caliper
+    # figure: a channel cut to a composite rod's nominal 10 mm does not admit
+    # the 11-and-a-bit its winding actually measures. Strength still follows
+    # the nominal, and the generators are handed both.
+    rod_diameter = meta.get("rod_fit_diameter", meta["rod_diameter"])
+    nominal = meta["rod_diameter"]
     by_node = {}
     for c in data["crossings"]:
         by_node.setdefault(c["node"], []).append(c)
@@ -951,6 +964,7 @@ def schedule(data: dict) -> dict:
                     "id": key,
                     "kind": "two_rod_clamp",
                     "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                     "crossing_angle": angle,
                     "count": 0,
                     "nodes": [],
@@ -971,6 +985,7 @@ def schedule(data: dict) -> dict:
                     "kind": f"{rod_count}_rod_node",
                     "rod_count": rod_count,
                     "rod_diameter": rod_diameter,
+                "rod_nominal_diameter": nominal,
                     "count": 0,
                     "nodes": [],
                     "pair_angles": [],
