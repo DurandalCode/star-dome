@@ -19,6 +19,7 @@ from . import (
     assembly,
     attachment,
     bom,
+    camp,
     config,
     connectors,
     corridor,
@@ -296,6 +297,40 @@ def cmd_corridor(args) -> int:
     return 0
 
 
+def cmd_camp(args) -> int:
+    camps = camp.load_all(args.camps)
+    wanted = args.variant or (list(camps) if args.all else None)
+    if not wanted:
+        raise SystemExit(
+            "give a camp name, or --all; this file has: " + ", ".join(camps)
+        )
+    # One build per variant, however many domes use it: a camp of three M
+    # domes is one dome three times, and building it three times would be
+    # three chances for them to differ.
+    needed = {
+        config.resolve(dome["variant"], args.config)
+        for name in wanted
+        for dome in camps[name]["domes"]
+    }
+    models = {
+        name: model.build(config.load(name, args.config), weave_mode=args.weave_mode)
+        for name in sorted(needed)
+    }
+    for name in wanted:
+        if name not in camps:
+            raise SystemExit(f"no camp {name!r}; this file has: " + ", ".join(camps))
+        kwargs = dict(width=args.width, height=args.height, pitch=args.pitch)
+        if args.json:
+            path = Path(args.out) / name / "camp.json"
+            export.write_json(
+                camp.analyse(camps[name], models, **kwargs), path
+            )
+            print(f"{name}: {path}")
+        else:
+            print(camp.format_analysis(name, camps[name], models, **kwargs))
+    return 0
+
+
 def cmd_bom(args) -> int:
     for name in _variant_names(args):
         variant = config.load(name, args.config)
@@ -399,6 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
         ("span", cmd_span, "the longest unsupported span, and the ceiling it sets"),
         ("bom", cmd_bom, "everything one dome is made of, counted in one place"),
+        ("camp", cmd_camp, "several domes joined by corridors, laid out from a plan"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("variant", nargs="*", help="variant name, e.g. D6")
@@ -494,6 +530,14 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
             p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+        if name == "camp":
+            p.add_argument("--camps", default=None, help="path to camps.toml")
+            p.add_argument("--width", type=float, default=corridor.DEFAULT_WIDTH_MM)
+            p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
+            p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+            p.add_argument("--json", action="store_true",
+                           help="write the plan instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
         if name == "bom":
             p.add_argument(
                 "--parts",

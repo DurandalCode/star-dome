@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans boms covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans bom camp lineups covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -24,7 +24,8 @@ help:
 	@echo "make tolerance  how accurately the ground, rods and marks must be measured"
 	@echo "make doorways   the chosen door: which bay, framed by what"
 	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
-	@echo "make camp       one S, one M and one L round a yard, covered and fitted"
+	@echo "make lineup     one of each size in a row, covered and fitted"
+	@echo "make camp       domes joined by corridors, from configs/camps.toml"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make covers     fabric area, and how few gores it sews from"
@@ -216,18 +217,37 @@ sizes:
 # One of each of the three sizes anyone camps in, standing round a yard with
 # the doorways actually cut out rather than ghosted. This is the picture of
 # the thing as built; `make sizes` is the picture of the decisions in it.
+# One of each size in a row, covered and fitted. It is a lineup, not a camp:
+# nothing in it is joined to anything. `make camp` is the camp.
+#
 # Woven, not layered: the connectors go on the rods, and layered spreads a
 # crossing over more than a connector stack is tall. What has no exported mesh
 # is reported and left out -- run `make clamps V=S`, `V=M`, `V=L` for the lot.
-camp:
+lineup:
 	$(PYTHON) -m stardome build S M L --polylines --weave-mode woven -o $(OUT)
 	$(PYTHON) -m stardome connectors S M L --json -o $(OUT)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
 		--models $(OUT)/star_dome_d4.json $(OUT)/star_dome_d6.json $(OUT)/star_dome_d8.json \
 		--camp 4.0 --gap 3.0 --hide-cuts \
 		--cover --connectors real \
-		--out exports/blender/camp.blend \
-		--render exports/blender/camp.png
+		--out exports/blender/lineup.blend \
+		--render exports/blender/lineup.png
+
+# A camp: domes joined by corridors, laid out from configs/camps.toml. CAMP is
+# which one. FLAGS adds --connectors real once `make clamps` has run for every
+# variant the plan uses.
+CAMP ?= yard
+CAMP_FLAGS ?= --cover
+
+camp:
+	$(PYTHON) -m stardome build --all --polylines --weave-mode woven -o $(OUT)
+	$(PYTHON) -m stardome camp $(CAMP) --json -o $(OUT)
+	$(PYTHON) -m stardome camp $(CAMP)
+	$(BLENDER_RUN) --python blender/build_site.py -- \
+		--dir $(OUT) --plan $(OUT)/$(CAMP)/camp.json \
+		--hide-cuts --no-labels $(CAMP_FLAGS) \
+		--out exports/blender/camp_$(CAMP).blend \
+		--render exports/blender/camp_$(CAMP).png
 
 site:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode layered -o $(OUT)
