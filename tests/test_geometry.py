@@ -134,3 +134,22 @@ def test_matches_openscad_export(variant_name):
                     assert got == pytest.approx(ref_value, abs=1e-5), (
                         f"{table}.{field}"
                     )
+
+
+def test_a_variant_can_be_named_in_any_case():
+    """The Makefile turns whatever was typed into the name files are filed
+    under, so a lowercase variant has to resolve. It used to fail there --
+    after the model had already been written -- rather than at the lookup."""
+    from stardome import config
+
+    for typed, canonical in (
+        ("d6", "D6"), ("D6", "D6"), ("m", "D6"), ("M", "D6"),
+        ("xl", "D10"), ("Xl", "D10"), ("s", "D4"), ("d12", "D12"),
+    ):
+        assert config.resolve(typed) == canonical, typed
+        assert config.load(typed).name == canonical
+
+    # A name nobody has still fails loudly, and says what it knows.
+    with pytest.raises(KeyError) as caught:
+        config.resolve("D7")
+    assert "D6=M" in str(caught.value)

@@ -127,12 +127,20 @@ def resolve(name: str, path=None) -> str:
 
     ``S`` and ``D4`` are the same dome; the short names are what a person
     says and the D-names are what the geometry is filed under.
+
+    Case does not count. A person types ``d6`` as readily as ``D6``, and the
+    Makefile asks this to turn whatever was typed into the name the files are
+    filed under -- so refusing a lowercase one fails the build rather than the
+    lookup, and does it after the model has already been written.
     """
     variants = load_all(path)
     if name in variants:
         return name
+    folded = name.casefold()
     for canonical, variant in variants.items():
-        if variant.alias == name:
+        if canonical.casefold() == folded:
+            return canonical
+        if variant.alias and variant.alias.casefold() == folded:
             return canonical
     known = ", ".join(
         sorted(f"{n}={v.alias}" if v.alias else n for n, v in variants.items())
