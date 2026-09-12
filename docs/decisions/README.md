@@ -71,6 +71,7 @@ writing the next.
 | [0011](0011-the-pull-request-is-the-check-not-the-review.md) | The PR exists so the checks run elsewhere; never merge before they report | accepted |
 | [0012](0012-mismatch-is-measured-against-bending.md) | A node mismatch is measured against the bending it forces | accepted |
 | [0013](0013-the-bolt-is-half-the-rod.md) | The fastener is sized from the rod: half it, snapped to a standard bolt | accepted |
+| [0014](0014-the-cover-hangs-on-the-stakes.md) | The cover hangs on the stakes the dome already stands on, with no new part | accepted |
 
 ## Not here yet
 
