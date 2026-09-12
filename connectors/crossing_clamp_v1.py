@@ -67,19 +67,20 @@ INPUTS = [
     ("crossingAngle",         72.0,  "deg", "angle between the two rod axes in plan view"),
     ("channelLength",         55.0,  "mm",  "length of each rod channel through the body"),
     ("verticalSeparation",    10.0,  "mm",  "distance between rod axes; forced to rodDiameter so the upper rod bears on the lower one"),
-    ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
+    ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm. A real number overrides"),
     ("edgeRadius",             4.0,  "mm",  "outer edge / corner radius"),
-    ("fastenerDiameter",       5.5,  "mm",  "M5 clearance hole diameter"),
-    ("fastenerHeadDiameter",  10.0,  "mm",  "M5 head / washer outside diameter"),
+    ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
+    ("fastenerDiameter",       0.0,  "mm",  "clearance hole for the bolt. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("fastenerHeadDiameter",  0.0,  "mm",  "head / washer outside diameter. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     # --- secondary inputs -------------------------------------------------
     ("capThickness",           6.0,  "mm",  "TopClamp material above the upper rod; it works in bending between the bolts"),
     ("clampGap",               1.2,  "mm",  "designed open gap at the parting faces; the bolts always squeeze the rods, faces never bottom out"),
     ("headClearance",          0.6,  "mm",  "diametral clearance for the head/washer counterbore"),
-    ("headBoreDepth",          4.4,  "mm",  "counterbore depth for head + washer"),
-    ("headConeHeight",         2.8,  "mm",  "tapered transition under the counterbore, printable upside down"),
-    ("nutConeHeight",          2.2,  "mm",  "tapered transition above the nut pocket"),
-    ("nutAcrossFlats",         8.3,  "mm",  "M5 nut across flats + fit clearance"),
-    ("nutRecessDepth",         4.6,  "mm",  "captive nut pocket depth"),
+    ("headBoreDepth",          0.0,  "mm",  "counterbore depth for head + washer. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("headConeHeight",         0.0,  "mm",  "tapered transition under the counterbore, printable upside down"),
+    ("nutConeHeight",          0.0,  "mm",  "tapered transition above the nut pocket"),
+    ("nutAcrossFlats",         0.0,  "mm",  "nut across flats + fit clearance. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutRecessDepth",         0.0,  "mm",  "captive nut pocket depth. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("flareLength",            5.0,  "mm",  "axial length of the flared channel entrance"),
     ("flareSlope",             0.2,  "mm",  "radial rise per mm of the entrance flare"),
@@ -138,6 +139,11 @@ def dist_point_to_line(px, py, angle_deg):
 # geometry
 # --------------------------------------------------------------------------
 def build(values):
+    # The bolt is chosen from the rod unless somebody typed one in; see
+    # kit.scale_to_rod. Doing it here rather than in the caller means every
+    # route into this part -- the driver, the spreadsheet, term_clamp_v1 --
+    # gets the same answer.
+    chosen = kit.scale_to_rod(values)
     D = values["rodDiameter"]
     c = values["rodClearance"]
     ang = values["crossingAngle"]
@@ -305,7 +311,8 @@ def build(values):
                                        App.Vector(p.x, p.y, z_bottom)))
 
     geo = dict(bottom=bottom, cap=cap, rodA=rodA, rodB=rodB, bolts=bolts)
-    dims = dict(R=R, v=v, zA=zA, zB=zB, z_seat=z_seat, z_cap=z_cap,
+    dims = dict(
+        chosen_from_rod=chosen,R=R, v=v, zA=zA, zB=zB, z_seat=z_seat, z_cap=z_cap,
                 z_bottom=z_bottom, z_top=z_top, hw=hw, boss_r=boss_r,
                 bolt_offset=bolt_offset, chan_d=chan_d, angA=angA, angB=angB,
                 clamp_gap=clamp_gap, head_depth=head_depth, nut_depth=nut_depth,
@@ -475,6 +482,13 @@ def verify(geo, dims, values):
 
 def derived_rows(dims, values):
     return [
+        (
+            "fastenerChosen",
+            dims["chosen_from_rod"].get("fastenerSize", 0),
+            "M",
+            "which metric bolt this part was drawn for. Chosen from the rod "
+            "unless fastenerSize said otherwise -- half the rod, snapped",
+        ),
         ("channelDiameter", dims["chan_d"], "mm", "rodDiameter + rodClearance"),
         ("channelRadius", dims["R"], "mm", ""),
         ("rodAxisZ_upper", dims["zA"], "mm", "upper rod axis height"),

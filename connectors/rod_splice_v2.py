@@ -81,9 +81,9 @@ INPUTS = [
     ("bearingLength",         22.0,  "mm",  "how much of each end actually bears on the rod. The middle is relieved"),
     ("bendRadius",          3000.0,  "mm",  "radius the bow is bent to, which is the dome radius. Sets how much relief the middle needs. Overridden from the model by generate_clamps.py"),
     ("reliefMargin",           0.3,  "mm",  "radial slack in the relieved middle over what the bend alone needs"),
-    ("minimumWall",            4.0,  "mm",  "wall over the bearing bore; sets the outside diameter"),
+    ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm. A real number overrides"),
     ("mouthChamfer",           1.5,  "mm",  "lead-in at each mouth, so a section finds the bore rather than catching on it"),
-    ("rodPinDiameter",         4.0,  "mm",  "cross pin through ferrule and rod, once the section is in"),
+    ("rodPinDiameter",         0.0,  "mm",  "cross pin through ferrule and rod, once the section is in"),
     ("pinInset",              11.0,  "mm",  "how far from each mouth the pin sits; inside the bearing length or it pins nothing"),
     ("bondedEnd",              0.0,  "",    "1 draws a glue groove in one end instead of a pin hole, which is what a tent pole does. 0 pins both ends"),
     ("bondGrooveDepth",        0.6,  "mm",  "depth of the glue groove, when bondedEnd is on"),
@@ -93,6 +93,9 @@ INPUTS = [
 
 
 def build(values):
+    # The bolt, the pin and the wall come from the rod unless somebody
+    # typed them in; see kit.scale_to_rod.
+    chosen = kit.scale_to_rod(values)
     D = values["rodDiameter"]
     c = values["rodClearance"]
     L = values["sleeveLength"]
@@ -215,6 +218,7 @@ def build(values):
 
     geo = dict(body=body, rods=rods, pins=pins)
     dims = dict(
+        chosen_from_rod=chosen,
         bore_r=bore_r, outer_r=outer_r, relief_r=relief_r, relief_span=relief_span,
         sagitta=sagitta, bearing=bearing, L=L, wall=wall, pin_at=pin_at,
         bonded=bonded, filleted=filleted, bend=bend,
@@ -269,6 +273,13 @@ def verify(geo, dims, values):
 def derived_rows(dims, values):
     stock = 2.0 * dims["outer_r"]
     return [
+        (
+            "pinChosen",
+            values["rodPinDiameter"],
+            "mm",
+            "cross pin this ferrule was drawn for. Taken from the rod -- about "
+            "0.4 of it, on a stock size. There is no bolt in this part",
+        ),
         ("boreDiameter", 2.0 * dims["bore_r"], "mm", "rodDiameter + rodClearance, at the bearings"),
         ("outsideDiameter", stock, "mm", "bore plus two walls"),
         ("reliefDiameter", 2.0 * dims["relief_r"], "mm", "the opened-out middle"),

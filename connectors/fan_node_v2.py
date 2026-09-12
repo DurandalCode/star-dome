@@ -108,19 +108,20 @@ INPUTS = [
     ("rodClearance",           0.4,  "mm",  "diametral clearance added to each rod channel"),
     ("rodGap",                 0.0,  "mm",  "gap between adjacent rods at the crossing; the stack pitch is rodDiameter + this. 0 means they bear on each other and the plate has a hole at the node centre. Every mm here thickens the rib by a mm at every radius and costs 3 mm of stack height."),
     ("channelOverrun",         6.0,  "mm",  "how far each channel runs past the body; channel length is DERIVED"),
-    ("minimumWall",            4.0,  "mm",  "minimum structural wall thickness"),
+    ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm. A real number overrides"),
     ("baseFloor",              5.0,  "mm",  "material under the bottom plate's channel"),
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with; the weave needs up to 1.2 deg"),
     ("teardropRoof",           0.0,  "-",   "1 = gable every downward channel. CURRENTLY BROKEN, see docs/fan-node-v2.md: with the flare in place the gabled cut silently removes nothing from the middle plates, and verify() catches it as rod interference. Leave at 0."),
-    ("fastenerDiameter",       5.5,  "mm",  "M5 clearance hole diameter"),
-    ("fastenerHeadDiameter",  10.0,  "mm",  "M5 head / washer outside diameter"),
+    ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
+    ("fastenerDiameter",       0.0,  "mm",  "clearance hole for the bolt. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("fastenerHeadDiameter",  0.0,  "mm",  "head / washer outside diameter. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("headClearance",          0.6,  "mm",  "diametral clearance for the head counterbore"),
-    ("headBoreDepth",          4.4,  "mm",  "counterbore depth for head + washer"),
-    ("headConeHeight",         2.8,  "mm",  "taper off the head counterbore, so the cap prints upside down"),
-    ("nutAcrossFlats",         8.3,  "mm",  "M5 nut across flats + fit clearance"),
-    ("nutRecessDepth",         4.6,  "mm",  "captive nut pocket depth"),
-    ("nutConeHeight",          2.2,  "mm",  "taper off the nut pocket, so the bottom plate prints on the bed"),
+    ("headBoreDepth",          0.0,  "mm",  "counterbore depth for head + washer. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("headConeHeight",         0.0,  "mm",  "taper off the head counterbore, so the cap prints upside down"),
+    ("nutAcrossFlats",         0.0,  "mm",  "nut across flats + fit clearance. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutRecessDepth",         0.0,  "mm",  "captive nut pocket depth. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutConeHeight",          0.0,  "mm",  "taper off the nut pocket, so the bottom plate prints on the bed"),
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("hubRadiusFactor",        2.2,  "-",   "hub radius as a multiple of rodDiameter; sets channel length"),
     ("armWidthFactor",         1.6,  "-",   "arm width as a multiple of the boss diameter"),
@@ -252,6 +253,9 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi, azim
 
 
 def build(values, fan_gaps=None):
+    # The bolt, the pin and the wall come from the rod unless somebody
+    # typed them in; see kit.scale_to_rod.
+    chosen = kit.scale_to_rod(values)
     gaps = list(fan_gaps or DEFAULT_FAN_GAPS)
     azimuths = kit.azimuths_from_gaps(gaps[:-1])
 
@@ -453,6 +457,7 @@ def build(values, fan_gaps=None):
         "bolts": bolts,
     }
     dims = {
+        "chosen_from_rod": chosen,
         "fan_gaps_deg": gaps,
         "fan_azimuths_deg": azimuths,
         "rod_levels_mm": levels,
@@ -594,7 +599,13 @@ def verify(geo, dims, values):
 
 
 def derived_rows(dims, values):
-    rows = []
+    rows = [(
+        "fastenerChosen",
+        dims["chosen_from_rod"].get("fastenerSize", 0),
+        "M",
+        "which metric bolt this part was drawn for. Chosen from the rod "
+        "unless fastenerSize said otherwise -- half the rod, snapped",
+    )]
     for key, value in dims.items():
         if isinstance(value, (int, float)):
             rows.append((key, round(value, 4), "", "derived"))

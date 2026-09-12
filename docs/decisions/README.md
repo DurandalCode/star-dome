@@ -70,6 +70,7 @@ writing the next.
 | [0010](0010-the-stacking-order-is-fan-order.md) | The radial stacking order at a lashed node is fan order, 1-2-3-4 | accepted |
 | [0011](0011-the-pull-request-is-the-check-not-the-review.md) | The PR exists so the checks run elsewhere; never merge before they report | accepted |
 | [0012](0012-mismatch-is-measured-against-bending.md) | A node mismatch is measured against the bending it forces | accepted |
+| [0013](0013-the-bolt-is-half-the-rod.md) | The fastener is sized from the rod: half it, snapped to a standard bolt | accepted |
 
 ## Not here yet
 
