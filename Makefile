@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interiors covers corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interiors covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -28,6 +28,7 @@ help:
 	@echo "make entrances  where a doorway fits in each variant, and how big"
 	@echo "make interiors  how much floor you can stand on, per variant"
 	@echo "make covers     fabric area, and how few gores it sews from"
+	@echo "make attachment what holds the cover on, and on what"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
@@ -99,6 +100,14 @@ ROLL ?= 1500
 
 covers:
 	@$(PYTHON) -m stardome cover --all --roll $(ROLL)
+
+# What holds the cover on, and on what. HEM is the fabric turned under at the
+# base edge; TAIL is the webbing left past each foot for tensioning.
+HEM  ?= 60
+TAIL ?= 300
+
+attachment:
+	@$(PYTHON) -m stardome attachment --all --hem $(HEM) --strap-tail $(TAIL)
 
 # A covered corridor on the doorway. CORRIDOR is width, height, length in mm.
 CORRIDOR ?= 900 1950 3000

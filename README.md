@@ -63,6 +63,7 @@ single interchange format every other tool reads — see
 - The doorway: [`docs/doorway.md`](docs/doorway.md)
 - How much room you get: [`docs/interior.md`](docs/interior.md)
 - The fabric cover: [`docs/cover.md`](docs/cover.md)
+- What holds it on: [`docs/decisions/0014-the-cover-hangs-on-the-stakes.md`](docs/decisions/0014-the-cover-hangs-on-the-stakes.md)
 - The covered corridor: [`docs/corridor.md`](docs/corridor.md)
 - Putting it up: [`docs/assembly.md`](docs/assembly.md)
 - How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)

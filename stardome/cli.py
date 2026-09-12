@@ -17,6 +17,7 @@ from pathlib import Path
 
 from . import (
     assembly,
+    attachment,
     config,
     connectors,
     corridor,
@@ -248,6 +249,14 @@ def cmd_interior(args) -> int:
     return 0
 
 
+def cmd_attachment(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode=args.weave_mode)
+        print(attachment.format_analysis(data, args.hem, args.strap_tail))
+    return 0
+
+
 def cmd_cover(args) -> int:
     for name in _variant_names(args):
         variant = config.load(name, args.config)
@@ -325,6 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("doorway", cmd_doorway, "the chosen door: which bay, framed by what"),
         ("interior", cmd_interior, "how much floor you can stand on, and what a skirt costs"),
         ("cover", cmd_cover, "fabric area, and how few gores it sews from"),
+        ("attachment", cmd_attachment, "how the cover is held on, and on what"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
     ):
         p = sub.add_parser(name, help=helptext)
@@ -394,6 +404,20 @@ def build_parser() -> argparse.ArgumentParser:
                 type=float,
                 metavar=("HEIGHT", "WIDTH"),
                 help="also solve for the skirt a door of this size would need",
+            )
+        if name == "attachment":
+            p.add_argument(
+                "--hem",
+                type=float,
+                default=attachment.DEFAULT_HEM_MM,
+                help="mm of fabric turned under at the base edge",
+            )
+            p.add_argument(
+                "--strap-tail",
+                dest="strap_tail",
+                type=float,
+                default=attachment.DEFAULT_STRAP_TAIL_MM,
+                help="mm of webbing past each foot, for tensioning",
             )
         if name == "cover":
             p.add_argument(
