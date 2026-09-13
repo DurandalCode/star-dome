@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from stardome import camp, config, cover, model
+from stardome import camp, config, corridor, cover, model
 
 CAMPS = camp.load_all()
 
@@ -234,15 +234,50 @@ def test_the_drawing_is_in_camp_coordinates(models):  # noqa: ARG001
 
 def test_a_ring_is_the_two_mouths_interpolated(models):
     a = camp.analyse(CAMPS["pair"], models)
-    drawing = a["links"][0]["drawing"]
+    link = a["links"][0]
+    drawing = link["drawing"]
     first, second = drawing["mouths"]
     rings = drawing["rings"]
-    n = len(rings)
-    for k, ring in enumerate(rings, start=1):
-        f = k / (n + 1.0)
+    at_f = camp.stations(link["length_mm"], corridor.DEFAULT_PITCH_MM)
+
+    assert len(rings) == len(at_f) == link["ribs"]
+    for ring, f in zip(rings, at_f):
         for p, pa, pb in zip(ring, first, second):
             for i in range(3):
                 assert p[i] == pytest.approx(pa[i] + (pb[i] - pa[i]) * f, abs=0.01)
+
+
+def test_the_ribs_stand_at_the_pitch_they_were_asked_for(models):
+    """Pitch is a distance, not a rib count.
+
+    Spreading the ribs evenly over the run instead put 4 of them at 847 mm
+    centres when the pitch said 1200, and nothing said so.
+    """
+    a = camp.analyse(CAMPS["pair"], models, pitch=1000.0)
+    link = a["links"][0]
+    at_f = camp.stations(link["length_mm"], 1000.0)
+    gaps = [
+        (at_f[k + 1] - at_f[k]) * link["length_mm"] for k in range(len(at_f) - 1)
+    ]
+    assert gaps and all(g == pytest.approx(1000.0, abs=0.01) for g in gaps)
+    # Centred: the same amount of run is left over at each end.
+    assert at_f[0] == pytest.approx(1.0 - at_f[-1], abs=1e-9)
+    # A run shorter than one pitch still gets a rib.
+    assert len(camp.stations(600.0, 1000.0)) == 1
+
+
+def test_the_skin_is_not_wound_with_a_half_turn_in_it(models):
+    """Each mouth is built in its own dome's frame, and the two domes face
+    each other -- so one dome's +v is the other's -v in the camp. Pairing the
+    loops index for index joined the left of one end to the right of the
+    other, and the corridor came out with a half-turn in it.
+    """
+    a = camp.analyse(CAMPS["pair"], models)
+    first, second = a["links"][0]["drawing"]["mouths"]
+    # The pair runs along +x, so a paired point must keep its y and its z.
+    for pa, pb in zip(first, second):
+        assert pb[1] == pytest.approx(pa[1], abs=0.01)
+        assert pb[2] == pytest.approx(pa[2], abs=0.01)
 
 
 def test_a_skirted_dome_is_lifted_so_the_camp_shares_one_ground(models):

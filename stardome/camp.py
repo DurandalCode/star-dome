@@ -256,7 +256,28 @@ def _junction(data: dict, name: str, shape: list) -> dict:
     }
 
 
-def _frames(at: list, bearing: float, reach: float, free: float, count: int,
+def stations(free: float, pitch: float) -> list:
+    """Where the ribs stand along a corridor, as fractions of the free run.
+
+    At the SPACING ASKED FOR, and centred. An earlier version spread the ribs
+    evenly over the run instead, which quietly made the pitch a rib count and
+    not a distance: 4 ribs over 4234 mm came out at 847 mm centres when the
+    pitch said 1200. At least one rib, because a corridor shorter than its own
+    pitch still wants a frame in it.
+    """
+    if free <= 0.0 or pitch <= 0.0:
+        return []
+    # As many as fit at this spacing without either end one overhanging the
+    # run, and never fewer than one: a corridor shorter than its own pitch
+    # still wants a frame in it.
+    count = max(1, int(free // pitch) + 1)
+    while count > 1 and (count - 1) * pitch > free:
+        count -= 1
+    first = (free - (count - 1) * pitch) / 2.0
+    return [(first + k * pitch) / free for k in range(count)]
+
+
+def _frames(at: list, bearing: float, reach: float, free: float, at_f: list,
             width: float, height: float, brace_leg: float) -> list:
     """The portal frames along one corridor, as boards in camp coordinates.
 
@@ -269,8 +290,8 @@ def _frames(at: list, bearing: float, reach: float, free: float, count: int,
     along = (math.cos(a), math.sin(a))
     across = (-math.sin(a), math.cos(a))
     out = []
-    for k in range(1, max(0, count) + 1):
-        d = reach + free * k / (count + 1.0)
+    for f in at_f:
+        d = reach + free * f
         origin = (at[0] + along[0] * d, at[1] + along[1] * d, 0.0)
         out.append(
             corridor.frame_boards(origin, along, across, width, height, brace_leg)
@@ -278,7 +299,7 @@ def _frames(at: list, bearing: float, reach: float, free: float, count: int,
     return out
 
 
-def _tube(loop_a: list, loop_b: list, ribs: int, kind: str = "hoop",
+def _tube(loop_a: list, loop_b: list, at_f: list, kind: str = "hoop",
           frames: list | None = None) -> dict:
     """The corridor as geometry: two mouths, the ribs between, and a skin.
 
@@ -286,28 +307,37 @@ def _tube(loop_a: list, loop_b: list, ribs: int, kind: str = "hoop",
     interpolated -- which is also why the skin is a quad strip between them
     and needs nothing solved. A timber frame is not a curve and does not
     interpolate; it arrives already placed, in ``frames``.
+
+    THE FAR MOUTH RUNS THE OTHER WAY ROUND, and that is not a detail. Each
+    mouth is built in its own dome's frame, up the +v side of the section and
+    down the -v side -- but the two domes face each other, so one dome's +v is
+    the other's -v in the camp. Joining them index for index therefore pairs
+    the left of one end with the RIGHT of the other, and the skin comes out
+    crossed: a corridor with a half-turn in it. Reversing the far loop is what
+    puts each point against the point on its own side.
     """
+    far = list(reversed(loop_b))
     rings = []
     if kind != "portal":
-        for k in range(1, max(0, ribs) + 1):
-            f = k / (ribs + 1.0)
+        for f in at_f:
             rings.append(
                 [
                     [
                         round(pa[i] + (pb[i] - pa[i]) * f, 3)
                         for i in range(3)
                     ]
-                    for pa, pb in zip(loop_a, loop_b)
+                    for pa, pb in zip(loop_a, far)
                 ]
             )
     return {
         "kind": kind,
-        "mouths": [loop_a, loop_b],
+        "mouths": [loop_a, far],
         "rings": rings,
         "frames": list(frames or ()),
         "skin_note": (
             "A quad strip between the two mouths: matching points joined in "
-            "order, both loops closed and equally sampled."
+            "order, both loops closed, equally sampled and already wound the "
+            "same way round the corridor."
         ),
     }
 
@@ -350,7 +380,8 @@ def link(a: dict, b: dict, width: float, height: float,
     free = centres - reach_a - reach_b
 
     covers = cover.radius(a["data"]) + cover.radius(b["data"])
-    ribs = int(free // pitch) + 1 if free > 0 else 0
+    at_f = stations(free, pitch)
+    ribs = len(at_f)
 
     if kind == "portal":
         rib = corridor.portal_frame(width, height, brace_leg)
@@ -409,10 +440,10 @@ def link(a: dict, b: dict, width: float, height: float,
             _tube(
                 _to_camp(mouth_a["points"], a),
                 _to_camp(mouth_b["points"], b),
-                ribs,
+                at_f,
                 kind=kind,
                 frames=(
-                    _frames(a["at"], to_b, reach_a, free, ribs,
+                    _frames(a["at"], to_b, reach_a, free, at_f,
                             width, height, brace_leg)
                     if kind == "portal"
                     else []
