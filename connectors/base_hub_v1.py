@@ -211,6 +211,13 @@ DEFAULT_FAN_GAPS = [41.810315, 37.377368]
 
 PLATE_NAMES = ["Bottom", "Mid1", "Mid2", "Cap"]
 
+# Which piece prints the other way up. The cap's channel faces DOWN in the
+# part's own frame, so it goes on the bed on its outer face and the channel
+# looks up at the nozzle; everything else is already that way round. It is a
+# set rather than a rule in two places because the print sheet has to lay the
+# pieces out the same way the printability check judged them.
+FLIPPED_PIECES = {"Cap"}
+
 
 def plate_names(arm_count):
     """One plate above each rod and one below the lot: arms + 1 pieces.
@@ -1128,10 +1135,11 @@ def verify(geo, dims, values):
             f"the stake nuts, wanted {values['minimumWall']:.1f}"
         )
 
-    # The cap prints flipped so its channel faces up; every other plate prints
-    # with its upward channel up. Same convention as the four-rod node.
+    # The cap prints flipped so its channel faces up; every other piece prints
+    # with its upward channel up. Same convention as the four-rod node, and
+    # the same set the print sheet lays out from -- see FLIPPED_PIECES.
     printability = {
-        name: kit.printability(plate, flipped=(name == "Cap"))
+        name: kit.printability(plate, flipped=(name in FLIPPED_PIECES))
         for name, plate in zip(geo["names"], plates)
     }
 

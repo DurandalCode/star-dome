@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans materials loads strength bom camp lineups covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans materials loads strength bom camp lineups covers attachment corridors clamps prints blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -37,6 +37,7 @@ help:
 	@echo "make strength   the limiting wind speed, and which check sets it"
 	@echo "make bom        everything one dome is made of, counted in one place"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
+	@echo "make prints     the same pieces laid out for the bed, into exports/print"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
 	@echo "make fitted     the same dome with every connector fitted (V=M)"
 	@echo "make site       one scene with every variant side by side, at 1:1"
@@ -168,6 +169,15 @@ bom:
 clamps:
 	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
 	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(v)'; p=REPO+'/connectors/generate_clamps.py'; exec(compile(open(p).read(),p,'exec'))"
+
+# The same pieces turned onto the face they print on, dropped on the bed and
+# packed onto it. BED is the machine's usable area; a piece that does not fit
+# is reported rather than scaled. See docs/printing.md.
+BED ?= 220x220
+
+prints:
+	$(PYTHON) -m stardome connectors $(V) --json -o $(OUT)
+	$(FREECADCMD) -c "REPO='$(CURDIR)'; VARIANT='$(v)'; BED='$(BED)'; p=REPO+'/connectors/print_sheet.py'; exec(compile(open(p).read(),p,'exec'))"
 
 # Build the 1:1 Blender scene. Layered weave and polylines are required: in
 # flat mode every crossing has two rods in the same place, which makes a
