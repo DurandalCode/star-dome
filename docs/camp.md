@@ -33,6 +33,26 @@ which pairs are joined. **That is all it says.** Everything else follows:
 A bearing typed into both files is a bearing that stops agreeing with itself, so
 it is typed into neither. Move a dome and everything moves with it.
 
+## One door per neighbour, and the one door nobody can derive
+
+A dome in the middle of a camp has every door it owns taken by a corridor, so
+there is nothing left to walk in through: `court`'s hub had two neighbours,
+two doors and no entrance. That one is a decision rather than a consequence,
+so a dome may write extra bearings of its own:
+
+```toml
+[[camps.court.domes]]
+name = "hub"
+doors = [252]
+```
+
+They are added to the ones the links ask for. **It cannot be any bearing.** A
+door sits in a bay and there are five of them 72° apart, so an extra door has
+to be a multiple of 72° from the ones the corridors already want — or the
+derived turn moves to accommodate it and the corridors stop landing square.
+Asking the hub for 216° swung it 18° and put both its corridor doors 18° out.
+252° is 144° from one and 216° from the other, and it faces away from the camp.
+
 ## One door per neighbour, and nobody writes them
 
 A dome joined to three others has three doors, pointing at the three. Neither
@@ -144,8 +164,8 @@ milestone 5, or a narrower corridor.
 make camp CAMP=court CAMP_KIND=portal CAMP_FLAGS="--cover --figures one --walk"
 ```
 
-`--walk` on `blender/build_site.py` changes three things at once, and it is
-useless without all three:
+`--walk` on `blender/build_site.py` changes several things at once, and it is
+useless without all of them:
 
 - **the covers go opaque.** At 0.14 alpha a camp is a diagram; from the
   inside it is not a room at all.
@@ -157,6 +177,23 @@ useless without all three:
 - **the scene camera becomes an eye 1.7 m off the ground**, standing clear of
   the camp and looking back at it, with a 24 mm lens and a 50 mm near clip so
   putting your face through a doorway does not clip the world away.
+- **the translucent panel across each doorway is left out.** It says "this is
+  the hole" in a picture and it is a wall to walk into.
+
+And one thing that is not a walk-through setting at all, because it is simply
+true: **the cover is cut open where something goes through it.** The cover is
+a shell of revolution with no doorway and no hole where a corridor lands, so a
+camp that looks joined was a row of sealed domes with tubes leaning on them
+and a door painted on. Every opening is now taken out of it — 16 corridor
+mouths and 17 doorways on `court`. The check is a ray, not an eye: out of the
+hub along a corridor it now reaches the far dome's wall 15.7 m away, and in a
+direction with no opening it stops on the cover at 4.7 m.
+
+The cover gets 30 mm of thickness first, and that is not decoration. The exact
+boolean solver decides what is inside a target by winding number, and an open
+sheet has none: asked to take a plug out of one it welds the plug's own end
+cap in instead. The hole came out as a bump, and a ray stopped dead on it a
+metre short of where the cover actually is.
 
 Blender does the walking: `Numpad 0`, then `Shift+\`` for Walk Navigation.
 Gravity is a preference and not a scene setting, so it cannot be shipped in

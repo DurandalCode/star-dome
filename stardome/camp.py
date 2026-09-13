@@ -170,9 +170,19 @@ def doors_needed(camp: dict) -> dict:
 
     A dome joined to nothing keeps whatever door its variant gives it -- it is
     a dome standing on its own, which is the case `variants.toml` describes.
+
+    THE ONE DOOR THE LINKS CANNOT DERIVE is a way in from outside. A dome in
+    the middle of a camp has every door it owns taken by a corridor, so there
+    is no door left to walk in through -- the hub of `court` had two
+    neighbours, two doors and no entrance. That one is a decision rather than
+    a consequence, so a dome may write extra bearings in `doors`, and they are
+    added to the ones the links ask for.
     """
     at = {dome["name"]: dome["at"] for dome in camp["domes"]}
     out = {name: [] for name in at}
+    for dome in camp["domes"]:
+        for bearing in dome.get("doors") or ():
+            out[dome["name"]].append(round(float(bearing) % 360.0, 6))
     for link_spec in camp.get("links") or []:
         a, b = link_spec["between"]
         out[a].append(round(bearing_deg(at[a], at[b]), 6))

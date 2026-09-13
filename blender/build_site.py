@@ -57,6 +57,7 @@ import math
 import os
 import sys
 
+import bmesh
 import bpy
 from mathutils import Vector
 
@@ -273,8 +274,14 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
 
 
 def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
-                origin_y=0.0):
-    """The opening, outlined and filled, exactly as the model reports it."""
+                origin_y=0.0, fill=True):
+    """The opening, outlined and filled, exactly as the model reports it.
+
+    ``fill`` draws the translucent panel across the opening. It says "this is
+    the hole" in a picture and it is a wall in a walk-through, so the walker
+    does without it. Returns the outline's points as well, because cutting the
+    hole out of the cover wants exactly the curve that was just drawn.
+    """
     points = [
         (*_place(x, y, origin_x, spin_deg, origin_y), z * MM + lift)
         for x, y, z in door["outline"]["points"]
@@ -296,6 +303,9 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     obj.data.materials.append(material("Doorway_Outline", DOOR_COLOUR))
     collection.objects.link(obj)
 
+    if not fill:
+        return obj, None, points
+
     centre = tuple(sum(q[i] for q in points) / len(points) for i in range(3))
     mesh = bpy.data.meshes.new("DoorwayPanel")
     mesh.from_pydata(
@@ -310,7 +320,7 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     if hasattr(panel, "visible_shadow"):
         panel.visible_shadow = False
     collection.objects.link(panel)
-    return obj, panel
+    return obj, panel, points
 
 
 COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)
@@ -516,6 +526,172 @@ def add_cover(data, collection, origin_x, spin_deg, origin_y, lift,
         )
     )
     return move_to(obj, collection)
+
+
+# How far a hole-cutter reaches either side of the surface it cuts. The mouth
+# lies ON the cover, so this only has to be more than the cover is thick --
+# which is nothing -- plus enough to survive the curvature it sits on.
+CUTTER_REACH_M = 1.0
+
+
+def solid_from(name, verts, faces, collection):
+    """A closed mesh with its normals facing out, fit to cut with."""
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return move_to(obj, collection)
+
+
+def mouth_cutter(loop, bearing_deg, name, collection, reach=CUTTER_REACH_M):
+    """The tunnel's mouth as a solid prism, for cutting the cover open.
+
+    The mouth is a closed curve lying on the cover. Swept along the corridor's
+    own axis it becomes a plug through the cover, and the cover minus that plug
+    is a cover with a doorway the shape of the tunnel in it.
+    """
+    a = math.radians(bearing_deg)
+    dx, dy = math.cos(a) * reach, math.sin(a) * reach
+    n = len(loop)
+    verts = []
+    for sign in (-1.0, 1.0):
+        for px, py, pz in loop:
+            verts.append((px * MM + dx * sign, py * MM + dy * sign, pz * MM))
+    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+    faces.append(list(range(n - 1, -1, -1)))
+    faces.append(list(range(n, 2 * n)))
+    return solid_from(name, verts, faces, collection)
+
+
+COVER_THICKNESS_M = 0.03
+
+
+def give_it_thickness(obj, thickness=COVER_THICKNESS_M):
+    """Turn a surface into a shell with two sides.
+
+    Fabric is thin, not infinitely thin, and the difference decides whether a
+    hole can be cut in it. The exact boolean solver decides what is inside a
+    target by winding number, and an open sheet has none -- asked to take a
+    plug out of one it welds the plug's own end cap in instead, which is a
+    cover with a bump where a doorway should be. A ray out of the hub stopped
+    dead on it, one metre short of where the cover actually is.
+    """
+    mod = obj.modifiers.new("Thickness", "SOLIDIFY")
+    mod.thickness = thickness
+    mod.offset = -1.0                 # grow inward; the outside stays put
+    bpy.context.view_layer.objects.active = obj
+    try:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        return True
+    except RuntimeError:
+        obj.modifiers.remove(mod)
+        return False
+
+
+def door_cutter(points, at, name, collection, reach=CUTTER_REACH_M):
+    """The doorway as a solid plug, swept out of the dome along its own radius.
+
+    The opening spans about a third of a bay in azimuth, so it is not flat and
+    no single direction is normal to all of it. It does not have to be: the
+    cover is 30 mm thick and the sweep is a metre, so the mean outward radius
+    passes clean through every part of the curve.
+    """
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+    out = Vector((cx - at[0], cy - at[1], 0.0))
+    if out.length < 1e-6:
+        out = Vector((1.0, 0.0, 0.0))
+    out.normalize()
+
+    n = len(points)
+    verts = []
+    for sign in (-1.0, 1.0):
+        for px, py, pz in points:
+            verts.append((px + out.x * reach * sign,
+                          py + out.y * reach * sign,
+                          pz))
+    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+    faces.append(list(range(n - 1, -1, -1)))
+    faces.append(list(range(n, 2 * n)))
+    return solid_from(name, verts, faces, collection)
+
+
+def cut_out(target, cutters):
+    """Take the cutters out of the target, and throw them away.
+
+    One boolean per cutter rather than one over a joined cutter: a cover is an
+    open surface, and the exact solver copes with that far better one plug at
+    a time than with several at once.
+    """
+    done = 0
+    for cutter in cutters:
+        mod = target.modifiers.new(f"Hole_{done}", "BOOLEAN")
+        mod.operation = "DIFFERENCE"
+        mod.solver = "EXACT"
+        mod.object = cutter
+        # A cover is an open shell, and the exact solver decides inside-ness
+        # by winding number, which an open shell does not have. Without this
+        # it plugs the hole with the cutter's own end cap instead of opening
+        # one -- a ray out of the hub stopped on the cover a metre short of
+        # where the cover is.
+        if hasattr(mod, "use_hole_tolerant"):
+            mod.use_hole_tolerant = True
+        bpy.context.view_layer.objects.active = target
+        try:
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            done += 1
+        except RuntimeError as bad:
+            print(f"[site]   could not open {target.name}: {bad}")
+            target.modifiers.remove(mod)
+    for cutter in cutters:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+    return done
+
+
+def open_the_covers(plan, covers, doors, collection):
+    """Cut the cover open wherever something is supposed to go through it.
+
+    The cover is a closed shell of revolution: it has no doorway and no hole
+    where a corridor lands, so a camp that looks joined is a row of sealed
+    domes with tubes leaning on them and a door painted on. It does not show
+    while the fabric is see-through. It is the whole thing once you are inside
+    -- and in a walk-through it is a wall.
+
+    Two kinds of opening, one mechanism: a plug swept along the axis of
+    whatever is meant to pass through, taken out of the cover.
+    """
+    for cover in {id(c): c for c in covers.values() if c is not None}.values():
+        give_it_thickness(cover)
+
+    mouths = 0
+    for one in (plan or {}).get("links") or ():
+        drawing = one.get("drawing")
+        if not drawing:
+            continue
+        for name, loop in zip(one["between"], drawing["mouths"]):
+            cover = covers.get(name)
+            if cover is None:
+                continue
+            cutter = mouth_cutter(
+                loop, one["bearing_deg"], f"Mouth_{name}_{mouths}", collection
+            )
+            mouths += cut_out(cover, [cutter])
+
+    holes = 0
+    for name, points, at in doors:
+        cover = covers.get(name)
+        if cover is None:
+            continue
+        cutter = door_cutter(points, at, f"Door_{name}_{holes}", collection)
+        holes += cut_out(cover, [cutter])
+    return mouths, holes
 
 
 def add_connectors(schedule, directory, collection, staging, origin_x,
@@ -753,6 +929,12 @@ def build(args, models):
     # Where each dome ended up, for anything that has to be put INSIDE it. A
     # row works its positions out as it lays them, so only the loop knows.
     spots = []
+    # Each dome's cover object by the dome's own name, so a corridor can be
+    # cut out of the right one. Two domes of the same variant share a variant
+    # name and do not share a cover.
+    covers = {}
+    # Each dome's doorway outline, for cutting the opening out of its cover.
+    doors_to_cut = []
     max_radius = 0.0
     plan = load_plan(args.plan) if args.plan else None
     layout = (
@@ -812,14 +994,19 @@ def build(args, models):
             coll_name = item["name"]
         coll = new_collection(coll_name, root)
 
-        door = data.get("doorway")
+        # A dome in a camp carries a door per neighbour and may carry one more
+        # to get in by, so this is a list. ``doorway`` is the first of them,
+        # kept for a dome that has only one.
+        all_doors = list(data.get("doorways") or ())
+        if not all_doors and data.get("doorway"):
+            all_doors = [data["doorway"]]
+        door = all_doors[0] if all_doors else None
         # A portal has no lancet, so no pair of jambs to pick out: the
         # traced outline and the ghosts of the cut pieces carry it instead.
-        jambs = (
-            set(door["frame"]["jamb_rods"])
-            if door and door.get("frame")
-            else set()
-        )
+        jambs = set()
+        for one_door in all_doors:
+            if one_door.get("frame"):
+                jambs |= set(one_door["frame"]["jamb_rods"])
 
         for rod in data["rods"]:
             mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
@@ -851,8 +1038,10 @@ def build(args, models):
                 spin, origin_y=y0, brace_material=brace_mat,
             )
         if args.cover:
-            add_cover(data, coll, x, spin, y0, lift,
-                      alpha=1.0 if args.walk else None)
+            covers[coll_name] = add_cover(
+                data, coll, x, spin, y0, lift,
+                alpha=1.0 if args.walk else None,
+            )
         if args.connectors != "none":
             if meta["weave_mode"] != "woven":
                 raise SystemExit(
@@ -872,8 +1061,12 @@ def build(args, models):
                     connector_dir(data["_path"], args.connector_dir),
                     coll, staging, x, spin, y0, lift, connector_meshes,
                 )
-        if door:
-            add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
+        for one_door in all_doors:
+            _outline, _panel, door_points = add_doorway(
+                one_door, rod_radius_m, coll, x, lift, spin, origin_y=y0,
+                fill=not args.walk,
+            )
+            doors_to_cut.append((coll_name, door_points, (x, y0)))
         if index in figures_at:
             if door:
                 # In the doorway, not beside it: the row exists to be read at
@@ -942,6 +1135,13 @@ def build(args, models):
             alpha=1.0 if args.walk else None,
         )
         print(f"[site]   {links} corridors drawn")
+    if covers:
+        mouths, doors = open_the_covers(
+            plan, covers, doors_to_cut, new_collection("_Cutters", root)
+        )
+        print(
+            f"[site]   cover opened: {mouths} corridor mouths, {doors} doorways"
+        )
         for problem in plan.get("problems") or ():
             print(f"[site]   plan says: {problem}")
 
