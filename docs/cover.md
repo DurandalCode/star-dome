@@ -38,15 +38,20 @@ big as easily as too small, and only one of those is obvious on site.
 `test_the_cover_radius_is_the_weave_and_not_a_drawing_convention` checks the
 closed form against the route `weave.global_profile` actually solves.
 
-## Two ways to cut it
+## Three ways to cut it
 
-The dome can be cut like a sphere or like itself, and the two are genuinely
-different answers rather than a matter of taste.
+The dome can be cut like a sphere, like itself, or for a budget, and the three
+are genuinely different answers rather than a matter of taste.
 
 **Gores** are meridian strips, the answer for any sphere: one shape, the
 fewest pieces, and the fewest seams at every roll width. They are what
 `gores()` computes and what this document described on its own for a long
 time.
+
+**Leaves** are the answer when the fabric bill is what hurts. See
+[below](#the-leaf-buys-the-fabric-back) — the short version is that a leaf is a
+gore that has stopped trying to cross the roll in one piece, and stops paying
+the `2/pi` tax for it.
 
 **Faces** are the answer for this dome, which is not a sphere with a lattice
 drawn on it. Its ten feet and its ten lashed nodes are the twenty vertices of
@@ -61,8 +66,8 @@ going back to the source to find it.
 | 2000 mm | 10 pieces, 47.4 m | 22 pieces, 63.2 m |
 | 3200 mm | 6 pieces, 28.5 m | 16 pieces, 46.4 m |
 
-**Gores always win on seam length, at every roll**, and the arithmetic invites
-the opposite conclusion so it is worth saying plainly. A face is small and
+**Gores always beat faces on seam length, at every roll**, and the arithmetic
+invites the opposite conclusion so it is worth saying plainly. A face is small and
 fixed, so a wider roll only saves its internal cuts; a gore is as wide as the
 roll allows, so a wider roll deletes whole gores and whole seams with them.
 `test_the_roll_decides_which_cut_is_cheaper` asserts the direction.
@@ -96,6 +101,60 @@ they disappear entirely at 3200.
 50.4 m² flat against the shell's 57.3 m², so a panel wants easing onto the
 curve — the reference says make it 10% larger — and none of that is in these
 numbers.
+
+## The leaf buys the fabric back
+
+Both cuts above are billed by the roll, and a gore is expensive there for a
+reason that no amount of cleverness removes: **a gore fills exactly `2/pi` —
+63.66% — of its own bounding rectangle**, at any radius and at any count. The
+taper is waste, and nesting cannot recover it, because at the equator the gore
+is already the full strip width and a flipped neighbour has nowhere to go.
+`test_a_gore_fills_two_over_pi_of_its_rectangle` pins it.
+
+A **leaf** stops paying that. It is a gore that has given up crossing the roll
+in one piece: one fifth of the dome's azimuth, far wider than any roll, built
+from horizontal lanes laid overlapping, upper over lower. The lane is cut with
+its **height across the roll and its width along it**, so the roll no longer
+caps anything, and because the lanes are near-trapezoids, turning every other
+one end for end lets two share a rectangle — a lane then costs its *mean*
+width instead of its widest.
+
+On M, five leaves of four lanes, lapped 80 mm:
+
+| | pieces | seam | lap | roll |
+|---|---|---|---|---|
+| gores | 13 | 61.7 m | — | **61.7 m** |
+| leaf ×5 | 20 | 23.7 m | 38.8 m | **47.8 m** |
+
+**Around a quarter of the fabric, at every size in the family** — 17% on S,
+31% on XL. The horizontal joints are **laps, not seams**: upper over lower
+sheds water down the slope without the joint having to be watertight, which is
+the reference's own reason for cutting it this way for rain. The vertical
+seams run down the slope too, where the water is already going.
+
+What it costs is joining, and **whether that is a cost at all depends on the
+size**. A gore's seam count is set by the roll, so it grows with the dome —
+7 on D3, 26 on D12 — while the leaf keeps five vertical seams however big the
+dome gets and only its laps grow:
+
+| | D3 | S | M | L | XL | D12 |
+|---|---|---|---|---|---|---|
+| gore seam | 16.7 | 28.5 | 61.7 | 107.3 | 173.6 | 246.0 |
+| leaf seam + lap | 18.8 | 33.5 | 62.5 | 99.5 | 144.5 | 197.5 |
+| roll saved | 31% | 17% | 23% | 26% | 31% | 32% |
+
+So below M the leaf trades a little extra joining for the cloth; **from L up
+it is simply cheaper on both at once**, and by D12 it saves 78 m of fabric and
+48 m of joining together. That reversal is the one figure here that changes
+direction across the family, so
+`test_whether_the_laps_are_worth_it_depends_on_the_size` asserts it rather
+than leaving it to this table to be right.
+
+Two smaller things fall out. The lane rarely fills the roll exactly — 254 mm
+is left over on M — and that is a **continuous strip down the whole run**,
+which is where patches and the entry triangle come from. And more leaves do
+not cost more fabric: ten leaves are each half as wide, so the roll is
+untouched and only the seam count doubles.
 
 ## How much there is
 

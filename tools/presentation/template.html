@@ -1,0 +1,1108 @@
+<title>Звёздный купол</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root{
+  --paper:#F5F7F9; --panel:#FFFFFF; --panel-2:#EAEEF3; --sunk:#E2E8EF;
+  --ink:#121820; --ink-2:#404E5D; --ink-3:#6A7889;
+  --rule:#95A3B2; --grid:#C4CEDA; --hair:#D5DDE6;
+  --accent:#1663C6;
+  --g:#268CF2; --u:#D65F00; --l:#2A9B48;
+  --lashed:#E01C33; --unlashed:#78808C; --base:#3A3A46; --splice:#7A4BC4;
+  --warn:#B3480C; --ctx:#8593A3;
+  --dome-fill:rgba(38,140,242,.055); --skirt-fill:rgba(90,100,112,.09); --skirt-line:#95A3B2;
+  --roll-fill:#FFFFFF; --offcut:rgba(38,140,242,.07);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0E1319; --panel:#151C24; --panel-2:#1C252F; --sunk:#111821;
+  --ink:#E3EAF2; --ink-2:#A5B3C2; --ink-3:#7A8899;
+  --rule:#4C5A69; --grid:#2A3541; --hair:#28323D;
+  --accent:#6BB0F8;
+  --g:#4FA3F7; --u:#F2843A; --l:#4FC873;
+  --lashed:#FF5468; --unlashed:#8D96A3; --base:#8C93A0; --splice:#A981E8;
+  --warn:#F0913F; --ctx:#6E7C8C;
+  --dome-fill:rgba(79,163,247,.07); --skirt-fill:rgba(140,150,165,.09); --skirt-line:#4C5A69;
+  --roll-fill:#131A22; --offcut:rgba(79,163,247,.09);
+}}
+:root[data-theme="dark"]{
+  --paper:#0E1319; --panel:#151C24; --panel-2:#1C252F; --sunk:#111821;
+  --ink:#E3EAF2; --ink-2:#A5B3C2; --ink-3:#7A8899;
+  --rule:#4C5A69; --grid:#2A3541; --hair:#28323D;
+  --accent:#6BB0F8;
+  --g:#4FA3F7; --u:#F2843A; --l:#4FC873;
+  --lashed:#FF5468; --unlashed:#8D96A3; --base:#8C93A0; --splice:#A981E8;
+  --warn:#F0913F; --ctx:#6E7C8C;
+  --dome-fill:rgba(79,163,247,.07); --skirt-fill:rgba(140,150,165,.09); --skirt-line:#4C5A69;
+  --roll-fill:#131A22; --offcut:rgba(79,163,247,.09);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+  font-size:16.5px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px 96px}
+h1,h2,h3,h4,.ui{font-family:Archivo,"Helvetica Neue",Arial,sans-serif}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+p{margin:0 0 .9em}
+a{color:var(--accent)}
+
+.mast{border-bottom:2px solid var(--ink);padding:56px 0 20px;margin-bottom:8px}
+.mast .kicker{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--ink-3); margin-bottom:20px;
+  display:flex; gap:18px; flex-wrap:wrap;
+}
+.mast h1{
+  font-size:clamp(40px,7vw,82px); line-height:.94; margin:0 0 16px;
+  font-weight:700; letter-spacing:-.028em; text-wrap:balance;
+}
+.mast .lede{
+  font-size:clamp(17px,2vw,21px); line-height:1.5; color:var(--ink-2);
+  max-width:60ch; margin:0;
+}
+.mast .lede em{color:var(--ink);font-style:italic}
+
+.figs{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  border-top:1px solid var(--hair); margin:34px 0 0;
+}
+.figs div{padding:16px 20px 16px 0}
+.figs b{
+  display:block; font-family:Archivo,sans-serif; font-weight:700;
+  font-size:30px; letter-spacing:-.02em; line-height:1.1; color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+.figs span{
+  display:block; font-family:"IBM Plex Mono",monospace; font-size:11px;
+  color:var(--ink-3); letter-spacing:.05em; margin-top:5px;
+}
+
+section{margin-top:64px;scroll-margin-top:20px}
+.sheet{
+  display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  border-top:2px solid var(--ink); border-bottom:1px solid var(--hair);
+  padding:10px 0 12px; margin-bottom:26px;
+}
+.sheet .no{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.14em;
+  color:var(--paper); background:var(--ink); padding:3px 8px 2px; border-radius:1px;
+  white-space:nowrap;
+}
+.sheet h2{
+  font-size:clamp(21px,2.6vw,29px); font-weight:600; letter-spacing:-.018em;
+  margin:0; flex:1 1 auto; text-wrap:balance;
+}
+.sheet .tag{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);
+  letter-spacing:.04em; white-space:nowrap;
+}
+.intro{max-width:66ch;color:var(--ink-2);font-size:17px}
+.intro strong{color:var(--ink);font-weight:600}
+
+figure{margin:30px 0}
+.plate{background:var(--panel);border:1px solid var(--hair);padding:20px 22px 14px;overflow-x:auto}
+figure figcaption{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);
+  margin-top:10px; line-height:1.55; max-width:78ch;
+}
+figure figcaption b{color:var(--ink-2);font-weight:500}
+svg{display:block}
+svg .dim{font:400 10.5px/1 "IBM Plex Mono",monospace;fill:var(--ink-3)}
+svg .mono-sm{font:500 10.5px/1 "IBM Plex Mono",monospace;fill:var(--ink-2)}
+svg .lbl-big{font:700 14px/1 Archivo,sans-serif;fill:var(--ink)}
+svg .lbl-sm{font:400 11px/1 "IBM Plex Mono",monospace;fill:var(--ink-3)}
+
+.shots{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:28px 0}
+.shots figure{margin:0}
+.shots img{width:100%;display:block;border:1px solid var(--hair);background:var(--sunk)}
+.shots figcaption{margin-top:7px}
+.shots.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.wide img{width:100%;display:block;border:1px solid var(--hair);background:var(--sunk)}
+
+.scroll{overflow-x:auto;margin:26px 0}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:520px}
+caption{
+  text-align:left; font-family:"IBM Plex Mono",monospace; font-size:11.5px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding-bottom:9px;
+}
+th,td{padding:8px 13px 8px 0;text-align:left;vertical-align:baseline;border-bottom:1px solid var(--hair)}
+thead th{
+  font-family:Archivo,sans-serif; font-weight:600; font-size:12.5px;
+  letter-spacing:.02em; color:var(--ink-2); border-bottom:1.5px solid var(--rule); padding-bottom:7px;
+}
+tbody tr:last-child td{border-bottom:1.5px solid var(--rule)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;
+  font-family:"IBM Plex Mono",monospace;font-size:13.5px;padding-right:15px}
+td.name{font-family:Archivo,sans-serif;font-weight:600;white-space:nowrap}
+td.code{font-family:"IBM Plex Mono",monospace;font-size:13px;white-space:nowrap}
+tr.muted td{color:var(--ink-3)}
+tr.muted td.name{color:var(--ink-3)}
+tfoot td{border:0;padding-top:10px;font-size:13px;color:var(--ink-3)}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:18px 0 4px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;
+  margin-right:7px;vertical-align:-1px;font-style:normal}
+.legend .sq{border-radius:1px;transform:rotate(45deg)}
+
+.badge{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.05em;padding:2px 7px 1px;border-radius:2px;white-space:nowrap}
+.b-ok{background:color-mix(in srgb,var(--l) 16%,transparent);color:var(--l)}
+.b-hw{background:color-mix(in srgb,var(--unlashed) 22%,transparent);color:var(--ink-2)}
+.b-no{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+
+.note{
+  border-left:3px solid var(--warn); background:color-mix(in srgb,var(--warn) 7%,transparent);
+  padding:15px 20px; margin:28px 0; font-size:15px; color:var(--ink-2);
+}
+.note b{color:var(--ink);font-weight:600;font-family:Archivo,sans-serif}
+.note.blue{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+
+.cols{display:grid;gap:30px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin:26px 0}
+.cols h4{font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 9px;font-weight:600}
+.cols p{font-size:15.5px;color:var(--ink-2)}
+.cols p:last-child{margin-bottom:0}
+
+.fams{display:grid;gap:0;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  border-top:1px solid var(--hair);margin:24px 0}
+.fams div{padding:14px 20px 14px 0;border-bottom:1px solid var(--hair)}
+.fams h4{margin:0 0 5px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px}
+.fams h4 i{width:22px;height:4px;border-radius:2px;font-style:normal;flex:0 0 auto}
+.fams p{margin:0;font-size:14px;color:var(--ink-3);line-height:1.5}
+
+.order{font-family:"IBM Plex Mono",monospace;font-size:13px;display:flex;
+  flex-wrap:wrap;gap:6px;margin:18px 0}
+.order span{padding:4px 9px 3px;border:1px solid var(--hair);border-radius:2px;
+  background:var(--panel);color:var(--ink-2)}
+.order span.g{border-color:var(--g);color:var(--g)}
+.order span.u{border-color:var(--u);color:var(--u)}
+.order span.l{border-color:var(--l);color:var(--l)}
+.order b{align-self:center;font-family:Archivo,sans-serif;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-right:4px}
+
+.foot{margin-top:76px;border-top:2px solid var(--ink);padding-top:20px;font-size:13.5px;color:var(--ink-3)}
+.foot .mono{font-size:12.5px;color:var(--ink-2)}
+pre{background:var(--panel-2);border:1px solid var(--hair);padding:14px 16px;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+  line-height:1.7;color:var(--ink-2);margin:14px 0}
+
+@media (max-width:640px){
+  body{font-size:16px}
+  .wrap{padding:0 18px 64px}
+  .mast{padding-top:36px}
+  th,td{padding-right:10px}
+}
+@media print{
+  body{background:#fff;color:#000;font-size:10.5pt}
+  .wrap{max-width:none;padding:0}
+  section{break-inside:auto;margin-top:26pt}
+  .sheet{break-after:avoid}
+  figure,.plate,.note,.scroll{break-inside:avoid}
+  .shots img{break-inside:avoid}
+  .mast{padding-top:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="kicker">
+    <span>Star&nbsp;Dome&nbsp;Lab</span>
+    <span>параметрический проект</span>
+    <span>все размеры в мм</span>
+  </div>
+  <h1>Звёздный купол</h1>
+  <p class="lede">Семейство каркасных куполов из гнутого стеклопластикового прутка —
+  от 3 до 12 метров. Пятнадцать дуг, семь типов деталей, тканевая покрышка.
+  Вся геометрия считается из одного файла параметров: <em>меняется диаметр — пересчитывается всё
+  остальное</em>, вплоть до раскроя, порядка сборки и списка закупки.</p>
+  <div class="figs">
+    <div><b>4</b><span>РАЗМЕРА В СЕРИИ</span></div>
+    <div><b>15</b><span>ДУГ В КАЖДОМ КУПОЛЕ</span></div>
+    <div><b>7</b><span>ТИПОВ ДЕТАЛЕЙ</span></div>
+    <div><b>40</b><span>УЗЛОВ ПЕРЕСЕЧЕНИЯ</span></div>
+    <div><b>1</b><span>ДЛИНА ДУГИ НА КУПОЛ</span></div>
+  </div>
+</header>
+
+<!-- =================== 01 =================== -->
+<section id="range">
+  <div class="sheet">
+    <span class="no">ЛИСТ 01</span>
+    <h2>Модельный ряд</h2>
+    <span class="tag">S · M · L · XL</span>
+  </div>
+
+  <p class="intro">Четыре размера — это <strong>выбранная сборка</strong>: юбка решена, дверь решена,
+  у каждого есть короткое имя. D3 и D12 остаются в параметрах без имени: это концы диапазона,
+  их держат для изучения, а не для стройки. Геометрия у всех одна и та же — отличается только радиус.</p>
+
+  <figure>
+    <div class="plate">{{svg:sizes}}</div>
+    <figcaption>Все шесть в одном масштабе, по общей линии земли. <b>Только у S есть юбка</b> —
+    купол 4 м без неё не впускает вообще ничего. M и L голые намеренно: именно это делает их двери
+    такими, какие они есть.</figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <caption>Размеры и что внутри</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Купол</th><th class="n">Юбка</th><th class="n">Общая высота</th>
+      <th class="n">Пол, м²</th><th class="n">Объём, м³</th><th>Входишь</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">3 000</td><td class="n">1 000</td><td class="n">2 473</td><td class="n">7,07</td><td class="n">14,1</td><td>ползком — учебный край диапазона</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">4 000</td><td class="n">1 350</td><td class="n">3 315</td><td class="n">12,57</td><td class="n">33,7</td><td>с ношей в руках</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">6 000</td><td class="n">—</td><td class="n">2 947</td><td class="n">28,27</td><td class="n">56,5</td><td>на четвереньках</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">8 000</td><td class="n">—</td><td class="n">3 929</td><td class="n">50,27</td><td class="n">134,0</td><td>пригнувшись</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">10 000</td><td class="n">—</td><td class="n">4 911</td><td class="n">78,54</td><td class="n">261,8</td><td>с ношей, и персонаж 2,2 м тоже</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">12 000</td><td class="n">—</td><td class="n">5 894</td><td class="n">113,10</td><td class="n">452,4</td><td>исследовательский, не проверен</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="shots">
+    <figure><img src="{{img:star_dome_d4}}" alt="Купол S (D4) с юбкой"><figcaption><b>S · D4</b> — юбка 1350 мм</figcaption></figure>
+    <figure><img src="{{img:star_dome_d6}}" alt="Купол M (D6)"><figcaption><b>M · D6</b> — эталонный прототип</figcaption></figure>
+    <figure><img src="{{img:star_dome_d8}}" alt="Купол L (D8)"><figcaption><b>L · D8</b> — портал в низком пролёте</figcaption></figure>
+    <figure><img src="{{img:star_dome_d10}}" alt="Купол XL (D10)"><figcaption><b>XL · D10</b> — дверь в рост без юбки</figcaption></figure>
+    <figure><img src="{{img:star_dome_d12}}" alt="Купол D12"><figcaption><b>D12</b> — 5,9 м, поднимать руками</figcaption></figure>
+    <figure><img src="{{img:sizes}}" alt="Все размеры рядом"><figcaption><b>Ряд целиком</b> — в натуральном масштабе</figcaption></figure>
+  </div>
+
+  <div class="note">
+    <b>Диаметры прутка — предположение, а не результат.</b> 8, 10 и 12 мм взяты как отправная точка
+    для геометрии и картинки. Ничто здесь не проверено против свойств стеклопластика: продольный изгиб,
+    напряжение при гибе, минимальный радиус, ветровая нагрузка, вес покрышки, анкеровка.
+    Радиус гиба равен радиусу купола — для XL это 5 метров. Проверьте по реальному прутку,
+    прежде чем считать размер пригодным к постройке.
+  </div>
+</section>
+
+<!-- =================== 02 =================== -->
+<section id="geometry">
+  <div class="sheet">
+    <span class="no">ЛИСТ 02</span>
+    <h2>Как он устроен</h2>
+    <span class="tag">15 дуг · 40 узлов · 90 контактов</span>
+  </div>
+
+  <p class="intro">Купол собран из <strong>пятнадцати одинаковых дуг</strong>. Каждая — полуокружность
+  радиусом с сам купол, то есть один и тот же отрез, повторённый пятнадцать раз. Дуги делятся
+  на три семейства по пять; вместе они дают икосододекаэдрический каркас, где ни один пруток
+  не заканчивается в середине.</p>
+
+  <div class="fams">
+    <div><h4><i style="background:var(--g)"></i>Семейство G</h4><p>Пять дуг икосододекаэдрического скелета — несущая основа.</p></div>
+    <div><h4><i style="background:var(--u)"></i>Семейство U</h4><p>Пять верхних дуг, размеченных по третям. По ним же идут стяжки через макушку.</p></div>
+    <div><h4><i style="background:var(--l)"></i>Семейство L</h4><p>Пять нижних дуг; из них же вырезаются косяки двери.</p></div>
+  </div>
+
+  <div class="shots two">
+    <figure><div class="plate">{{svg:elevation}}</div><figcaption><b>M · D6, фасад.</b> Дальние дуги показаны бледнее. Красные точки — узлы на четыре прутка, серые — пересечения на два.</figcaption></figure>
+    <figure><div class="plate">{{svg:plan}}</div><figcaption><b>M · D6, план.</b> Десять опорных точек по основанию, пятилучевая симметрия видна сверху.</figcaption></figure>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h4>Что повторяется</h4>
+      <p>У всех шести куполов одинаковая топология: 15 дуг, 40 узлов, 90 контактов пруток-к-прутку,
+      12 классов пересечений. Меняется только масштаб.</p>
+      <p>Углы пересечений вообще не зависят от диаметра — их ровно пять:
+      <span class="mono">37,3774° · 41,8103° · 63,4349° · 70,5288° · 79,1877°</span>.
+      Поэтому один и тот же хомут годится и для 4-метрового купола, и для 12-метрового.</p>
+    </div>
+    <div>
+      <h4>Почему это важно для сборки</h4>
+      <p>Длинные непрерывные гибкие элементы и простые пересечения — весь смысл схемы.
+      Дуга ставится целиком и держит форму собственным натяжением, а не подгонкой узлов.</p>
+      <p>Из 40 узлов только <strong>десять</strong> вяжутся — те, где сходятся четыре прутка.
+      Остальные тридцать — обычные хомуты на два прутка, они не несут разводку.</p>
+    </div>
+  </div>
+
+  <figure>
+    <div class="plate">{{svg:ladder}}</div>
+    <figcaption>Двенадцать классов пересечений по высоте на M · D6. Красным — те, что вяжутся
+    (входят в четырёхпрутковый узел), серым — одиночные хомуты. Высота в мм от земли.</figcaption>
+  </figure>
+</section>
+
+<!-- =================== 03 =================== -->
+<section id="parts">
+  <div class="sheet">
+    <span class="no">ЛИСТ 03</span>
+    <h2>Детали и где они стоят</h2>
+    <span class="tag">107 деталей на M · D6</span>
+  </div>
+
+  <p class="intro">Семь типов деталей закрывают весь купол — от узла в зените до штыря в земле.
+  Имя детали кодирует всё, что нужно, чтобы её сделать: <span class="mono">CL2-10-70.5288</span> —
+  это <strong>хомут на 2 прутка ⌀10 мм под углом 70,5288°</strong>. Непокрытых узлов нет,
+  и <strong>неспроектированных деталей на M и L тоже не осталось</strong>.</p>
+
+  <figure>
+    <div class="plate">{{svg:parts_callout}}</div>
+    <div class="legend">
+      <span><i style="background:var(--lashed)"></i>FAN4 — узел на 4 прутка, вяжется</span>
+      <span><i style="background:var(--unlashed)"></i>CL2 — хомут на 2 прутка</span>
+      <span><i class="sq" style="background:var(--splice)"></i>SPLICE — ферруле стыка секций</span>
+      <span><i style="background:var(--base)"></i>BASE3/BASE2 + STAKE — пята и штырь</span>
+    </div>
+    <figcaption>Положение каждого типа на куполе M · D6. Стыки секций сидят <b>в промежутках между
+    пересечениями</b>, а не на них: место стыка берётся от ровного деления дуги и сдвигается ровно
+    настолько, насколько нужно, чтобы разойтись с пересечением.</figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <caption>Каталог деталей — M · D6, пруток ⌀10 мм</caption>
+    <thead><tr>
+      <th>Обозначение</th><th class="n">Кол-во</th><th>Что это</th><th>Состояние</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">FAN4-10-37.3774</td><td class="n">10</td><td>Плоский веер на четыре прутка, стопка высотой 30 мм, порядок G-U-U-G</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">CL2-10-70.5288</td><td class="n">30</td><td>Хомут на два прутка под 70,5288°, классы T00/T05/T10/T11. В двух руках: 17 как нарисован, 13 зеркальных — крышка снаружи, поэтому зеркало это вторая печать</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">SPLICE-10</td><td class="n">45</td><td>Ферруле стыка: секции входят с торцов, как колено палаточной дуги. Середина занижена — стык бёрётся на два конца и даёт дуге прогнуться сквозь себя</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">BASE3-10</td><td class="n">8</td><td>Пята: три конца дуг под 37,4° / 79,2° / 63,4° к горизонту, на уголок в прорези под ней</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">BASE2-10</td><td class="n">2</td><td>Пята дверного косяка: рез забрал третью дугу, осталось две. Недостающая — та, что шла поперёк проёма</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">TERM-10-70.5288</td><td class="n">2</td><td>Окончание реза: дуга начинается на пересечении, а не проходит его. Держит торец прутка к прутку. Две руки: 1 + 1</td><td><span class="badge b-ok">генерируется</span></td></tr>
+      <tr><td class="code">STAKE-BASE</td><td class="n">10</td><td>Забивной стальной уголок в каждой опорной точке — то, что держит купол от расползания. Насколько глубоко забивать, отвечает грунт, а не проект</td><td><span class="badge b-hw">крепёж, подобрать</span></td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="4">Итого 107 деталей на купол в 7 типах: 97 генерируются сейчас, 10 — крепёж под подбор,
+    <b>0 неспроектированных</b>. Непокрытых узлов нет.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Сколько деталей в каждом размере</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">⌀ прутка</th><th class="n">FAN4</th><th class="n">CL2</th>
+      <th class="n">Пяты</th><th class="n">SPLICE</th><th class="n">Прочее</th><th class="n">Всего</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">8</td><td class="n">10</td><td class="n">30</td><td class="n">10</td><td class="n">15</td><td class="n">30</td><td class="n">95</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">8</td><td class="n">10</td><td class="n">30</td><td class="n">8 + 2</td><td class="n">30</td><td class="n">34</td><td class="n">114</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">10</td><td class="n">10</td><td class="n">30</td><td class="n">8 + 2</td><td class="n">45</td><td class="n">12</td><td class="n">107</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">10</td><td class="n">10</td><td class="n">30</td><td class="n">8 + 2</td><td class="n">73</td><td class="n">12</td><td class="n">135</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">12</td><td class="n">10</td><td class="n">30</td><td class="n">8 + 2</td><td class="n">88</td><td class="n">12</td><td class="n">150</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">12</td><td class="n">10</td><td class="n">30</td><td class="n">8 + 2</td><td class="n">111</td><td class="n">12</td><td class="n">173</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="8">FAN4 и CL2 всегда ровно 10 и 30 — это следствие топологии, она не меняется с размером.
+    Растёт только число ферруле: длинная дуга делится на большее число транспортных секций.
+    «Прочее» у D3 и S — это хомуты юбки (COLLAR) и её опоры; у остальных — штыри и окончания реза.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="shots two">
+    <figure><img src="{{img:d8_up}}" alt="Вид снизу вверх на пересечения дуг"><figcaption><b>Пересечения вблизи, вид снизу.</b> Цвета семейств те же, что на чертежах: синий G, оранжевый U, зелёный L.</figcaption></figure>
+    <figure><img src="{{img:star_dome_d6_plain}}" alt="Каркас D6 без покрышки с подписанными узлами"><figcaption><b>Голый каркас M · D6</b> с подписанными узлами — <span class="mono">N00</span>…<span class="mono">N39</span> и десять опор <span class="mono">b0</span>…<span class="mono">b9</span>.</figcaption></figure>
+  </div>
+</section>
+
+<!-- =================== 04 =================== -->
+<section id="cover">
+  <div class="sheet">
+    <span class="no">ЛИСТ 04</span>
+    <h2>Раскрой покрышки</h2>
+    <span class="tag">рулон 1500 мм</span>
+  </div>
+
+  <p class="intro">Покрышка ложится не на сам каркас, а на сферу чуть больше него —
+  <strong>ткань лежит на прутке снаружи</strong>, поэтому радиус на 20 мм больше номинала,
+  а площадь на 1,3% больше. Кроить её можно <strong>тремя</strong> способами, и они дают разное
+  число швов, разное количество ткани и разный характер протечек.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Площадь покрышки M · D6</caption>
+    <thead><tr><th>Составляющая</th><th class="n">м²</th><th>Примечание</th></tr></thead>
+    <tbody>
+      <tr><td>Купол</td><td class="n">57,31</td><td>полусфера радиусом 3020 мм</td></tr>
+      <tr><td>Минус дверной проём</td><td class="n">−2,59</td><td>то, что не надо кроить</td></tr>
+      <tr><td class="name">Итого</td><td class="n">54,71</td><td>плюс 19,0 м подгибки — одинаково при любом раскрое</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Способ первый: клинья</h3>
+  <p class="intro">Тринадцать одинаковых по форме клиньев от полюса до низа. <strong>Ни одного
+  горизонтального стыка</strong> и ни одного шва, который лёг бы на пруток. Число клиньев задаёт
+  не вкус, а ширина рулона: клин должен в неё поместиться.</p>
+
+  <figure>
+    <div class="plate">{{svg:gore}}</div>
+    <figcaption><b>Один клин M · D6, настоящий контур.</b> 1460 мм в самом широком месте против
+    рулона 1500 мм — помещается впритык. Каждое сечение по длине своей ширины, поэтому шаблон
+    один, а раскрой идёт по разметке, а не по линейке.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="plate">{{svg:gore_roll}}</div>
+    <figcaption><b>Клинья по рулону.</b> Клин занимает всю ширину только у низа; к полюсу он сходится
+    на нет, и <b>сужение — это отход</b>. Перевернуть соседний клин валетом не выйдет: у низа он уже
+    во всю ширину, вставать некуда.</figcaption>
+  </figure>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Способ второй: грани</h3>
+  <p class="intro">Шестнадцать плоских граней вписанного многогранника — шесть пятиугольников и
+  десять треугольников, <strong>сторона у всех одна и та же, 1854 мм</strong>. Плоские детали,
+  никакого искажения, и <strong>25 швов ложатся прямо на пруток</strong>, где их есть к чему
+  притянуть. Платят за это количеством швов.</p>
+
+  <figure>
+    <div class="plate">{{svg:faces}}</div>
+    <figcaption><b>Две формы на весь купол.</b> Но пятиугольник 2853 мм поперёк, а треугольник
+    1606 мм — оба шире рулона 1500 мм, поэтому каждая грань сама набирается из двух полос.
+    Отсюда 32 детали вместо 16.</figcaption>
+  </figure>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Способ третий: лепестки</h3>
+  <p class="intro">Клин упирается в ширину рулона, потому что обязан пересечь его целиком.
+  Отсюда его цена: <strong>клин заполняет ровно <span class="mono">2/π</span> = 63,66% своего
+  описанного прямоугольника</strong> — при любом радиусе и любом числе клиньев, и раскладкой это
+  не побить. <strong>Лепесток перестаёт платить этот налог</strong>: он бросает попытку пересечь
+  рулон одним куском и набирается из горизонтальных полос внахлёст, верхняя на нижнюю.</p>
+
+  <figure>
+    <div class="plate">{{svg:leaf}}</div>
+    <figcaption><b>Один лепесток M · D6.</b> Пятая часть купола по азимуту — шире любого рулона,
+    поэтому и набирается полосами. Цифры справа — ширина полосы по нижнему краю, мм.
+    Горизонтальные соединения — <b>нахлёсты, а не швы</b>: верхняя на нижнюю, вода уходит по скату,
+    и стык не обязан быть герметичным. Вертикальные швы идут туда же, вниз по скату.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="plate">{{svg:leaf_roll}}</div>
+    <figcaption><b>Вот за счёт чего экономия.</b> Полоса кроится высотой поперёк рулона, а шириной
+    <b>вдоль</b> него — рулон больше ничего не ограничивает. Полосы почти трапеции, поэтому каждая
+    вторая переворачивается валетом, и две делят один прямоугольник: полоса стоит <b>средней</b>
+    ширины вместо наибольшей.</figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <caption>Три раскроя рядом — M · D6, рулон 1500 мм</caption>
+    <thead><tr>
+      <th>Раскрой</th><th class="n">Деталей</th><th class="n">Швов, м</th><th class="n">Нахлёстов, м</th>
+      <th class="n">Рулона, м</th><th class="n">Швов на прутке</th><th>Чем платим</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="name">Лепестки ×5</td><td class="n">20</td><td class="n">23,7</td><td class="n">38,8</td><td class="n"><b>47,8</b></td><td class="n">0</td><td>Нахлёсты в довесок к швам; 5 швов сходятся на полюсе</td></tr>
+      <tr><td class="name">Клинья</td><td class="n">13</td><td class="n">61,7</td><td class="n">—</td><td class="n">61,7</td><td class="n">0</td><td>Меньше всего деталей; 13 швов сходятся в одну точку — нужна накладка</td></tr>
+      <tr><td class="name">Грани</td><td class="n">32</td><td class="n">77,1</td><td class="n">—</td><td class="n">—</td><td class="n">25</td><td>Вдвое больше деталей; зато каждый шов лежит на прутке и ничего не сходится в точку</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="7">Лепестки экономят <b>22,6% ткани</b> на M и выигрывают у клиньев
+    по числу швов — но добавляют 38,8 м нахлёстов. Для граней метраж рулона не посчитан:
+    это задача упаковки, а не прогон по рулону, и модель честно оставляет клетку пустой,
+    вместо того чтобы гадать. Всё это — форма и площадь, <b>без провиса, без припуска на шов
+    и без каких-либо утверждений о нагрузке</b>.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note blue">
+    <b>Выгодность нахлёстов зависит от размера — и меняет знак.</b> Число швов у клина задано
+    рулоном, поэтому растёт вместе с куполом: 7 на D3, 26 на D12. У лепестка вертикальных швов
+    <b>всегда пять</b>, сколько бы купол ни рос, — добавляются только нахлёсты. Ниже M лепесток
+    меняет немного лишней работы на ткань; <b>начиная с L он просто дешевле сразу по обоим
+    показателям</b>, а на D12 экономит 78 м ткани и 48 м соединений одновременно.
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Лепестки против клиньев по всему ряду — рулон 1500 мм</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Клиньев</th><th class="n">Клинья: рулона</th>
+      <th class="n">Лепестки: полос</th><th class="n">Лепестки: рулона</th>
+      <th class="n">Экономия ткани</th><th class="n">Клинья: швов</th><th class="n">Лепестки: швы + нахлёсты</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">7</td><td class="n">16,7</td><td class="n">5 × 2</td><td class="n">11,5</td><td class="n">31%</td><td class="n">16,7</td><td class="n">18,8</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">9</td><td class="n">28,5</td><td class="n">5 × 3</td><td class="n">23,7</td><td class="n">17%</td><td class="n">28,5</td><td class="n">33,5</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">13</td><td class="n">61,7</td><td class="n">5 × 4</td><td class="n">47,8</td><td class="n">23%</td><td class="n">61,7</td><td class="n">62,5</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">17</td><td class="n">107,3</td><td class="n">5 × 5</td><td class="n">79,8</td><td class="n">26%</td><td class="n">107,3</td><td class="n"><b>99,5</b></td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">22</td><td class="n">173,6</td><td class="n">5 × 6</td><td class="n">120,0</td><td class="n">31%</td><td class="n">173,6</td><td class="n"><b>144,5</b></td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">26</td><td class="n">246,0</td><td class="n">5 × 7</td><td class="n">168,2</td><td class="n">32%</td><td class="n">246,0</td><td class="n"><b>197,5</b></td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="8">Метры рулона, не площадь. Жирным — где лепесток обходит клин
+    и по соединениям тоже: перелом между M и L. «5 × 4» читается как пять лепестков по четыре
+    полосы. Больше лепестков ткани не добавляет: десять лепестков вдвое уже каждый,
+    рулон тот же, удваивается только число вертикальных швов.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Площадь покрышки по размерам</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Купол, м²</th><th class="n">Юбка, м²</th><th class="n">Проём</th>
+      <th class="n">Итого, м²</th><th class="n">Подгибка, м</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">14,44</td><td class="n">9,53</td><td class="n">—</td><td class="n">23,97</td><td class="n">9,5</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">25,54</td><td class="n">17,10</td><td class="n">−1,15</td><td class="n">41,48</td><td class="n">12,7</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">57,31</td><td class="n">—</td><td class="n">−2,59</td><td class="n">54,71</td><td class="n">19,0</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">101,54</td><td class="n">—</td><td class="n">−4,62</td><td class="n">96,92</td><td class="n">25,3</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">158,59</td><td class="n">—</td><td class="n">−7,21</td><td class="n">151,38</td><td class="n">31,6</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">228,01</td><td class="n">—</td><td class="n">−10,39</td><td class="n">217,62</td><td class="n">37,8</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">Это площадь поверхности, а не метры рулона: сколько ткани ляжет
+    на купол, а не сколько её придётся купить. Разница — отход раскроя, и он свой у каждого
+    из трёх способов выше. Подгибка одинакова при любом раскрое. Юбка, где она есть, — цилиндр
+    и кроится плоскими полосами из того же рулона.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note blue">
+    <b>Чем покрышка держится.</b> По низу — верёвка в кулиске, 17,2 м, и десять петель через
+    1898 мм, по одной на каждый забивной уголок. Дверной проём шириной 1818 мм кулиска обходит,
+    заканчиваясь с обеих сторон. Сверху — <b>пять стяжек через макушку по семейству U</b>,
+    по 10,09 м каждая, 50,4 м всего. Ни одной новой печатной детали это не требует.
+  </div>
+</section>
+
+<!-- =================== 05 =================== -->
+<section id="bom">
+  <div class="sheet">
+    <span class="no">ЛИСТ 05</span>
+    <h2>Из чего он сделан</h2>
+    <span class="tag">закупка на один купол</span>
+  </div>
+
+  <p class="intro">Всё, что нужно купить и напечатать на один купол, в одном месте.
+  Пруток берётся бухтой и режется на транспортные секции <strong>не длиннее 2400 мм</strong> —
+  это то, что влезает в машину.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Материалы по размерам</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Пруток, м</th><th class="n">Секций</th><th class="n">Ткань, м²</th>
+      <th class="n">Стропа, м</th><th class="n">Анкеров</th><th class="n">Крепёж</th><th class="n">Деталей</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">70,7</td><td class="n">30</td><td class="n">24,0</td><td class="n">36,3</td><td class="n">10</td><td class="n">M4</td><td class="n">95</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">94,3</td><td class="n">45</td><td class="n">41,5</td><td class="n">46,1</td><td class="n">10</td><td class="n">M4</td><td class="n">114</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">141,4</td><td class="n">60</td><td class="n">54,7</td><td class="n">67,6</td><td class="n">10</td><td class="n">M5</td><td class="n">107</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">188,5</td><td class="n">88</td><td class="n">96,9</td><td class="n">89,0</td><td class="n">10</td><td class="n">M5</td><td class="n">135</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">235,6</td><td class="n">103</td><td class="n">151,4</td><td class="n">110,4</td><td class="n">10</td><td class="n">M6</td><td class="n">150</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">282,8</td><td class="n">126</td><td class="n">217,6</td><td class="n">131,8</td><td class="n">10</td><td class="n">M6</td><td class="n">173</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="8">Резьба крепежа — половина диаметра прутка, округлённая к ходовому размеру.
+    Анкеров всегда десять: по одному на каждую опорную точку, независимо от размера купола.
+    У D3 и S к этому добавляются стойки, кольца и раскосы юбки.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Что печатать — M · D6</caption>
+    <thead><tr>
+      <th>Деталь</th><th class="n">Штук</th><th class="n">Печатей</th><th class="n">см³ за штуку</th>
+      <th class="n">см³ всего</th><th class="n">Доля пластика</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">BASE3-10</td><td class="n">8</td><td class="n">32</td><td class="n">430,5</td><td class="n">3 444,1</td><td class="n">50,0%</td></tr>
+      <tr><td class="code">CL2-10-70.5288</td><td class="n">30</td><td class="n">60</td><td class="n">36,3</td><td class="n">1 088,0</td><td class="n">15,8%</td></tr>
+      <tr><td class="code">FAN4-10-37.3774</td><td class="n">10</td><td class="n">50</td><td class="n">94,3</td><td class="n">943,0</td><td class="n">13,7%</td></tr>
+      <tr><td class="code">SPLICE-10</td><td class="n">45</td><td class="n">45</td><td class="n">16,4</td><td class="n">737,3</td><td class="n">10,7%</td></tr>
+      <tr><td class="code">BASE2-10</td><td class="n">2</td><td class="n">6</td><td class="n">298,0</td><td class="n">596,0</td><td class="n">8,7%</td></tr>
+      <tr><td class="code">TERM-10-70.5288</td><td class="n">2</td><td class="n">4</td><td class="n">36,7</td><td class="n">73,4</td><td class="n">1,1%</td></tr>
+      <tr><td class="name">Итого</td><td class="n">107</td><td class="n">197</td><td class="n">—</td><td class="n">6 881,8</td><td class="n">100%</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">Объём — это объём сплошной детали, снятый с экспортированных сеток,
+    а не оценка: колонка <b>есть, когда деталь построена, и честно пуста, когда нет</b>.
+    Реальный пластик при обычном заполнении примерно вдвое меньше, и какая именно половина —
+    вопрос к слайсеру. «Печатей» больше, чем «штук», потому что деталь состоит из нескольких
+    печатаемых пластин: веер — из пяти, пята — из четырёх, хомут — из двух.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Пяты — половина всего пластика в куполе.</b> На M это 4040 см³ из 6882 — <b>59%</b> —
+    на десять штук. Одна <span class="mono">BASE3-10</span> весит 430 см³, из которых 258 приходится
+    на одну нижнюю пластину. Это <b>в четыре с половиной раза больше четырёхпруткового веера</b>,
+    который держит вдвое больше прутков. Причина известна: размер пяты задан не прутком, а
+    30-миллиметровой прорезью под штырь и разлётом болтов вокруг неё, поэтому она
+    <b>не масштабируется вместе с куполом</b>. А сам штырь — единственная позиция без ответа.
+    Пока его не подобрали, самая крупная деталь купола определена догадкой.
+  </div>
+
+  <div class="cols">
+    <div>
+      <h4>Крепёж, который крутят в поле</h4>
+      <p>На M · D6 это <strong>84 болта</strong>, к каждому гайка и инструмент с обеих сторон,
+      плюс 28 поперечных штифтов. Ещё 20 болтов закручиваются один раз в мастерской
+      и больше не трогаются.</p>
+      <p>Считается именно это разделение, а не общая сумма: важно <strong>где происходит
+      работа</strong>. Если хомуты печатать с защёлкой вместо винтового зажима, полевых болтов
+      становится <strong>52 вместо 84</strong> — на треть меньше того, что надо крутить на ветру.</p>
+    </div>
+    <div>
+      <h4>Чем держится стык</h4>
+      <p>Секция в 2400 мм — предел транспортный, а не конструктивный: это то, что влезает
+      в машину. Где именно резать — <a href="#cuts">лист 06</a>.</p>
+      <p>Но стык всё равно работает <strong>на изгиб</strong>: дуга согнута по всей длине,
+      и ферруле проходит сквозь этот изгиб. Поэтому середина у неё занижена — она опирается
+      двумя концами и позволяет прутку прогнуться внутри себя. Это единственное соединение
+      в куполе, которому никогда не нужно ничего обхватывать, — потому секции и входят
+      с торцов, как колено палаточной дуги.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 06 =================== -->
+<section id="cuts">
+  <div class="sheet">
+    <span class="no">ЛИСТ 06</span>
+    <h2>Нарезка дуг</h2>
+    <span class="tag">секция ≤ 2400 мм</span>
+  </div>
+
+  <p class="intro">Дуга согнута, поэтому «где резать» — это <strong>длина по дуге</strong>,
+  а она превращается в прямую линию, стоит дугу развернуть. В этой системе координат обе
+  задачи формулируются просто — и тянут в разные стороны.</p>
+
+  <div class="cols">
+    <div>
+      <h4>Правило первое: влезть в машину</h4>
+      <p><strong>Ни одна секция не длиннее 2400 мм.</strong> Это то, ради чего стыки вообще
+      существуют, и это задаёт их число: <span class="mono">ceil(длина / 2400)</span> секций,
+      стыков на один меньше.</p>
+    </div>
+    <div>
+      <h4>Правило второе: не попасть в пересечение</h4>
+      <p><strong>Ни один стык не садится на пересечение.</strong> Гильзу там не зажать и не
+      проплести, да и пересечение уже несёт свою деталь. Поэтому стык отходит от пересечения
+      <strong>на длину собственной гильзы</strong> — десять диаметров прутка, 100 мм на M.</p>
+    </div>
+  </div>
+
+  <figure>
+    <div class="plate">{{svg:cuts}}</div>
+    <figcaption>Типичная дуга каждого размера, развёрнутая в прямую, в общем масштабе.
+    Серые риски — пересечения с другими дугами, розовые полосы вокруг них — <b>зона, куда стык
+    встать не может</b>. Видно, почему у M и XL всё сходится само, а у S и L часть стыков
+    пришлось сдвигать.</figcaption>
+  </figure>
+
+  <p class="intro">Решение ищется в этом порядке: <strong>сначала ровное деление</strong>;
+  если какой-то стык попал в зону — его двигают на минимальное расстояние, оставаясь в окне,
+  где обе его секции всё ещё влезают в машину; если чистого места нет вовсе — дуга берёт
+  <strong>ещё одну секцию</strong>, они становятся короче, слабины больше, и попытка повторяется.
+  Дуга, которой помощь не нужна, её и не получает.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Что получается — по размерам</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Дуга, мм</th><th class="n">Секций на дугу</th>
+      <th class="n">Секций всего</th><th class="n">Стыков</th><th class="n">Длиннейшая</th>
+      <th class="n">Зазор</th><th>Деление</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">4 712</td><td class="n">2</td><td class="n">30</td><td class="n">15</td><td class="n">2 356</td><td class="n">203</td><td>ровное</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">6 283</td><td class="n">3</td><td class="n">45</td><td class="n">30</td><td class="n">2 174</td><td class="n">80</td><td>со сдвигом до 80 мм</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">9 425</td><td class="n">4</td><td class="n">60</td><td class="n">45</td><td class="n">2 356</td><td class="n">115</td><td><b>ровное</b></td></tr>
+      <tr><td class="name">L · D8</td><td class="n">12 566</td><td class="n">5–6</td><td class="n">88</td><td class="n">73</td><td class="n">2 194</td><td class="n">100</td><td>со сдвигом до 100 мм</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">15 708</td><td class="n">6–7</td><td class="n">103</td><td class="n">88</td><td class="n">2 244</td><td class="n">128</td><td><b>ровное</b></td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">18 850</td><td class="n">7–9</td><td class="n">126</td><td class="n">111</td><td class="n">2 356</td><td class="n">120</td><td>со сдвигом до 120 мм</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="8">«Зазор» — расстояние от ближайшего стыка до ближайшего пересечения
+    в самом тесном месте купола. Где деление ровное, зазор получился сам; где со сдвигом — он ровно
+    равен длине гильзы, то есть стык встал вплотную к границе разрешённой зоны.
+    Диапазон «5–6» значит, что часть дуг берёт лишнюю секцию, чтобы разойтись с пересечениями.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note blue">
+    <b>Весь купол M режется по двум размерам.</b> Тринадцать дуг — на четыре секции по
+    <b>2356,2 мм</b>, и ещё две (косяки двери, из которых рез уже забрал конец) — на четыре
+    по <b>1861,9 мм</b>. Шестьдесят кусков, два числа на разметке.
+    У XL так же просто: 13 дуг × 7 по 2244,0 мм и 2 × 6 по 2068,8 мм.
+    <b>У L и D12 так не выходит</b> — там три разных раскладки и секции внутри одной дуги
+    разной длины, то есть резать придётся по списку, а не по одной метке.
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Карта реза — M · D6, по типам дуг</caption>
+    <thead><tr>
+      <th>Дуги</th><th class="n">Сколько</th><th class="n">Длина дуги</th>
+      <th class="n">Секций</th><th>Длины секций, мм</th><th>Почему так</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">G1–G5, U1–U5, L2, L3, L5</td><td class="n">13</td><td class="n">9 425</td><td class="n">4</td><td class="mono">2356,2 × 4</td><td>Целая дуга; ровное деление уже расходится с пересечениями</td></tr>
+      <tr><td class="code">L1, L4</td><td class="n">2</td><td class="n">7 448</td><td class="n">4</td><td class="mono">1861,9 × 4</td><td>Косяки двери: рез портала забрал по концу, осталось 7448 мм</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">Итого 60 секций и 45 гильз. Обратите внимание, что укороченным дугам
+    хватило бы и трёх секций по 2483 мм — но это больше транспортных 2400, поэтому они тоже
+    делятся на четыре.</td></tr></tfoot>
+  </table>
+  </div>
+</section>
+
+<!-- =================== 07 =================== -->
+<section id="assembly">
+  <div class="sheet">
+    <span class="no">ЛИСТ 07</span>
+    <h2>Как его поднимают</h2>
+    <span class="tag">20 продеваний из 90</span>
+  </div>
+
+  <p class="intro">Плетение купола <strong>циклично</strong>: G1 проходит внутри G5, G5 внутри G4,
+  G4 внутри G1. Из этого следует неприятное — <strong>порядка, при котором ничего не надо продевать,
+  не существует</strong>. Вопрос только в том, сколько раз придётся протаскивать дугу сквозь
+  уже стоящие.</p>
+
+  <div class="order">
+    <b>порядок подъёма</b>
+    <span class="g">G5</span><span class="l">L1</span><span class="l">L2</span><span class="g">G2</span><span class="l">L3</span>
+    <span class="l">L4</span><span class="g">G4</span><span class="l">L5</span><span class="u">U3</span><span class="u">U1</span>
+    <span class="g">G1</span><span class="g">G3</span><span class="u">U4</span><span class="u">U2</span><span class="u">U5</span>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Во что обходится порядок — M · D6, 90 пересечений</caption>
+    <thead><tr><th>Порядок</th><th class="n">Продеваний</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      <tr><td class="name">Оптимальный</td><td class="n">20</td><td>Три разных порядка дают этот минимум; один из них выше</td></tr>
+      <tr><td class="name">L перед U</td><td class="n">30</td><td>G-L-U, L-G-U, L-U-G — дешёвые, всего на 10 хуже оптимума</td></tr>
+      <tr><td class="name">U перед L</td><td class="n">50</td><td>G-U-L, U-G-L, U-L-G — вдвое дороже дешёвых</td></tr>
+      <tr class="muted"><td class="name">Худший</td><td class="n">70</td><td>Если поднимать не думая</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="3">Главное здесь: <b>18 продеваний из 20 навязаны самими вязаными узлами</b>,
+    и только 2 приходят от маршрута остальных тридцати свободных пересечений. То есть порядок
+    почти целиком задан геометрией, а не выбором — и запомнить достаточно правила
+    «сначала L, потом U». Первый вязаный узел замыкается на шаге 4, все десять — к шагу 15.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note blue">
+    <b>Практический вывод для поля.</b> Поднимать по семейству — G, потом L, потом U — стоит
+    30 продеваний вместо 20. Это на десять больше оптимума, но порядок при этом запоминается
+    одной фразой, а не списком из пятнадцати имён. Разница в цене — десять протаскиваний
+    на весь купол.
+  </div>
+</section>
+
+<!-- =================== 07 =================== -->
+<section id="inside">
+  <div class="sheet">
+    <span class="no">ЛИСТ 08</span>
+    <h2>Сколько места внутри</h2>
+    <span class="tag">площадь, где можно выпрямиться</span>
+  </div>
+
+  <p class="intro">Площадь пола у купола обманчива: у краёв потолок падает. Полезная цифра —
+  <strong>сколько пола остаётся под нужной высотой</strong>. Ниже — доля пола, где помещается человек
+  соответствующего роста.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Площадь под заданной высотой, м² (и доля пола)</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Пол, м²</th><th class="n">под 1500</th><th class="n">под 1800</th>
+      <th class="n">под 2000</th><th class="n">под 2200</th><th class="n">м² на метр прутка</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">7,07</td><td class="n">6,28 · 89%</td><td class="n">5,06 · 72%</td><td class="n">3,93 · 56%</td><td class="n">2,54 · 36%</td><td class="n">0,051</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">12,57</td><td class="n">12,50 · 99%</td><td class="n">11,93 · 95%</td><td class="n">11,24 · 89%</td><td class="n">10,30 · 82%</td><td class="n">0,092</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">28,27</td><td class="n">21,21 · 75%</td><td class="n">18,10 · 64%</td><td class="n">15,71 · 56%</td><td class="n">13,07 · 46%</td><td class="n">0,128</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">50,27</td><td class="n">43,20 · 86%</td><td class="n">40,09 · 80%</td><td class="n">37,70 · 75%</td><td class="n">35,06 · 70%</td><td class="n">0,213</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">78,54</td><td class="n">71,47 · 91%</td><td class="n">68,36 · 87%</td><td class="n">65,97 · 84%</td><td class="n">63,33 · 81%</td><td class="n">0,290</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">113,10</td><td class="n">106,03 · 94%</td><td class="n">102,92 · 91%</td><td class="n">100,53 · 89%</td><td class="n">97,89 · 87%</td><td class="n">0,364</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="7">Обратите внимание на S: с юбкой 1350 мм он держит <b>82% пола под 2,2 м</b> — лучше, чем M вдвое большего диаметра.
+    Юбка поднимает весь купол целиком, и это самый дешёвый способ купить стоячий рост.
+    Последняя колонка — сколько площади со стоячим ростом даёт каждый метр прутка: мера того, за что вы платите.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="shots two">
+    <figure><img src="{{img:d6_inside}}" alt="Вид изнутри купола D6"><figcaption><b>Изнутри M · D6.</b> Видно, как каркас читается как решётка.</figcaption></figure>
+    <figure><img src="{{img:d6_plan}}" alt="План купола D6 сверху"><figcaption><b>План сверху.</b> Десять опорных точек, пятилучевая симметрия.</figcaption></figure>
+  </div>
+</section>
+
+<!-- =================== 08 =================== -->
+<section id="door">
+  <div class="sheet">
+    <span class="no">ЛИСТ 09</span>
+    <h2>Дверь</h2>
+    <span class="tag">портал в низком пролёте</span>
+  </div>
+
+  <p class="intro">По низу купола десять проёмов: пять высоких и пять низких. Дверь ставится в
+  <strong>низкий</strong> пролёт — два косяка U и дуга L, положенная поперёк ровно сверху, без
+  стрельчатой головы. Косяки вырезаются из дуг L1 и L4; рез стоит 2,8% прутка и <strong>ничего не
+  перерубает</strong> — обе вырезаемые части оказываются концевыми.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Что впускает дверь</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Чистая высота</th><th class="n">Проём, м²</th>
+      <th class="n">Ширина на 1800</th><th class="n">Ширина на 2200</th><th>Впускает</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="name">S · D4</td><td class="n">2 560</td><td class="n">1,15</td><td class="n">—</td><td class="n">—</td><td>ползком, согнувшись, в рост, с ношей, широко, высокий</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">1 816</td><td class="n">2,59</td><td class="n">942</td><td class="n">—</td><td>ползком, согнувшись, в рост, с ношей</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">2 423</td><td class="n">4,62</td><td class="n">1 641</td><td class="n">1 431</td><td>ползком, согнувшись, в рост, с ношей, широко, высокий</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">3 029</td><td class="n">7,21</td><td class="n">2 313</td><td class="n">2 094</td><td>ползком, согнувшись, в рост, с ношей, широко, высокий</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">У S чистая высота набирается юбкой: 1210 мм купола + 1350 мм юбки. У остальных юбки нет,
+    и всю высоту даёт сам купол. Шаблон «с ношей» — 900 × 1800 мм. Рез оставляет по два узла
+    <span class="mono">BASE2</span> и <span class="mono">TERM</span> — это его цена в деталях.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="shots two">
+    <figure><img src="{{img:d6_doorway}}" alt="Дверной проём купола D6"><figcaption><b>Портал M · D6.</b> Косяки — вырезанные участки дуг L, перемычка лежит поперёк.</figcaption></figure>
+    <figure><img src="{{img:d10_approach}}" alt="Подход к куполу XL"><figcaption><b>XL · D10 на подходе.</b> 3 м чистой высоты без всякой юбки.</figcaption></figure>
+  </div>
+</section>
+
+<!-- =================== 09 =================== -->
+<section id="span">
+  <div class="sheet">
+    <span class="no">ЛИСТ 10</span>
+    <h2>Пролёт и точность сборки</h2>
+    <span class="tag">отношения, не расчёт</span>
+  </div>
+
+  <p class="intro">Две вещи, которые можно сказать о прочности, <strong>не зная свойств прутка</strong>:
+  во сколько раз один купол мягче другого, и насколько криво его соберут руками.
+  Обе — отношения, и обе честно ничего не утверждают об абсолютной несущей способности.</p>
+
+  <div class="cols">
+    <div>
+      <h4>Самый длинный неподпёртый пролёт</h4>
+      <p>На M · D6 это <strong>3142 мм на семействе U</strong>, и таких пролётов 28 из 55.
+      По семействам: G 1885 мм, L 3142 мм, U 3142 мм.</p>
+      <p>В долях радиуса это <span class="mono">1,0472</span> — <strong>одинаково у любого
+      размера</strong>. Именно поэтому купола масштабируются предсказуемо: форма одна,
+      меняется только множитель.</p>
+    </div>
+    <div>
+      <h4>Насколько велик может быть купол</h4>
+      <p>Если требовать, чтобы пруток, подобранный по равному провису, всё ещё гнулся до нужной
+      формы, предельный диаметр упирается в допустимую деформацию крайнего волокна:</p>
+      <p class="mono" style="font-size:13.5px;line-height:1.9">0,2% → 7,2 м<br>0,4% → 14,4 м<br>0,6% → 21,6 м<br>0,8% → 28,8 м</p>
+      <p style="font-size:14px">M · D6 гнётся до 0,167%. Ветровое давление в этот предел не упирается:
+      оно растёт как четвёртая степень допуска, поэтому всё, что можно построить, его проходит.</p>
+    </div>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Бюджет точности — M · D6, 2000 испытаний</caption>
+    <thead><tr>
+      <th>Источник ошибки</th><th class="n">σ, мм</th><th class="n">Разброс узла, p95</th>
+      <th class="n">мм разброса на мм σ</th><th>Держать в пределах</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>Разметка по земле</td><td class="n">10</td><td class="n">43,4</td><td class="n">4,34</td><td>±14 мм — <b>главный источник</b></td></tr>
+      <tr><td>Метки на прутке</td><td class="n">3</td><td class="n">12,6</td><td class="n">4,21</td><td>±14 мм</td></tr>
+      <tr><td>Длина реза</td><td class="n">3</td><td class="n">6,1</td><td class="n">2,03</td><td>±29 мм — самое терпимое</td></tr>
+      <tr><td class="name">Всё вместе</td><td class="n">—</td><td class="n">44,8</td><td class="n">—</td><td>медиана 32,3 мм, худший случай 61,0 мм</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="5">Во что это обходится: <b>медиана 5,5%, p95 7,6%</b> добавочной кривизны
+    сверх той, которую пруток и так держит. Высота купола уходит от номинала на 4,8 мм в медиане
+    и на 10,0 мм при p95. Два приёма дешевле прочих: размечать землю <b>по цепочке</b>, а не радиально
+    (3,90 против 4,34), и мерить метки <b>от конца прутка</b>, а не шагами (4,21 против 6,47).</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Прочность в этом проекте не посчитана.</b> Всё на этом листе — отношения между двумя
+    куполами одной формы: без модуля упругости, без предела прочности, без нагрузки.
+    Пригодность исходной конструкции принимается на веру, а не показывается. Ветровая нагрузка,
+    анкеровка, поведение покрышки, продольный изгиб прутка и нагрузки на детали должны быть
+    проверены до любого реального использования — особенно на D10 и D12.
+  </div>
+</section>
+
+<!-- =================== 10 =================== -->
+<section id="camp">
+  <div class="sheet">
+    <span class="no">ЛИСТ 11</span>
+    <h2>Лагерь</h2>
+    <span class="tag">купола + крытые переходы</span>
+  </div>
+
+  <p class="intro">Купола соединяются крытыми коридорами в лагерь. Размер коридора подбирается
+  под то, что впускает <strong>дверь конкретного купола</strong>, — иначе получится один переход,
+  который не подходит ни к одному.</p>
+
+  <div class="shots two">
+    <figure><img src="{{img:camp}}" alt="Лагерь из пяти куполов"><figcaption><b>Лагерь L–M–S–S–S.</b> Зал с тремя выходами, один из которых ведёт к четвёртому куполу.</figcaption></figure>
+    <figure><img src="{{img:portal}}" alt="Портал перехода"><figcaption><b>Стык перехода с куполом.</b> Портал садится в низкий пролёт, как и дверь.</figcaption></figure>
+  </div>
+  <figure class="wide"><img src="{{img:site}}" alt="Площадка целиком"><figcaption>Площадка в реальном масштабе: компоновка, подходы и проверка габаритов собираются в Blender из того же <span class="mono">model.json</span>.</figcaption></figure>
+</section>
+
+<!-- =================== 12 =================== -->
+<section id="buy">
+  <div class="sheet">
+    <span class="no">ЛИСТ 12</span>
+    <h2>Закупка: один купол S</h2>
+    <span class="tag">D4 · 4 м · пруток ⌀8</span>
+  </div>
+
+  <p class="intro">Всё, что нужно купить и напечатать на <strong>один купол S</strong>, в одном
+  месте — этот лист можно взять с собой. S единственный в ряду с юбкой, поэтому в его списке
+  есть то, чего нет у остальных: стойки, кольца, раскосы и хомуты юбки.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Купить</caption>
+    <thead><tr><th>Что</th><th class="n">Сколько</th><th>Подробности</th></tr></thead>
+    <tbody>
+      <tr><td class="name">Пруток стеклопластиковый ⌀8</td><td class="n">94,3 м</td><td>Бухтой — резка без отхода. Это 15 полных дуг по 6283 мм; в секции уйдёт <b>91,6 м</b>, а 2,6 м (2,8%) заберёт рез портала. <b>Радиус гиба 2000 мм</b> — проверить по реальному прутку</td></tr>
+      <tr><td class="name">Ткань, рулон 1500 мм</td><td class="n">36,4 м</td><td>Oxford 600D. Купол 23,7 м лепестковым раскроем + юбка 12,7 м. Клиньями было бы 41,2 м</td></tr>
+      <tr><td class="name">Стропа</td><td class="n">46,1 м</td><td>Включая 11,4 м верёвки в кулиску по низу и 33,0 м раскосов юбки</td></tr>
+      <tr><td class="name">Кольцо юбки</td><td class="n">22,2 м</td><td>Два кольца — по низу и по верху юбки</td></tr>
+      <tr><td class="name">Уголок стальной забивной</td><td class="n">10 шт</td><td>По 1350 мм стоящей части плюс то, что уходит в грунт: под юбкой уголок и есть стойка. <b>Сечение и длину выбрать</b> — проект их не задаёт</td></tr>
+      <tr><td class="name">Болты M4 с гайками</td><td class="n">224 шт</td><td>204 крутятся в поле, 20 — один раз в мастерской</td></tr>
+      <tr><td class="name">Штифты поперечные</td><td class="n">28 шт</td><td>В гильзы стыков</td></tr>
+      <tr><td class="name">Пластик для печати</td><td class="n">5 318 см³</td><td>Объём сплошных деталей; реального филамента при обычном заполнении примерно вдвое меньше</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="3">Резьба M4 — половина диаметра прутка, округлённая к ходовому размеру.
+    Если печатать хомуты с защёлкой вместо винтового зажима, полевых болтов станет
+    <b>172 вместо 204</b>. Ткани «купить» при рулоне 1500 мм — это 54,6 м² на 41,5 м² полезной
+    площади; разница ушла в отход раскроя.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Нарезать</h3>
+  <p class="intro">Девяносто четыре метра прутка превращаются в <strong>45 секций четырёх
+  длин</strong>. Пять дуг G делятся ровно, восемь — со сдвигом, и у них секции внутри одной дуги
+  разной длины; ещё две дуги-косяка короче, потому что портал забрал по концу.</p>
+
+  <figure>
+    <div class="plate">{{svg:cut_tally_s}}</div>
+    <figcaption>Что лежит на верстаке после нарезки. Штрихи справа — по одному на кусок.
+    <b>2094,4 мм — самая ходовая длина</b>: из неё целиком состоят все пять дуг G,
+    и она же есть в каждой из восьми сдвинутых. В сумме 91,6 м — это купленные 94,3 м
+    за вычетом того, что забрал рез портала.</figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <caption>Откуда какая длина — по типам дуг</caption>
+    <thead><tr>
+      <th>Дуги</th><th class="n">Сколько</th><th class="n">Длина дуги</th>
+      <th>Секции, мм</th><th>Деление</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">U1–U5, L2, L3, L5</td><td class="n">8</td><td class="n">6 283</td><td class="mono">2174,4 + 2094,4 + 2014,4</td><td>Со сдвигом: стыки ушли с ровного деления, чтобы разойтись с пересечениями</td></tr>
+      <tr><td class="code">G1–G5</td><td class="n">5</td><td class="n">6 283</td><td class="mono">2094,4 × 3</td><td>Ровное — пересечения не мешают</td></tr>
+      <tr><td class="code">L1, L4</td><td class="n">2</td><td class="n">4 965</td><td class="mono">1655,0 × 3</td><td>Косяки двери: рез портала забрал по концу</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="5">Итого 45 секций и 30 гильз. Ни одна секция не длиннее
+    транспортных 2400 мм, и ни один стык не ближе 80 мм к пересечению — это длина гильзы
+    <span class="mono">SPLICE-8</span>, то есть стыки встали ровно на границе разрешённого.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Напечатать</h3>
+
+  <div class="scroll">
+  <table>
+    <caption>114 деталей · 202 печати · 5 318 см³</caption>
+    <thead><tr>
+      <th>Деталь</th><th class="n">Штук</th><th class="n">Печатей</th>
+      <th class="n">см³ за штуку</th><th class="n">см³ всего</th><th class="n">Доля</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">BASE3-8</td><td class="n">8</td><td class="n">32</td><td class="n">337,6</td><td class="n">2 700,6</td><td class="n">50,8%</td></tr>
+      <tr><td class="code">CL2-8-70.5288</td><td class="n">30</td><td class="n">60</td><td class="n">25,4</td><td class="n">763,1</td><td class="n">14,3%</td></tr>
+      <tr><td class="code">FAN4-8-37.3774</td><td class="n">10</td><td class="n">50</td><td class="n">55,4</td><td class="n">553,7</td><td class="n">10,4%</td></tr>
+      <tr><td class="code">COLLAR-8</td><td class="n">20</td><td class="n">20</td><td class="n">26,7</td><td class="n">534,7</td><td class="n">10,1%</td></tr>
+      <tr><td class="code">BASE2-8</td><td class="n">2</td><td class="n">6</td><td class="n">230,7</td><td class="n">461,4</td><td class="n">8,7%</td></tr>
+      <tr><td class="code">SPLICE-8</td><td class="n">30</td><td class="n">30</td><td class="n">8,4</td><td class="n">253,0</td><td class="n">4,8%</td></tr>
+      <tr><td class="code">TERM-8-70.5288</td><td class="n">2</td><td class="n">4</td><td class="n">25,7</td><td class="n">51,4</td><td class="n">1,0%</td></tr>
+      <tr class="muted"><td class="code">STAKE-BASE</td><td class="n">10</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">крепёж</td></tr>
+      <tr class="muted"><td class="code">HDR-8</td><td class="n">2</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">не спроектирована</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">Как и на M, <b>пяты — почти шестьдесят процентов пластика</b>:
+    <span class="mono">BASE3</span> и <span class="mono">BASE2</span> вместе дают 3 162 см³
+    из 5 318. Размер пяты задан прорезью под уголок и разлётом болтов, а не прутком, поэтому
+    на маленьком куполе она забирает даже большую долю, чем на большом.
+    «Печатей» больше, чем «штук»: веер — пять пластин, пята — четыре, хомут — две.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Чего в этом списке нет — и почему.</b>
+    <span class="mono">HDR-8</span> ×2 — перемычка над дверью — <b>ещё не спроектирована</b>,
+    так что две позиции из 114 пока не по чему ни купить, ни напечатать.
+    <b>Масса и деньги не считаются вовсе</b>: и то и другое требует поставщика и марки материала,
+    а их у проекта пока нет — поэтому и катушки из кубических сантиметров здесь не выведены.
+    И <b>прочность не проверена</b>: 8 мм остаются предположением, пока не сверены с реальным
+    стеклопластиком на радиус гиба 2000 мм.
+  </div>
+</section>
+
+<!-- =================== 13 =================== -->
+<section id="how">
+  <div class="sheet">
+    <span class="no">ЛИСТ 13</span>
+    <h2>Откуда взяты цифры</h2>
+    <span class="tag">всё воспроизводится одной командой</span>
+  </div>
+
+  <p class="intro">Ни одно число в этом документе не набрано руками. Единственный источник истины —
+  <span class="mono">configs/variants.toml</span>; геометрию считает <span class="mono">stardome/</span>
+  на чистом Python без зависимостей, а <span class="mono">model.json</span> читают уже все
+  остальные инструменты: OpenSCAD как независимая перепроверка, FreeCAD для печатных деталей,
+  Blender для сцены.</p>
+
+  <pre>python3 -m stardome report     --all   # габариты по каждому размеру
+python3 -m stardome bom        --all   # закупка, печать, крепёж
+python3 -m stardome cover      --all   # раскрой покрышки
+python3 -m stardome connectors --all   # каталог деталей
+python3 -m stardome assembly   D6      # порядок подъёма
+python3 -m stardome attachment D6      # чем покрышка держится
+python3 -m stardome span       --all   # пролёт и масштабирование
+python3 -m stardome tolerance  D6      # бюджет точности
+python3 -m stardome interior   --all   # площадь под высотой
+python3 -m stardome doorway    --all   # дверь и цена реза
+python3 -m stardome verify     --all   # геометрические инварианты</pre>
+
+  <div class="cols">
+    <div>
+      <h4>Что уже сделано</h4>
+      <p>Геометрия и её инварианты; каталог деталей с покрытием всех узлов; хомут, четырёхпрутковый
+      веер, пята, ферруле стыка и окончание реза — генерируются в STEP/STL; два раскроя покрышки
+      и её крепление; порядок подъёма; бюджет точности; компоновка лагеря с проверкой пересечений.</p>
+    </div>
+    <div>
+      <h4>Чего ещё нет</h4>
+      <p>Штырь — крепёж под подбор, а не деталь. Композитная арматура (ГОСТ 31938), самый вероятный
+      реальный пруток, называется по эквивалентному диаметру и имеет навивку поверх — <b>ни одну
+      ещё не измерили</b>. И главное: <b>прочность не считана</b> — диаметры прутка остаются
+      предположением, пока не проверены против реального материала.</p>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  <p class="mono">Star Dome Lab · параметрический проект каркасных куполов · все размеры в мм</p>
+  <p>Исходная концепция — Star Dome по Такэкаве, <a href="https://simplydifferently.org/Star_Dome?page=0">simplydifferently.org/Star_Dome</a>.
+  Цвета семейств и узлов на всех чертежах взяты из согласованной палитры проекта (<span class="mono">docs/colours.md</span>),
+  поэтому совпадают с тем, что видно в Blender и FreeCAD.
+  Все цифры собраны с ветки <span class="mono">main</span>.</p>
+</div>
+
+</div>
