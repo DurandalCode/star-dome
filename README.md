@@ -77,6 +77,7 @@ single interchange format every other tool reads — see
 - How far it scales, and why: [`docs/span.md`](docs/span.md)
 - What the rod can actually take: [`docs/strength.md`](docs/strength.md)
 - What one dome is made of: [`docs/bom.md`](docs/bom.md)
+- Getting the pieces onto a bed: [`docs/printing.md`](docs/printing.md)
 - A camp of them: [`docs/camp.md`](docs/camp.md)
 
 ## Sizes
