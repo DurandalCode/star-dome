@@ -715,6 +715,105 @@ def leaf_roll_svg():
     return svg(int(W), int(H), ''.join(p))
 
 
+
+
+# ---------------------------------------------------------------------------
+# 8. Cutting the bows: one bow unrolled, with what the joints have to dodge
+# ---------------------------------------------------------------------------
+CUT_ROWS = ['D4', 'D6', 'D8', 'D10']
+
+
+def cut_svg():
+    """Each size's typical bow, laid out straight and to one common scale.
+
+    A bow is bent, so where it gets cut is an arc length -- and arc length is
+    a straight line once the bow is unrolled. That is the frame the two rules
+    are naturally stated in: no section longer than the transport limit, no
+    joint within a sleeve of a crossing.
+    """
+    rows = [(n, DATA['cuts'][n]) for n in CUT_ROWS]
+    longest = max(c['bow_mm'] for _, c in rows)
+
+    # pad_r holds the overall-length label that sits past the end of the bar.
+    W, pad_l, pad_r, pad_t = 1180, 184, 82, 40
+    row_h, bar_h = 84, 26
+    H = pad_t + row_h * len(rows) + 30
+    scale = (W - pad_l - pad_r) / longest
+    p = []
+
+    for r, (name, cut) in enumerate(rows):
+        pat = cut['patterns'][0]
+        ex = pat['example']
+        y = pad_t + r * row_h
+        mid = y + bar_h / 2
+        L = ex['length_mm']
+
+        def X(mm):
+            return pad_l + mm * scale
+
+        # the bow itself
+        p.append(f'<rect x="{X(0):.1f}" y="{y:.1f}" width="{L*scale:.1f}" '
+                 f'height="{bar_h}" rx="2" fill="var(--panel-2)" '
+                 f'stroke="var(--rule)" stroke-width="1"/>')
+
+        # keep-out: a sleeve either side of every crossing, which is the band
+        # a joint may not land in
+        for t in ex['crossings_mm']:
+            a, b = t - cut['sleeve_mm'], t + cut['sleeve_mm']
+            p.append(f'<rect x="{X(max(0,a)):.1f}" y="{y:.1f}" '
+                     f'width="{(min(L,b)-max(0,a))*scale:.1f}" height="{bar_h}" '
+                     f'fill="{C["lashed"]}" fill-opacity="0.16"/>')
+            p.append(f'<line x1="{X(t):.1f}" y1="{y:.1f}" x2="{X(t):.1f}" '
+                     f'y2="{y+bar_h:.1f}" stroke="{C["unlashed"]}" '
+                     f'stroke-width="1"/>')
+
+        # the cuts
+        for i, s in enumerate(ex['joints_mm']):
+            nudged = abs(ex['moved_mm'][i]) > 0.5
+            p.append(f'<line x1="{X(s):.1f}" y1="{y-7:.1f}" x2="{X(s):.1f}" '
+                     f'y2="{y+bar_h+7:.1f}" stroke="{SPLICE_COL}" '
+                     f'stroke-width="2"/>')
+            p.append(f'<rect x="{X(s)-3.2:.1f}" y="{y-10.2:.1f}" width="6.4" '
+                     f'height="6.4" transform="rotate(45 {X(s):.1f} {y-7:.1f})" '
+                     f'fill="{SPLICE_COL}"/>')
+            if nudged:
+                p.append(f'<text x="{X(s):.1f}" y="{y+bar_h+20:.1f}" '
+                         f'text-anchor="middle" class="dim" '
+                         f'fill="{C['U']}">↔{abs(ex["moved_mm"][i]):.0f}</text>')
+
+        # section lengths, written in the section they belong to
+        edges = [0.0] + ex['joints_mm'] + [L]
+        for i, length in enumerate(pat['sections_mm']):
+            cx = (edges[i] + edges[i + 1]) / 2.0
+            if (edges[i + 1] - edges[i]) * scale > 34:
+                p.append(f'<text x="{X(cx):.1f}" y="{mid+4:.1f}" '
+                         f'text-anchor="middle" class="mono-sm">{length:.0f}</text>')
+
+        # the label
+        label = f'{cut["alias"]} · {name}' if cut['alias'] else name
+        p.append(f'<text x="{pad_l-14:.1f}" y="{y+11:.1f}" text-anchor="end" '
+                 f'class="lbl-big">{esc(label)}</text>')
+        p.append(f'<text x="{pad_l-14:.1f}" y="{y+25:.1f}" text-anchor="end" '
+                 f'class="dim">{len(pat["sections_mm"])} секции · '
+                 f'{pat["bows"]} из 15 дуг</text>')
+        p.append(f'<text x="{X(L)+8:.1f}" y="{mid+4:.1f}" class="dim">'
+                 f'{L/1000:.2f} м</text>')
+
+    # one legend line, in the figure, because the bands need naming
+    ly = pad_t + row_h * len(rows) + 4
+    p.append(f'<rect x="{pad_l:.1f}" y="{ly-9:.1f}" width="13" height="13" '
+             f'fill="{C["lashed"]}" fill-opacity="0.16"/>')
+    p.append(f'<text x="{pad_l+19:.1f}" y="{ly+2:.1f}" class="dim">'
+             f'зона пересечения — стык сюда не встаёт</text>')
+    p.append(f'<rect x="{pad_l+290:.1f}" y="{ly-11:.1f}" width="2.4" height="17" '
+             f'fill="{SPLICE_COL}"/>')
+    p.append(f'<text x="{pad_l+301:.1f}" y="{ly+2:.1f}" class="dim">'
+             f'рез · длины секций в мм</text>')
+    p.append(f'<text x="{pad_l+520:.1f}" y="{ly+2:.1f}" class="dim" '
+             f'fill="{C['U']}">↔ — стык сдвинут с ровного деления</text>')
+    return svg(int(W), int(H), ''.join(p))
+
+
 figs = {
     'sizes': sizes_svg(),
     'elevation': dome_view('elevation', 'family'),
@@ -726,6 +825,7 @@ figs = {
     'faces': faces_svg(),
     'leaf': leaf_svg(),
     'leaf_roll': leaf_roll_svg(),
+    'cuts': cut_svg(),
 }
 for k, v in figs.items():
     open(OUT + k + '.svg', 'w').write(v)
