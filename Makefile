@@ -237,7 +237,9 @@ lineup:
 # which one. FLAGS adds --connectors real once `make clamps` has run for every
 # variant the plan uses.
 CAMP ?= yard
-CAMP_FLAGS ?= --cover
+# One pair of figures, not one per dome: eight domes would stand sixteen
+# people in eight doorways, and the scene is about the camp.
+CAMP_FLAGS ?= --cover --figures one
 # What joins the domes: hoop (bent rod, 900 mm) or portal (timber P-frames,
 # 1800 mm). See docs/corridor.md.
 CAMP_KIND ?= hoop
