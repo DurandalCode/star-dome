@@ -49,7 +49,7 @@ here multiplies by a density.
 ## What it showed the first time it ran
 
 **The base hubs are half the plastic in the dome.** On M, `BASE3` and `BASE2`
-together are 4040 cm³ of 6882 — 59% — and one `BASE3-10` is 430 cm³, of which
+together are 4040 cm³ of 6891 — 59% — and one `BASE3-10` is 430 cm³, of which
 258 is a single bottom plate. It is four and a half times the four-rod fan that
 holds twice as many rods.
 

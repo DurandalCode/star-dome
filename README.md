@@ -77,7 +77,7 @@ single interchange format every other tool reads — see
 
 ## Sizes
 
-Four sizes are a chosen build -- skirt settled, doorway settled -- and carry a
+Five sizes are a chosen build -- skirt settled, doorway settled -- and carry a
 short name. Either name loads the same dome.
 
 | | dome | skirt | overall | clear opening | you get in |
@@ -86,17 +86,27 @@ short name. Either name loads the same dome.
 | **M** | D6 | none | 2.95 m | 1816 mm | carrying something, but not 800 mm wide and not 2.2 m tall |
 | **L** | D8 | none | 3.93 m | 2423 mm | everything, up to a 2.2 m character |
 | **XL** | D10 | none | 4.91 m | 3029 mm | everything, with room to spare |
+| **XXL** | D12 | none | 5.89 m | 3636 mm | everything, with room to spare |
 
 Every one of them walks in, because the door is a portal cut into a low bay
 rather than the tall bay's pointed arch — 2.8% of the rod, nothing severed.
 **M is the only built size that turns anything away**: the 800 mm-wide
 silhouette and the 2.2 m character do not fit it.
 
-M, L and XL are bare by choice. Only S has a skirt, and it is there for
+M, L, XL and XXL are bare by choice. Only S has a skirt, and it is there for
 standing floor area rather than for the door — a 4 m dome is 19% usable bare.
 
-D3 and D12 stay in `configs/variants.toml` without a short name: they are the
-ends of the range, kept for study rather than to build. See
+**A name says the build is chosen, not that the rod is shown to carry it.**
+No size in this family has been checked against a load: `stardome span`
+compares domes to each other and takes the reference's own adequacy as given,
+which is milestones 3 and 8. XXL is where that assumption is loudest — equal
+sag over its 6283 mm span asks for 40 mm rod against the 12 mm configured — so
+its note in `configs/variants.toml` says so, and it is the only size whose
+note has to.
+
+D3 stays in `configs/variants.toml` without a short name: at 1473 mm of dome
+it is not standing height, and [decision 0009](docs/decisions/0009-d3-on-a-skirt-is-dominated.md)
+records why a skirt does not rescue it. See
 [`docs/doorway.md`](docs/doorway.md) for where each skirt height comes from.
 
 The full geometric family is D3, D4, D6, D8, D10 and D12 — one entry per

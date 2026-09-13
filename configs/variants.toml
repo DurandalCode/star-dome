@@ -64,10 +64,21 @@ weave_gap = 1.0
 # Four of them are also a *chosen build* -- skirt settled, doorway settled --
 # and those carry a short alias, which is what a person actually says:
 #
-#   S = D4     M = D6     L = D8     XL = D10
+#   S = D4     M = D6     L = D8     XL = D10     XXL = D12
 #
-# Either name loads the same dome. D3 and D12 have no alias: they are the
-# ends of the range kept for study, not sizes anyone is asked to build.
+# Either name loads the same dome. D3 has no alias: it is the bottom end of
+# the range, kept for study rather than to build -- 1473 mm of dome is not
+# standing height, and decision 0009 records why putting it on a skirt is
+# dominated by S.
+#
+# XXL IS NAMED AND NOT VALIDATED, AND THOSE ARE DIFFERENT THINGS. An alias
+# says the BUILD is chosen -- skirt settled, doorway settled -- and D12's is:
+# no skirt, a portal in a low bay, the same as M, L and XL. What no size in
+# this file carries is a structural check: `stardome span` compares domes to
+# each other and assumes the reference is adequate, which is milestones 3
+# and 8. XXL is where that assumption is loudest -- equal sag on a 6283 mm
+# span asks for 40 mm rod against the 12 mm configured -- so `note` says so,
+# and it is the only size whose note has to.
 #
 # M and L are deliberately bare: no skirt, and therefore no walk-in door.
 # `door` on those two records what the dome actually admits rather than what
@@ -156,4 +167,5 @@ diameter = 12000
 rod_diameter = 12
 door = "carry"
 door_cut = "portal"
-note = "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"
+alias = "XXL"
+note = "XXL -- the top of the range. Bare, portal door, admits everything. 5.9 m tall to erect, and the rod is not shown to carry it: see stardome span D12"

@@ -351,7 +351,7 @@ def test_the_short_names_and_the_d_names_are_the_same_dome():
 
 def test_an_unknown_name_names_the_aliases_it_knows():
     with pytest.raises(KeyError) as caught:
-        config.load("XXL")
+        config.load("XXXL")
     assert "XL" in str(caught.value)
 
 

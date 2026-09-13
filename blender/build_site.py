@@ -141,7 +141,7 @@ def parse_args(argv):
     p.add_argument(
         "--named-only",
         action="store_true",
-        help="only the sizes with a short name (S, M, L, XL), skipping the "
+        help="only the sizes with a short name (S, M, L, XL, XXL), skipping the "
              "research variants at either end of the range",
     )
     return p.parse_args(argv)
