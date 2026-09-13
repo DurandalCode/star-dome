@@ -107,8 +107,8 @@ already has.
 
 ### The post is the stake, made longer
 
-`base_hub_v1` carries a **pad and a bolt for a driven steel angle**. A skirt
-post is that same angle: driven at the bottom, bolted to the hub's pad at the
+`base_hub_v1` carries a **pad and a U-bolt for a driven steel angle**. A skirt
+post is that same angle: driven at the bottom, clamped to the hub's pad at the
 top, one member doing both jobs. So the post is no more a member of the base
 point than a stake is, and
 

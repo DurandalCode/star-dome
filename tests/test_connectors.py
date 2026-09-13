@@ -129,7 +129,7 @@ def test_a_skirt_does_not_make_the_base_point_a_different_joint():
     The old reading put the post head, two ring chords and two brace heads on
     the hub, which made the busiest joint in the structure the one place no
     part existed for. None of them has to go there. The hub already carries a
-    through slot for a driven steel angle; a post is that same angle made
+    pad and a U-bolt for a driven steel angle; a post is that same angle made
     longer, so it is no more a member of this joint than a stake is, and the
     skirt's own members land on a collar clamped to the post below the hub.
 
@@ -152,7 +152,7 @@ def test_a_skirt_does_not_make_the_base_point_a_different_joint():
         assert with_skirt[key]["count"] == without[key]["count"]
         assert with_skirt[key]["generator"] == "base_hub_v1"
         assert with_skirt[key]["state"] == connectors.GENERATED
-        # The angle in the slot reaches the ground either way.
+        # The angle on the pad reaches the ground either way.
         assert with_skirt[key]["anchored_by_stake"] is True
 
     assert sum(h["count"] for h in with_skirt.values()) == 10
@@ -691,10 +691,10 @@ def test_the_stake_knows_which_way_is_out_and_which_way_is_down():
     """The driven angle is hardware, but where it stands is not arbitrary.
 
     It goes in vertically -- you hammer it, and the ground is down -- and it
-    passes through a slot the hub carries UNDER the bow bundle, offset towards
-    the dome centre. So the frame has to say which way is outward, or a
-    consumer cannot put the angle on the correct side, and the two mirror sets
-    of feet would get it on opposite ones.
+    stands against a pad the hub carries UNDER the bow bundle, offset along the
+    stack axis. So the frame has to say which way that axis runs, or a consumer
+    cannot place the angle at all. Which SIDE it lands on is the hub's own
+    handedness, and this frame does not claim to settle it -- decision 0025.
     """
     from stardome import connectors, vec
 

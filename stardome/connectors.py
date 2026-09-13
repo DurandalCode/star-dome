@@ -249,8 +249,8 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     # Three rod ends meet here, and that is all that meets here -- with a skirt
     # as well as without one.
     #
-    # The hub already carries a pad and a bolt for a driven steel angle. A
-    # skirt post is that same angle, longer: driven at the bottom, bolted to
+    # The hub already carries a pad and a U-bolt for a driven steel angle. A
+    # skirt post is that same angle, longer: driven at the bottom, clamped to
     # the pad at the top, one member doing both jobs. So the post is not an
     # extra member at this point any more than the stake is, and the skirt's
     # own members -- two ring chords and two brace heads -- land on a collar
@@ -279,7 +279,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         # Whether the angle on the hub's pad is driven straight into the
         # ground or is a post with the ground a skirt-height further down
         # changes its length and nothing else about this part. Either way the
-        # hub is held down by the thing it is bolted to.
+        # hub is held down by the thing clamped to its pad.
         on_ground = True
         # Every point in a group has the same member count, and the fan is
         # the same shape at all of them up to the mirror, so one of them
@@ -322,7 +322,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     + ". They arrive at "
                     + ("two" if bows_here == 2 else "three")
                     + " different inclinations and have to be held to each "
-                    "other and to the angle bolted to the pad under them"
+                    "other and to the angle clamped to the pad under them"
                     + (
                         " -- which on a skirted dome is the post, not a short "
                         "stake, and reaches the ground a skirt-height below."
@@ -1244,15 +1244,17 @@ def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
     It is vertical whatever the hub above it is doing -- you hammer it, and the
     ground is down -- so local +Z points down the way it goes in. What the foot
     decides is the other two axes, and they matter: the hub meets the angle on
-    a pad offset from the bow bundle along the stack axis, so a consumer needs
-    to know which way that axis runs. Local +Y is outward.
+    a pad offset from the bow bundle along the stack axis, and a U-bolt comes
+    up through that pad, so a consumer needs to know which way that axis runs.
+    Local +Y is outward.
 
     Which SIDE the angle ends up on is not settled here, and saying that it was
     is the one thing this frame used to get wrong. The pad is on the outer face
     of the hub's bottom plate, and five of the ten feet take that hub turned
     over -- that is what the two mirror sets have always meant -- so five
     angles stand inboard of the bundle and five outboard. It was true of the
-    through slot before the pad and nobody had noticed. See decision 0025.
+    through slot before the pad and nobody had noticed. See decisions 0025
+    and 0026.
 
     How far off, this does not say either. That is a dimension of the hub, and
     the hub is `base_hub_v1`'s business; this is the ground's frame.
