@@ -12,9 +12,11 @@ make camp CAMP=tree       # an XL hub and six domes hanging off it
 python3 -m stardome camp tree
 ```
 
-Three camps ship: `pair`, two M domes on one corridor; `yard`, three round a
-yard; and `tree`, an XL hub with two L halls, two M off one hall and two S off
-one of those — seven domes and six corridors.
+Four camps ship: `pair`, two M domes on one corridor; `yard`, three round a
+yard; `tree`, an XL hub with two L halls, two M off one hall and two S off one
+of those — seven domes and six corridors; and `court`, which closes the far
+end of that tree back on itself, so six of its eight domes stand round an open
+yard and every one of them is reachable two ways.
 
 ## What is written down, and what is derived
 
@@ -84,11 +86,34 @@ it. When two domes are close enough that their covers would touch it comes out
 negative, and that is reported as the overlap it is rather than as a corridor of
 negative length.
 
+## A ring, and why the chain in it has three domes
+
+`court` is `tree` with its far end closed: `hall_west` carries two M, and the
+two M are joined back to each other by a chain of S. That makes a **cycle**,
+and a cycle is what the 72° rule above cannot always serve.
+
+The derived turns alternate 0° and 36° along every corridor, which is a
+two-colouring of the link graph — and a graph is two-colourable only if every
+cycle in it is even. A chain of two S closes the ring with five corridors and
+one door lands 36° out. Three closes it with six, and every door lands square.
+
+The positions are not laid out by eye either. Round the ring, the angle at
+each dome between its two neighbours must be a multiple of 72°, and the six of
+them must sum to 720° — which leaves 72° at the two M and 144° everywhere
+else, and that in turn forces the three edge lengths to satisfy
+
+    L–M  =  S–S  +  0.618 × M–S
+
+Pick the two short ones at two metres of free run and the long one follows.
+`hall_west` also carries the hub, so the bearing to the hub has to be a
+multiple of 72° from the bearings to both M: 216° is and 180° is not, which is
+why the plan is not symmetric about an axis.
+
 ## Two kinds of corridor, and a junction is not a bearing
 
 ```bash
-make camp CAMP=tree CAMP_KIND=portal
-python3 -m stardome camp tree --kind portal
+make camp CAMP=court CAMP_KIND=portal
+python3 -m stardome camp court --kind portal --pitch 3000
 ```
 
 A link is joined by a bent-rod **hoop** (900 × 1950 by default) or by a timber

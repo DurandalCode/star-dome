@@ -148,3 +148,98 @@ between = ["kitchen", "store_north"]
 
 [[camps.tree.links]]
 between = ["kitchen", "store_west"]
+
+# ---------------------------------------------------------------------------
+# A courtyard: the tree, but the far end closes back on itself.
+#
+# XL in the middle with an L on either side; one of those L halls carries two
+# M, and the two M are joined to each other by a chain of three S. So six of
+# the eight domes stand round an open yard and every one of them is reachable
+# two ways.
+#
+# WHY THREE S AND NOT TWO. Turns come out alternating 0 and 36 deg along a
+# corridor, which is a two-colouring of the link graph -- and a graph is
+# two-colourable only if every cycle in it is even. hall_west - kitchen - S -
+# ... - workshop - hall_west is a cycle, so the chain has to make its length
+# even. Two S gives a five-corridor ring and one door lands 36 deg out; three
+# S gives six, and every door lands square.
+#
+# The positions are not typed by eye either. Round the ring the angle at each
+# dome between its two neighbours has to be a multiple of 72, and the six of
+# them have to sum to 720 -- which leaves 72 at the two M and 144 everywhere
+# else, and that in turn forces
+#
+#     L-M  =  S-S  +  0.618 * M-S
+#
+# on the three edge lengths. Pick the two short ones at two metres of free run
+# and the long one follows. `hall_west` also has the hub on it, so the bearing
+# to the hub has to be a multiple of 72 from the bearings to both M: 216 deg
+# is, 180 is not, which is why the plan is not symmetric about an axis.
+# ---------------------------------------------------------------------------
+
+[camps.court]
+note = "An XL hub, two L halls, and two M closed into a yard by three S"
+
+[[camps.court.domes]]
+name = "hub"
+variant = "XL"
+at = [0, 0]
+
+[[camps.court.domes]]
+name = "hall_west"
+variant = "L"
+at = [9789, 7112]
+
+[[camps.court.domes]]
+name = "hall_east"
+variant = "L"
+at = [-3739, 11508]
+
+[[camps.court.domes]]
+name = "kitchen"
+variant = "M"
+at = [12997, 16984]
+
+[[camps.court.domes]]
+name = "workshop"
+variant = "M"
+at = [12997, -2761]
+
+[[camps.court.domes]]
+name = "store_north"
+variant = "S"
+at = [18689, 12849]
+
+[[camps.court.domes]]
+name = "store_east"
+variant = "S"
+at = [20553, 7112]
+
+[[camps.court.domes]]
+name = "store_south"
+variant = "S"
+at = [18689, 1375]
+
+[[camps.court.links]]
+between = ["hub", "hall_west"]
+
+[[camps.court.links]]
+between = ["hub", "hall_east"]
+
+[[camps.court.links]]
+between = ["hall_west", "kitchen"]
+
+[[camps.court.links]]
+between = ["hall_west", "workshop"]
+
+[[camps.court.links]]
+between = ["kitchen", "store_north"]
+
+[[camps.court.links]]
+between = ["store_north", "store_east"]
+
+[[camps.court.links]]
+between = ["store_east", "store_south"]
+
+[[camps.court.links]]
+between = ["store_south", "workshop"]
