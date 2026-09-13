@@ -60,17 +60,31 @@ list adds is the price of it. `STAKE-BASE` is the one position in the schedule
 with no answer at all, and until it has one the biggest single item in the dome
 is sized by a guess.
 
+## The fasteners are counted, and split
+
+It used to say here that how many bolts a part takes is a property of the
+generator that draws it and the schedule did not carry it. It carries it now —
+and the number that matters is not the total but **where the work happens**:
+
+```
+  fastener          M5     half the rod, snapped (decision 0013)
+    in the field    84     bolts, each with a nut and a tool at both ends; and 28 cross pins
+    in the shop     20     bolts, done up once and never touched again
+    hinged          52     field bolts instead, 32 fewer, if the clamps are built with the hinged closure
+```
+
+Each generator already stated its own field sequence and they do not agree: a
+base hub's stack is bolted up at home and only pinned at the dome, a fan node's
+is opened and closed at head height. Adding the two together hid the only
+number rule 1 cares about. See [`quick-release.md`](quick-release.md) for what
+the 84 costs and [decision 0020](decisions/0020-the-hinge-is-worth-more-than-the-lever.md)
+for the closure that removes a third of it.
+
 The other thing worth seeing: **107 parts is 197 prints.** A part is not a print
 — the fan is five plates, the base hub four, a clamp two — and the print farm
 works in prints.
 
 ## What it does not count
-
-**Fasteners.** How many bolts a part takes is a property of the generator that
-draws it, and the schedule does not carry it yet. The bolt *size* is derived —
-half the rod, snapped to a standard, [decision 0013](decisions/0013-the-bolt-is-half-the-rod.md)
-— and is reported. The count is not, and "about two per part" would be worse
-than saying nothing.
 
 **Money, and mass.** Both want a supplier and a material, and this project has
 neither yet. The quantities are here for when it does.

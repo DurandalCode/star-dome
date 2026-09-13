@@ -47,6 +47,7 @@ except NameError:
 if os.path.join(REPO, "connectors") not in sys.path:
     sys.path.insert(0, os.path.join(REPO, "connectors"))
 import kit  # noqa: E402  -- needs the path set above
+import closure  # noqa: E402  -- ditto
 
 DOC_NAME = "StarDome_CrossingClamp_V1"
 TITLE = "Star Dome crossing clamp V1 - parameters"
@@ -86,6 +87,9 @@ INPUTS = [
     ("flareLength",            5.0,  "mm",  "axial length of the flared channel entrance"),
     ("flareSlope",             0.2,  "mm",  "radial rise per mm of the entrance flare"),
     ("boltMargin",             0.0,  "mm",  "extra radial margin pushing the bolts away from the rods"),
+    # --- how the two halves are closed ------------------------------------
+    ("fastenerStyle",          0.0,  "",    "how the two halves are closed. 0 bolts the cap on -- two bolts, two nuts, two tools, and a cap that is a loose object the moment it is opened. That is the V1 joint and the default. 1 hinges the cap to the bottom half on a steel pin and keeps ONE bolt, standing in a slot open to the outside, so nothing in the joint is ever a separate piece. See connectors/closure.py and docs/quick-release.md"),
+    ("hingeLift",              0.0,  "mm",  "how far the cap may rise on its hinge slot before the bolt pulls it back down -- and so how much slack the bolt has to give back before the cap will swing. 0 takes it from clampGap + 1 mm. Hinged closure only"),
 ]
 
 
@@ -186,6 +190,19 @@ def build(values):
                    / math.cos(math.radians(half_ang)))
     bolt_pts = [App.Vector(0, +bolt_offset, 0), App.Vector(0, -bolt_offset, 0)]
 
+    # Which joint this is. The two stations are the same two places either
+    # way -- the bolted part puts a bolt through each, the hinged part puts
+    # the hinge at one and the catch at the other -- so everything above this
+    # line is shared and the part stays one part with two closures.
+    hinged = int(values.get("fastenerStyle") or 0) == 1
+    latch_pt, hinge_pt = bolt_pts[0], bolt_pts[1]
+    lat = closure.sizes(int(values["fastenerSize"]), wall)
+    lift = values["hingeLift"] or (clamp_gap + 1.0)
+    # The lug's footprint is the bolted boss's, so the two styles put the
+    # same amount of part in the same place and a like-for-like comparison
+    # of the two means something.
+    lug_reach = 2.0 * boss_r
+
     big = max(L, bolt_offset * 2.0) * 4.0
 
     # ---- shared cutting tools -------------------------------------------
@@ -196,15 +213,20 @@ def build(values):
     slot_b = rod_slot(R, big, angB, zB, z_top + 10.0)
 
     bolt_holes = []
-    for p in bolt_pts:
+    # The hinged closure keeps ONE bolt, at the latch station. The hinge
+    # station has a pin through it instead, and drilling it for a bolt as
+    # well would only weaken the fork.
+    for p in (bolt_pts if not hinged else [latch_pt]):
         bolt_holes.append(Part.makeCylinder((fd + bolt_clr) / 2.0, big,
                                             App.Vector(p.x, p.y, z_bottom - 10.0)))
-    bolt_cut = bolt_holes[0].fuse(bolt_holes[1])
+    bolt_cut = bolt_holes[0]
+    for extra in bolt_holes[1:]:
+        bolt_cut = bolt_cut.fuse(extra)
 
     # ---- bottom clamp ----------------------------------------------------
     body = capsule_prism(L, hw, z_bottom, z_seat, angA)
     body = body.fuse(capsule_prism(L, hw, z_bottom, z_seat, angB))
-    for p in bolt_pts:
+    for p in (bolt_pts if not hinged else [latch_pt]):
         body = body.fuse(Part.makeCylinder(boss_r, z_seat - z_bottom,
                                            App.Vector(p.x, p.y, z_bottom)))
     bottom = body.removeSplitter()
@@ -212,8 +234,9 @@ def build(values):
     bottom = bottom.cut(cyl_b).cut(slot_b).cut(cyl_a)
     bottom = bottom.cut(flare_a).cut(flare_b)
     bottom = bottom.cut(bolt_cut)
-    for p in bolt_pts:
-        nut = kit.hex_prism(nut_af, nut_depth, App.Vector(p.x, p.y, z_bottom - 0.001))
+    for p in (bolt_pts if not hinged else [latch_pt]):
+        nut = kit.hex_prism(nut_af, nut_depth,
+                            App.Vector(p.x, p.y, z_bottom - 0.001))
         cone = Part.makeCone(nut_af / (2.0 * math.cos(math.radians(30.0))),
                              (fd + bolt_clr) / 2.0, nut_cone_h,
                              App.Vector(p.x, p.y, z_bottom + nut_depth - 0.001))
@@ -222,23 +245,58 @@ def build(values):
 
     # ---- top clamp -------------------------------------------------------
     cap = capsule_prism(L, hw, z_cap, z_top, angA)
-    for p in bolt_pts:
+    for p in (bolt_pts if not hinged else [latch_pt]):
         cap = cap.fuse(Part.makeCylinder(boss_r, z_top - z_cap,
                                          App.Vector(p.x, p.y, z_cap)))
     cap = cap.removeSplitter()
     cap = cap.cut(cyl_a).cut(flare_a)
-    cap = cap.cut(bolt_cut)
-    for p in bolt_pts:
-        bore = Part.makeCylinder((fhd + head_clr) / 2.0, head_depth + 0.001,
-                                 App.Vector(p.x, p.y, z_top - head_depth))
-        cone = Part.makeCone((fd + bolt_clr) / 2.0, (fhd + head_clr) / 2.0, head_cone_h + 0.002,
-                             App.Vector(p.x, p.y, z_top - head_depth - head_cone_h))
-        cap = cap.cut(bore).cut(cone)
+    if not hinged:
+        cap = cap.cut(bolt_cut)
+        for p in bolt_pts:
+            bore = Part.makeCylinder((fhd + head_clr) / 2.0, head_depth + 0.001,
+                                     App.Vector(p.x, p.y, z_top - head_depth))
+            cone = Part.makeCone((fd + bolt_clr) / 2.0, (fhd + head_clr) / 2.0,
+                                 head_cone_h + 0.002,
+                                 App.Vector(p.x, p.y,
+                                            z_top - head_depth - head_cone_h))
+            cap = cap.cut(bore).cut(cone)
     cap = cap.removeSplitter()
+
+    # ---- the hinged closure -----------------------------------------------
+    # Both pin axes are the upper rod's own direction; see connectors/closure.py
+    # for why nothing else lets the cap off the rod it wraps. The hinge frame
+    # is the catch frame turned half a turn, which is all "the other side"
+    # means here.
+    hinge_report = {}
+    if hinged:
+        bottom, cap, hinge_report["hinge"] = closure.hinge(
+            bottom, cap, hinge_pt, angA + 180.0, lat, lug_reach,
+            z_pin=zA, z_bottom=z_bottom, z_top=z_top, lift=lift,
+        )
+        cap, hinge_report["catch"] = closure.catch(
+            cap, latch_pt, angA, lug_reach, z_cap, z_top,
+            bolt=fd, bolt_fit=bolt_clr, washer=fhd,
+        )
+        hinge_report["sizes"] = dict(lat)
+
+        # The hinge fork rises past the parting plane to hold its pin, and
+        # the cap's own body is up there. Take the cap's footprint out of the
+        # bottom half rather than trusting two boxes not to meet: two halves
+        # that overlap are a clamp that never closes, and the overlap is the
+        # one error this part cannot show you in a picture.
+        bottom = bottom.cut(
+            capsule_prism(L, hw + clamp_gap / 2.0, z_cap - clamp_gap / 2.0,
+                          z_top + 20.0, angA)
+        ).removeSplitter()
+        hinge_report["cap_clearance_mm"] = round(clamp_gap / 2.0, 3)
 
     # ---- rounding --------------------------------------------------------
     bolt_keepout = max((fhd + head_clr) / 2.0,
                        nut_af / (2.0 * math.cos(math.radians(30.0)))) + 0.6
+    if hinged:
+        # A fork's corners are its pin bearing and its slot mouth. Rounding
+        # them is how a hinge stops being a hinge.
+        bolt_keepout = max(lat["fork_width"], lug_reach) / 2.0 + 0.6
 
     def outer(pt):
         if dist_point_to_line(pt.x, pt.y, angA) < R + 0.6:
@@ -306,12 +364,27 @@ def build(values):
     rodB = kit.rod_solid(D / 2.0, rod_len, angB, zB)
 
     # ---- reference bolts -------------------------------------------------
+    # One per station that has one. The hinged joint's hinge station has a pin
+    # instead, and drawing a bolt through it would make every interference
+    # check downstream report a hole that is not there.
     bolts = []
-    for p in bolt_pts:
+    for p in (bolt_pts if not hinged else [latch_pt]):
         bolts.append(Part.makeCylinder(fd / 2.0, z_top - z_bottom + clamp_gap,
                                        App.Vector(p.x, p.y, z_bottom)))
+    if hinged:
+        # The pin as it is actually cut: the fork's width and two millimetres
+        # of proud, not the length of the bore it goes down.
+        pin_len = lat["fork_width"] + 2.0
+        d = kit.direction(angA)
+        bolts.append(Part.makeCylinder(
+            lat["pin"] / 2.0, pin_len,
+            App.Vector(hinge_pt.x - d.x * pin_len / 2.0,
+                       hinge_pt.y - d.y * pin_len / 2.0, zA),
+            d))
+        hinge_report["hinge"]["pin_length_mm"] = round(pin_len, 2)
 
-    geo = dict(bottom=bottom, cap=cap, rodA=rodA, rodB=rodB, bolts=bolts)
+    geo = dict(bottom=bottom, cap=cap, rodA=rodA, rodB=rodB, bolts=bolts,
+               hinged=hinged)
     dims = dict(
         chosen_from_rod=chosen,R=R, v=v, zA=zA, zB=zB, z_seat=z_seat, z_cap=z_cap,
                 z_bottom=z_bottom, z_top=z_top, hw=hw, boss_r=boss_r,
@@ -319,7 +392,10 @@ def build(values):
                 clamp_gap=clamp_gap, head_depth=head_depth, nut_depth=nut_depth,
                 bolt_pts=bolt_pts, flare_len=flare_len, flare_slope=flare_slope,
                 cap_t=cap_t, head_cone_h=head_cone_h, nut_cone_h=nut_cone_h,
-                stats=stats, L=L, wall=wall, fd=fd, fhd=fhd, head_clr=head_clr)
+                stats=stats, L=L, wall=wall, fd=fd, fhd=fhd, head_clr=head_clr,
+                hinged=hinged, closure=hinge_report, latch_sizes=lat,
+                hinge_pt=hinge_pt, latch_pt=latch_pt,
+                hinge_lift=lift, lug_reach=lug_reach)
     return geo, dims
 
 
@@ -350,11 +426,14 @@ def populate(doc, geo):
     ra.Shape = geo["rodA"]
     rb = doc.addObject("Part::Feature", "RodB_lower")
     rb.Shape = geo["rodB"]
-    b1 = doc.addObject("Part::Feature", "Bolt_M5_plusY")
-    b1.Shape = geo["bolts"][0]
-    b2 = doc.addObject("Part::Feature", "Bolt_M5_minusY")
-    b2.Shape = geo["bolts"][1]
-    grp.addObjects([ra, rb, b1, b2])
+    fasteners = []
+    names = ("Bolt_latch", "HingePin") if len(geo["bolts"]) == 2 and geo.get(
+        "hinged") else ("Bolt_plusY", "Bolt_minusY")
+    for obj, shape in zip(names, geo["bolts"]):
+        f = doc.addObject("Part::Feature", obj)
+        f.Shape = shape
+        fasteners.append(f)
+    grp.addObjects([ra, rb] + fasteners)
 
     doc.recompute()
 
@@ -370,10 +449,9 @@ def populate(doc, geo):
             o = doc.getObject(n)
             o.ViewObject.ShapeColor = col
             o.ViewObject.Transparency = 55
-        for n in ("Bolt_M5_plusY", "Bolt_M5_minusY"):
-            o = doc.getObject(n)
-            o.ViewObject.ShapeColor = (0.85, 0.85, 0.30)
-            o.ViewObject.Transparency = 30
+        for f in fasteners:
+            f.ViewObject.ShapeColor = (0.85, 0.85, 0.30)
+            f.ViewObject.Transparency = 30
         Gui.activeDocument().activeView().viewAxonometric()
         Gui.SendMsgToActiveView("ViewFit")
     except Exception:
@@ -385,6 +463,85 @@ def populate(doc, geo):
 # --------------------------------------------------------------------------
 # verification
 # --------------------------------------------------------------------------
+SWING_STEPS = (2.0, 5.0, 10.0, 20.0, 40.0, 60.0, 80.0)
+
+
+def _above_is_hinge(above, dims):
+    """Is everything standing above the parting plane part of the hinge?
+
+    The hinged joint is allowed material up there, but only the fork -- so
+    the check is not "is there any" but "is any of it somewhere else". A
+    cylinder about the hinge station, generous enough to hold the crown,
+    accounts for the fork; whatever is left over is a part that will not
+    open.
+    """
+    if kit.vol(above) <= 0.0:
+        return {"stray_mm3": 0.0, "ok": True}
+    p = dims["hinge_pt"]
+    reach = dims["lug_reach"]
+    keep = Part.makeCylinder(
+        reach, 400.0, App.Vector(p.x, p.y, dims["zA"] - 1.0)
+    )
+    stray = round(kit.vol(above.cut(keep)), 4)
+    return {"stray_mm3": stray, "ok": stray < 1e-3,
+            "accounted_within_mm": round(reach, 3)}
+
+
+def _bore_to_rod(dims, values):
+    """How close the hinge bore passes to the lower rod's channel.
+
+    The bore's axis is parallel to the UPPER rod and the lower rod runs at
+    the crossing angle to it, so the two are skew lines and the distance
+    between them is not something to judge from a drawing. Negative means
+    the bore has been driven through a rod channel, which is a part that
+    looks right in every view and leaks its rod out of the side.
+    """
+    p = dims["hinge_pt"]
+    axes = App.Vector(0.0, 0.0, math.sin(math.radians(values["crossingAngle"])))
+    between = App.Vector(p.x, p.y, dims["zA"] - dims["zB"])
+    gap = abs(between.dot(axes)) / axes.Length
+    bore = (dims["latch_sizes"]["pin"] + closure.PIN_FIT) / 2.0
+    return round(gap - dims["R"] - bore, 3)
+
+
+def _swing(bottom, cap, rodA, bolts, dims):
+    """Open the hinge and watch. The one check a picture cannot make.
+
+    A hinged clamp that fouls at ten degrees looks perfectly sound closed,
+    and the only way to find out is to turn it. The cap is lifted the
+    distance its hinge slot allows -- which is how it is opened in a field,
+    because the bolt's washer has to come out from over the ear -- and then
+    rotated about the pin. At every step: does it touch the other half, does
+    it touch the rod it is supposed to be letting go of, and has it cleared
+    the bolt yet.
+    """
+    axis = kit.direction(dims["angA"])
+    p = dims["hinge_pt"]
+    centre = App.Vector(p.x, p.y, dims["zA"])
+    steps = []
+    worst = 0.0
+    free_at = None
+    for deg in SWING_STEPS:
+        moved = cap.copy()
+        moved.translate(App.Vector(0, 0, dims["hinge_lift"]))
+        moved.rotate(centre, axis, deg)
+        foul = round(kit.vol(moved.common(bottom)), 4)
+        rod = round(kit.vol(moved.common(rodA)), 4)
+        clear = kit.vol(moved.common(bolts)) <= 1e-9
+        worst = max(worst, foul, rod)
+        if clear and free_at is None:
+            free_at = deg
+        steps.append({"deg": deg, "fouls_bottom_mm3": foul,
+                      "fouls_rodA_mm3": rod, "clear_of_bolt": clear})
+    return {
+        "lift_mm": round(dims["hinge_lift"], 3),
+        "worst_interference_mm3": worst,
+        "binds": worst > 1e-3,
+        "clear_of_bolt_at_deg": free_at,
+        "steps": steps,
+    }
+
+
 def verify(geo, dims, values):
     bottom = geo["bottom"]
     cap = geo["cap"]
@@ -413,18 +570,21 @@ def verify(geo, dims, values):
         except Exception:
             return None
 
+    all_bolts = geo["bolts"][0]
+    for extra in geo["bolts"][1:]:
+        all_bolts = all_bolts.fuse(extra)
+
     rep["clearances"] = {
         "bottom_to_rodA": d(bottom, rodA),
         "bottom_to_rodB": d(bottom, rodB),
         "top_to_rodA": d(cap, rodA),
         "top_to_rodB": d(cap, rodB),
         "bottom_to_top": d(bottom, cap),
-        "boltA_to_rodA": d(geo["bolts"][0], rodA),
-        "boltA_to_rodB": d(geo["bolts"][0], rodB),
-        "boltB_to_rodA": d(geo["bolts"][1], rodA),
-        "boltB_to_rodB": d(geo["bolts"][1], rodB),
         "rodA_to_rodB": d(rodA, rodB),
     }
+    for i, bolt in enumerate(geo["bolts"]):
+        rep["clearances"]["bolt%d_to_rodA" % i] = d(bolt, rodA)
+        rep["clearances"]["bolt%d_to_rodB" % i] = d(bolt, rodB)
 
     # interference: common volume must be zero
     rep["interference_mm3"] = {
@@ -433,19 +593,38 @@ def verify(geo, dims, values):
         "top_x_rodA": round(cap.common(rodA).Volume, 4),
         "top_x_rodB": round(cap.common(rodB).Volume, 4),
         "bottom_x_top": round(bottom.common(cap).Volume, 4),
-        "bottom_x_bolts": round(bottom.common(geo["bolts"][0].fuse(geo["bolts"][1])).Volume, 4),
-        "top_x_bolts": round(cap.common(geo["bolts"][0].fuse(geo["bolts"][1])).Volume, 4),
+        "bottom_x_bolts": round(kit.vol(bottom.common(all_bolts)), 4),
+        "top_x_bolts": round(kit.vol(cap.common(all_bolts)), 4),
     }
 
     # release check: no clamp material above the release plane of each rod
+    #
+    # The bolted joint releases by lifting the cap straight up, so nothing of
+    # the bottom half may stand above the upper rod's axis plane -- that is
+    # the whole argument of "the governing geometric constraint" in
+    # docs/crossing-clamp-v1.md. The hinged joint releases by SWINGING the cap
+    # about a pin that sits in that very plane, so its hinge fork stands
+    # above it on purpose, and the test that means anything there is the
+    # swing itself. Both are checked; only the relevant one is a pass or a
+    # fail.
     R = dims["R"]
     big = 400.0
     aboveA = Part.makeBox(big, big, big, App.Vector(-big / 2, -big / 2, dims["zA"] + 1e-6))
+    above = bottom.common(aboveA)
     rep["release"] = {
-        "bottom_material_above_rodA_axis_mm3": round(bottom.common(aboveA).Volume, 4),
+        "bottom_material_above_rodA_axis_mm3": round(kit.vol(above), 4),
         "top_min_z": round(cap.BoundBox.ZMin, 3),
         "bottom_max_z": round(bottom.BoundBox.ZMax, 3),
+        "releases_by": "swing" if dims["hinged"] else "lift",
     }
+    if dims["hinged"]:
+        rep["release"]["above_is_the_hinge_fork"] = _above_is_hinge(
+            above, dims
+        )
+        # Against the BOLT, not the hinge pin: the pin is what the cap turns
+        # on, so of course it never leaves it.
+        rep["swing"] = _swing(bottom, cap, rodA, geo["bolts"][0], dims)
+        rep["clearances"]["hinge_bore_to_rodB"] = _bore_to_rod(dims, values)
     # material of the bottom half directly above rod B (would trap rod B)
     trap = rod_slot(R, dims["L"] + 20.0, dims["angB"], dims["zB"], dims["z_top"] + 10.0)
     rep["release"]["bottom_material_above_rodB_mm3"] = round(bottom.common(trap).Volume, 4)
@@ -503,6 +682,32 @@ def derived_rows(dims, values):
         ("boltOffset", dims["bolt_offset"], "mm", "bolt axis distance from the crossing, on the Y axis"),
         ("stackHeight", dims["z_top"] - dims["z_bottom"], "mm", "assembled, untightened; the clampGap is already inside these coordinates"),
         ("capThicknessOverRod", dims["z_top"] - dims["zA"] - dims["R"], "mm", ""),
+    ] + (_lever_rows(dims) if dims["hinged"] else [])
+
+
+def _lever_rows(dims):
+    """What the hinged closure added, for the parameter sheet to report."""
+    hinge = dims["closure"]["hinge"]
+    catch = dims["closure"]["catch"]
+    return [
+        ("closure", "hinge + one bolt", "", "the cap is hinged on one side "
+         "and held by a single bolt through an open-ended slot on the other. "
+         "fastenerStyle = 1; see docs/quick-release.md"),
+        ("hingePin", hinge["pin_mm"], "mm", "steel pin through the hinge, "
+         "cut from stock rod; it is the only piece the bolted part does not "
+         "also need"),
+        ("hingePinZ", hinge["pin_z_mm"], "mm", "in the parting plane, level "
+         "with the upper rod's axis -- the only height the cap can swing "
+         "about without binding on the rod it wraps"),
+        ("hingeLift", hinge["lift_mm"], "mm", "how far the cap rises on its "
+         "slot before it swings; also the slack the bolt has to give back"),
+        ("forkWidth", dims["latch_sizes"]["fork_width"], "mm", "across the "
+         "hinge fork"),
+        ("earSlot", catch["ear_slot_mm"], "mm", "open-ended, so the ear "
+         "comes out from under the washer sideways"),
+        ("washerOverSlot", catch["washer_over_slot"], "x", "washer diameter "
+         "against the slot it must not pull through"),
+        ("boltsPerJoint", 1, "", "against two for the bolted part"),
     ]
 
 

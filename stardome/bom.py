@@ -36,20 +36,28 @@ python3 -m stardome bom --all --parts exports/connectors
 roughly half of it, and which half is a slicer's answer, not this project's.
 Nothing here multiplies by a density.
 
+## The fasteners are split, not summed
+
+How many bolts a part takes comes from the schedule's fastener table, and it
+arrives already divided into what is worked in a field and what is done up in
+a workshop -- because the generators disagree about that, and adding the two
+together hides the only number rule 1 cares about. The comparison against the
+hinged closure comes from the same table counted twice.
+
 ## What it deliberately does not count
 
-**Fasteners.** How many bolts a part takes is a property of the generator that
-draws it, and the schedule does not carry it yet. The bolt *size* is derived --
-half the rod, snapped to a standard -- and is reported; the count is not, and
-saying "about two per part" would be worse than saying nothing.
+**Money, and mass.** Both want a supplier and a material, and this project has
+neither yet.
 
-See docs/bom.md.
+See docs/bom.md and docs/quick-release.md.
 """
 
 from __future__ import annotations
 
 import os
 import struct
+
+from . import connectors
 
 # Where `make clamps` puts the exported meshes.
 DEFAULT_PARTS_DIR = os.path.join("exports", "connectors")
@@ -203,15 +211,10 @@ def materials(data: dict, schedule: dict | None = None) -> dict:
 
 
 # The bolt table lives in connectors/kit.py, which only imports inside
-# FreeCAD. These are its sizes, and the rule is decision 0013's: half the rod,
-# snapped to the nearest standard.
-BOLT_SIZES = (3, 4, 5, 6, 8)
-
-
-def _fastener_for(rod_diameter: float) -> str:
-    want = rod_diameter / 2.0
-    size = min(BOLT_SIZES, key=lambda m: (abs(m - want), m))
-    return f"M{size}"
+# FreeCAD; the rule -- decision 0013's half the rod, snapped -- is stated once
+# in the schedule, which is also what counts them.
+BOLT_SIZES = connectors.BOLT_SIZES
+_fastener_for = connectors.fastener_for
 
 
 def analyse(data: dict, schedule: dict, parts_dir: str = DEFAULT_PARTS_DIR) -> dict:
@@ -224,6 +227,12 @@ def analyse(data: dict, schedule: dict, parts_dir: str = DEFAULT_PARTS_DIR) -> d
         "parts_dir": parts_dir,
         "printed": printed(schedule, volumes),
         "materials": materials(data, schedule),
+        "fasteners": schedule.get("fasteners") or connectors.fastener_tally(
+            schedule["parts"], data["meta"]["rod_diameter"]
+        ),
+        "closures": schedule.get("closures") or connectors.fastener_closures(
+            schedule["parts"], data["meta"]["rod_diameter"]
+        ),
     }
 
 
@@ -293,8 +302,32 @@ def format_analysis(data: dict, schedule: dict,
         )
     out += [
         f"  anchors     {m['anchors']:>8}     driven steel angles",
-        f"  fastener    {m['fastener']:>8}     half the rod, snapped; "
-        "how many per part is not derived yet",
+    ]
+
+    f = a["fasteners"]
+    field, shop = f["field"], f["shop"]
+    out.append(
+        f"  fastener    {f['size']:>8}     half the rod, snapped "
+        f"(decision 0013)"
+    )
+    out.append(
+        f"    in the field{field['bolt']:>6}     "
+        f"bolts, each with a nut and a tool at both ends"
+        + (f"; and {field['pin']} cross pins" if field["pin"] else "")
+    )
+    out.append(
+        f"    in the shop {shop['bolt']:>6}     "
+        "bolts, done up once and never touched again"
+    )
+    hinged = (a.get("closures") or {}).get(connectors.HINGED)
+    if hinged and hinged["field"]["bolt"] < field["bolt"]:
+        saved = field["bolt"] - hinged["field"]["bolt"]
+        out.append(
+            f"    hinged      {hinged['field']['bolt']:>6}     "
+            f"field bolts instead, {saved} fewer, if the clamps are built "
+            "with the hinged closure"
+        )
+    out += [
         "",
         "  " + p["note"],
     ]

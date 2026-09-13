@@ -52,6 +52,24 @@ try:
 except NameError:
     VARIANT = "D6"
 
+# Which closure the clamps get: "bolt" is the V1 joint -- two bolts, two
+# nuts, a loose cap -- and "hinge" hangs the cap on a pin and leaves one bolt
+# in an open slot. Both are the same generator and the same parameters; see
+# docs/quick-release.md. Set it before exec()ing this file, or in the
+# environment, which is how it reaches `make clamps`:
+#
+#     STAR_DOME_CLOSURE=hinge make clamps V=M
+#
+try:
+    STYLE
+except NameError:
+    STYLE = os.environ.get("STAR_DOME_CLOSURE", "bolt")
+
+CLOSURES = {"bolt": 0, "hinge": 1}
+if STYLE not in CLOSURES:
+    raise ValueError("closure must be one of %s, not %r"
+                     % (", ".join(sorted(CLOSURES)), STYLE))
+
 if os.path.join(REPO, "connectors") not in sys.path:
     sys.path.insert(0, os.path.join(REPO, "connectors"))
 import kit  # noqa: E402  -- needs the path set above
@@ -169,6 +187,7 @@ def build_part(clamp, part):
         part.get("rod_nominal_diameter") or part["rod_diameter"]
     )
     values["crossingAngle"] = float(part["crossing_angle"])
+    values["fastenerStyle"] = CLOSURES[STYLE]
     # The two-piece drop-in constraint drives this; see docs/crossing-clamp-v1.md.
     values["verticalSeparation"] = values["rodDiameter"]
     geo, dims = clamp["build"](values)
@@ -212,7 +231,8 @@ def run():
 
     clamp = load_clamp_module()
     sched = load_schedule()
-    report = {"variant": sched["meta"]["variant"], "built": [], "not_covered": []}
+    report = {"variant": sched["meta"]["variant"], "closure": STYLE,
+              "built": [], "not_covered": []}
 
     for part in sched["parts"]:
         generator = part.get("generator")

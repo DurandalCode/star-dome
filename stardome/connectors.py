@@ -54,6 +54,156 @@ HARDWARE = "hardware"        # bought or cut to length; specify, do not design
 UNDESIGNED = "undesigned"    # nothing exists and something must
 
 
+# --------------------------------------------------------------------------
+# the fastener schedule
+# --------------------------------------------------------------------------
+# How many fasteners a part takes, and -- the half nobody had written down --
+# **where it is worked**. Both are properties of the drawn part, and the part
+# is drawn in FreeCAD, so this is the same kind of entry as
+# ``SPLICE_SLEEVE_DIAMETERS`` above: the generator owns the real number and if
+# a bolt pattern moves, this moves with it.
+#
+# FIELD and SHOP are not a tidy-up. Every generator already states its field
+# sequence, and they do not agree about the bolt:
+#
+#   base_hub_v1   "the stack is assembled once, on the ground or at home, and
+#                  the bow ends go in afterwards" -- its bolts are done up
+#                  before the dome leaves the workshop and are never touched
+#                  again. What happens at the dome is a pin per arm.
+#   fan_node_v2   "open the stack -> lay rod 1 -> ... -> tighten two bolts" --
+#                  its bolts are undone and done up at head height.
+#   crossing_clamp_v1, term_clamp_v1
+#                 the cap comes off to admit the rods, so both bolts and both
+#                 nuts are loose objects in somebody's hand, up a ladder.
+#
+# Only the FIELD row costs assembly time, and rule 1 of this project is that
+# assembly time is a requirement of the first class. Counting the two together
+# hides the number that matters.
+FIELD = "field"              # undone or done up while the dome goes up
+SHOP = "shop"                # done up once, at home, and never touched again
+
+BOLT = "bolt"                # a bolt, a nut and a tool at each end
+PIN = "pin"                  # a cross pin: pushed in, not turned
+
+# The two ways a two-piece clamp can be closed, and they are a choice made
+# per dome rather than per part. `bolt` is the V1 joint. `hinge` hangs the
+# cap to the bottom half on one side, which turns one of the two bolts into a
+# pin that is fitted once and never touched again, and leaves the other
+# standing in an open-ended slot so the cap comes off it sideways. See
+# docs/quick-release.md and connectors/closure.py.
+BOLTED = "bolt"
+HINGED = "hinge"
+CLOSURES = (BOLTED, HINGED)
+
+# Fasteners per ONE of each part, by kind and by closure. A callable takes the
+# part and returns the count, for the parts whose pattern follows their
+# members. A kind with no entry for a closure keeps its bolted one: a splice
+# has no bolts to save and a base hub's are already done up at home.
+_FASTENERS = {
+    "two_rod_clamp":   [(BOLT, 2, FIELD)],
+    "cut_termination": [(BOLT, 2, FIELD)],
+    "four_rod_fan":    [(BOLT, 2, FIELD)],
+    # Two bolts through the plate stack, done up at home; then one cross pin
+    # per arm, because a slide-fit channel locates the rod and holds it
+    # against nothing.
+    "base_hub":        [(BOLT, 2, SHOP),
+                        (PIN, lambda part: part.get("bow_ends", 0), FIELD)],
+    # Two pinching the post, and one per member end: two ring chords and two
+    # braces, each on its own bolt through a lug.
+    "skirt_collar":    [(BOLT, 2, FIELD),
+                        (BOLT, lambda part: 2 * part.get("ends_per_post", 0),
+                         FIELD)],
+    # A sleeve over a butt joint. Decision: V2 dropped the bolts entirely.
+    "rod_splice":      [],
+    "ground_stake":    [],
+    "header_clamp":    [],   # nothing is drawn yet; see milestone 5
+}
+
+_HINGED = {
+    "two_rod_clamp":   [(BOLT, 1, FIELD), (PIN, 1, SHOP)],
+    "cut_termination": [(BOLT, 1, FIELD), (PIN, 1, SHOP)],
+}
+
+BOLT_SIZES = (3, 4, 5, 6, 8)
+
+
+def fastener_for(rod_diameter: float) -> str:
+    """Which metric bolt a rod of this size gets: half it, snapped.
+
+    Decision 0013. The table itself lives in ``connectors/kit.py``, which only
+    imports inside FreeCAD; the *rule* is small enough to state here so that
+    anything counting fasteners does not have to guess at it.
+    """
+    want = rod_diameter / 2.0
+    size = min(BOLT_SIZES, key=lambda m: (abs(m - want), m))
+    return f"M{size}"
+
+
+def _fasteners_for(part: dict, closure: str = BOLTED) -> list:
+    """The fastener rows of one part, counts resolved against the part."""
+    table = _FASTENERS
+    if closure == HINGED and part["kind"] in _HINGED:
+        table = _HINGED
+    rows = []
+    for kind, count, when in table.get(part["kind"], []):
+        if callable(count):
+            count = count(part)
+        if count:
+            rows.append({"type": kind, "count": int(count), "worked": when})
+    return rows
+
+
+def fastener_tally(parts: list, rod_diameter: float,
+                   closure: str = BOLTED) -> dict:
+    """Every fastener in the dome, split by where it is worked.
+
+    The split is the point. A dome's bolts are not one number: some are done
+    up in a workshop with a bench and a cup of tea, and some are done up at
+    head height in the wind, and only the second kind is an assembly cost.
+    """
+    out = {
+        "closure": closure,
+        "size": fastener_for(rod_diameter),
+        "field": {BOLT: 0, PIN: 0},
+        "shop": {BOLT: 0, PIN: 0},
+        "by_part": [],
+    }
+    for part in parts:
+        rows = _fasteners_for(part, closure)
+        if not rows:
+            continue
+        total = 0
+        for row in rows:
+            n = row["count"] * part["count"]
+            out[row["worked"]][row["type"]] += n
+            total += n
+        out["by_part"].append(
+            {
+                "id": part["id"],
+                "count": part["count"],
+                "per_part": sum(r["count"] for r in rows),
+                "total": total,
+                "rows": rows,
+            }
+        )
+    out["field_total"] = sum(out["field"].values())
+    out["shop_total"] = sum(out["shop"].values())
+    out["total"] = out["field_total"] + out["shop_total"]
+    return out
+
+
+def fastener_closures(parts: list, rod_diameter: float) -> dict:
+    """Both closures, counted the same way, so the choice has a number.
+
+    Rule 1 of this project is that fast assembly is a first-class
+    requirement, and until now nothing in it counted the work. This does: the
+    same schedule, closed two different ways, and the difference is bolts
+    nobody has to turn at head height.
+    """
+    return {name: fastener_tally(parts, rod_diameter, name)
+            for name in CLOSURES}
+
+
 def _part_id(kind: str, rod_diameter: float, angle: float) -> str:
     return f"{kind}-{rod_diameter:g}-{angle:.{ANGLE_DP}f}"
 
@@ -1117,6 +1267,14 @@ def schedule(data: dict) -> dict:
     unsupported_list = sorted(unsupported.values(), key=lambda e: -e["rod_count"])
 
     part_list = part_list + joint_parts
+
+    # What each part is held together by, and where that work is done. See
+    # the fastener schedule at the top of this module.
+    for part in part_list:
+        rows = _fasteners_for(part)
+        if rows:
+            part["fasteners"] = rows
+
     covered = sum(p["count"] for p in part_list)
     uncovered = sum(e["count"] for e in unsupported_list)
     buildable = sum(p["count"] for p in part_list if p.get("generator"))
@@ -1151,6 +1309,8 @@ def schedule(data: dict) -> dict:
             "units": "mm",
         },
         "parts": part_list,
+        "fasteners": fastener_tally(part_list, nominal),
+        "closures": fastener_closures(part_list, nominal),
         "placements": spots,
         "placements_note": (
             None

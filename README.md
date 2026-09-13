@@ -62,6 +62,7 @@ single interchange format every other tool reads — see
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
 - Dome geometry: [`dome/README.md`](dome/README.md)
 - Crossing clamp V1: [`docs/crossing-clamp-v1.md`](docs/crossing-clamp-v1.md)
+- Closing a joint without a spanner: [`docs/quick-release.md`](docs/quick-release.md)
 - Connectors on the dome: [`docs/placement.md`](docs/placement.md)
 - The doorway: [`docs/doorway.md`](docs/doorway.md)
 - How much room you get: [`docs/interior.md`](docs/interior.md)
