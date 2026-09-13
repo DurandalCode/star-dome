@@ -34,6 +34,20 @@ reported and left out rather than quietly missing::
     make clamps V=S && make clamps V=M && make clamps V=L
     make camp
 
+``--walk`` turns the scene from something to look at into something to walk
+through, which needs three changes at once and is useless without all three:
+the covers go opaque, a lamp goes inside every dome and every corridor -- an
+opaque dome in sunlight is a black hole from within -- and the scene camera
+becomes an eye 1.7 m off the ground, standing outside the camp looking at it::
+
+    make camp CAMP=court CAMP_KIND=portal CAMP_FLAGS="--cover --figures one --walk"
+
+Blender does the walking: Numpad 0 for the camera view, then Shift+` for Walk
+Navigation. W A S D to move, mouse to look, Q and E down and up, Shift to run,
+Tab for gravity, left-click to keep where you got to and Esc to snap back.
+Gravity is a preference rather than a scene setting, so it cannot be shipped
+in the .blend: Preferences > Navigation > Walk > Gravity.
+
 """
 
 import argparse
@@ -115,6 +129,14 @@ def parse_args(argv):
         help="where the exported meshes are; defaults to exports/connectors",
     )
     p.add_argument("--no-labels", action="store_true")
+    p.add_argument(
+        "--walk",
+        action="store_true",
+        help="set the scene up to be walked through at eye height rather than "
+             "looked at: the covers go opaque, a lamp goes inside every dome "
+             "and every corridor, and the camera stands 1.7 m off the ground. "
+             "Blender's own Walk Navigation (Shift+`) does the walking",
+    )
     p.add_argument(
         "--figures",
         choices=("every", "one", "none"),
@@ -307,6 +329,17 @@ CORRIDOR_HOOP_RADIUS_M = 0.005
 # a bent rod does not.
 CORRIDOR_BOARD_COLOUR = (0.55, 0.38, 0.20, 1.0)
 
+# Walking through it rather than looking at it. The cover has to stop being a
+# window, the inside has to have light of its own -- an opaque dome in sunlight
+# is a black hole from inside -- and the eye has to be where an eye is.
+WALK_EYE_M = 1.70
+WALK_LENS_MM = 24.0
+# A lamp hangs at this fraction of the dome's clear height, and its power goes
+# with the floor it has to cover. Watts, as EEVEE counts them.
+WALK_LAMP_AT = 0.72
+WALK_LAMP_W_PER_M2 = 14.0
+WALK_CORRIDOR_LAMP_W = 60.0
+
 
 def load_plan(path):
     """A camp as `stardome camp --json` wrote it.
@@ -353,12 +386,13 @@ def plan_layout(plan, models, plan_path):
                 "data": data,
                 "at": (dome["at"][0] * MM, dome["at"][1] * MM),
                 "turn": dome["turn_deg"],
+                "doors": list(dome.get("doors") or ()),
             }
         )
     return out
 
 
-def add_corridors(plan, collection, lift_is_ground=True):
+def add_corridors(plan, collection, lift_is_ground=True, alpha=None):
     """The corridors, from the mouths and rings the plan already solved.
 
     Nothing is computed here. Each link arrives with its two mouth loops and
@@ -366,7 +400,10 @@ def add_corridors(plan, collection, lift_is_ground=True):
     between matching points and a ring is a closed curve.
     """
     made = 0
-    skin_mat = make_transparent(material("Corridor", COVER_COLOUR), COVER_ALPHA)
+    skin_mat = make_transparent(
+        material("Corridor", COVER_COLOUR),
+        COVER_ALPHA if alpha is None else alpha,
+    )
     hoop_mat = material("Corridor_Hoop", CORRIDOR_HOOP_COLOUR)
     board_mat = material("Corridor_Board", CORRIDOR_BOARD_COLOUR)
     for index, one in enumerate(plan.get("links") or ()):
@@ -450,7 +487,8 @@ def load_schedule(model_path, override=None):
     return schedule if schedule.get("placements") else None
 
 
-def add_cover(data, collection, origin_x, spin_deg, origin_y, lift):
+def add_cover(data, collection, origin_x, spin_deg, origin_y, lift,
+              alpha=None):
     """The fabric as one surface, and nothing else.
 
     The single-dome scene draws the seams and the hem as well, because there
@@ -472,7 +510,10 @@ def add_cover(data, collection, origin_x, spin_deg, origin_y, lift):
     obj = bpy.data.objects.new(f"Cover_{data['meta']['variant']}", mesh)
     bpy.context.scene.collection.objects.link(obj)
     obj.data.materials.append(
-        make_transparent(material("Cover", COVER_COLOUR), COVER_ALPHA)
+        make_transparent(
+            material("Cover", COVER_COLOUR),
+            COVER_ALPHA if alpha is None else alpha,
+        )
     )
     return move_to(obj, collection)
 
@@ -522,6 +563,127 @@ def add_connectors(schedule, directory, collection, staging, origin_x,
             )
         placed += 1
     return placed, missing
+
+
+def add_lamp(name, location, watts, collection, radius=0.35):
+    """One soft point light, for a space that has a roof on it."""
+    data = bpy.data.lights.new(name, type="POINT")
+    data.energy = watts
+    data.shadow_soft_size = radius
+    obj = bpy.data.objects.new(name, data)
+    obj.location = location
+    bpy.context.scene.collection.objects.link(obj)
+    return move_to(obj, collection)
+
+
+def add_inside_lights(spots, plan, collection):
+    """A lamp inside every dome and every corridor.
+
+    Only needed once the cover is opaque, and then it is not optional: a closed
+    dome in sunlight is a black hole from the inside, and seeing the inside is
+    the whole point of walking through the camp.
+
+    Power goes with the floor a lamp has to cover, so the 12 m dome is not lit
+    to the same few watts as the 4 m one. ``spots`` comes from the dome loop,
+    because a row works out where its domes stand as it lays them and only the
+    loop knows.
+    """
+    made = 0
+    for spot in spots:
+        watts = WALK_LAMP_W_PER_M2 * math.pi * spot["radius_m"] ** 2
+        add_lamp(
+            f"Lamp_{spot['name']}",
+            (spot["x"], spot["y"], spot["tall"] * WALK_LAMP_AT),
+            watts,
+            collection,
+        )
+        made += 1
+
+    for index, one in enumerate((plan or {}).get("links") or ()):
+        drawing = one.get("drawing")
+        if not drawing:
+            continue
+        # Midway along the run, at head height: the two mouth loops averaged.
+        points = drawing["mouths"][0] + drawing["mouths"][1]
+        cx = sum(p[0] for p in points) / len(points) * MM
+        cy = sum(p[1] for p in points) / len(points) * MM
+        lamp = add_lamp(
+            f"Lamp_Corridor_{index}",
+            (cx, cy, WALK_EYE_M),
+            WALK_CORRIDOR_LAMP_W,
+            collection,
+            radius=0.15,
+        )
+        # A tunnel lamp is fill, and a shadow map for each one overruns
+        # EEVEE's pool -- sixteen lights in this camp asked for 2400 of the
+        # 2048 it has. The domes keep theirs, where shadow is the whole
+        # character of the space.
+        lamp.data.use_shadow = False
+        made += 1
+    return made
+
+
+# How far clear of the outermost cover the walk starts.
+APPROACH_M = 5.0
+
+
+def approach(spots):
+    """Where to start a walk: outside the camp, looking at it.
+
+    Two rules were tried before this one and both put the eye somewhere
+    useless. "The point with the most room round it" is unbounded on open
+    ground -- the answer is always the far corner of whatever box you searched,
+    28 m away with its back to the camp. "Three metres out along the biggest
+    dome's door bearing" lands INSIDE the corridor hanging off that door,
+    because a corridor is what a door faces in a camp; the view is a portal
+    frame at arm's length.
+
+    So: out past everything, on the side the biggest dome is on, looking back
+    at the middle. You see the whole camp, and walking straight ahead takes you
+    to the door of the largest thing in it.
+    """
+    if not spots:
+        return (0.0, -APPROACH_M), Vector((0.0, 1.0, 0.0))
+    cx = sum(s["x"] for s in spots) / len(spots)
+    cy = sum(s["y"] for s in spots) / len(spots)
+
+    dome = max(spots, key=lambda s: s["radius_m"])
+    out = Vector((dome["x"] - cx, dome["y"] - cy, 0.0))
+    if out.length < 1e-6:
+        # The biggest dome IS the middle -- a row of one, or a hub camp
+        # weighted evenly. Back off the way a row's doors face.
+        out = Vector((0.0, -1.0, 0.0))
+    out.normalize()
+
+    reach = max(
+        math.hypot(s["x"] - cx, s["y"] - cy) + s["radius_m"] for s in spots
+    )
+    stand = (cx + out.x * (reach + APPROACH_M), cy + out.y * (reach + APPROACH_M))
+    return stand, Vector((cx - stand[0], cy - stand[1], 0.0))
+
+
+def add_eye_camera(scene, spots):
+    """A camera where an eye is, for Blender's own Walk Navigation to drive.
+
+    The overview camera is a portrait of the camp and is no use for walking: it
+    stands well back and well up. This one stands on the ground just outside
+    the camp -- see ``approach`` -- and is short-sighted enough at the near
+    end that putting your face through a doorway does not clip the world away.
+    """
+    data = bpy.data.cameras.new("Eye")
+    data.lens = WALK_LENS_MM
+    data.clip_start = 0.05
+    data.clip_end = 500.0
+    cam = bpy.data.objects.new("Eye", data)
+    scene.collection.objects.link(cam)
+
+    stand, look = approach(spots)
+    cam.location = (stand[0], stand[1], WALK_EYE_M)
+    if look.length < 1e-6:
+        look = Vector((0.0, 1.0, 0.0))
+    cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+    scene.camera = cam
+    return cam
 
 
 def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
@@ -588,6 +750,9 @@ def build(args, models):
 
     x = 0.0
     placed = []
+    # Where each dome ended up, for anything that has to be put INSIDE it. A
+    # row works its positions out as it lays them, so only the loop knows.
+    spots = []
     max_radius = 0.0
     plan = load_plan(args.plan) if args.plan else None
     layout = (
@@ -686,7 +851,8 @@ def build(args, models):
                 spin, origin_y=y0, brace_material=brace_mat,
             )
         if args.cover:
-            add_cover(data, coll, x, spin, y0, lift)
+            add_cover(data, coll, x, spin, y0, lift,
+                      alpha=1.0 if args.walk else None)
         if args.connectors != "none":
             if meta["weave_mode"] != "woven":
                 raise SystemExit(
@@ -735,6 +901,16 @@ def build(args, models):
             )
 
         placed.append((coll_name, x, radius_m, meta))
+        spots.append({
+            "name": coll_name,
+            "x": x,
+            "y": y0,
+            "radius_m": radius_m,
+            "tall": meta.get("overall_height", meta["dome_height_measured"]) * MM,
+            # Which way this dome's first door points, in camp bearings. A row
+            # aims every door at the viewer, who stands at -Y.
+            "door_deg": (item.get("doors") or [270.0])[0],
+        })
         max_radius = max(max_radius, radius_m)
         if plan is None:
             x += radius_m
@@ -761,7 +937,10 @@ def build(args, models):
     move_to(ground, root)
 
     if plan is not None:
-        links = add_corridors(plan, new_collection("Corridors", root))
+        links = add_corridors(
+            plan, new_collection("Corridors", root),
+            alpha=1.0 if args.walk else None,
+        )
         print(f"[site]   {links} corridors drawn")
         for problem in plan.get("problems") or ():
             print(f"[site]   plan says: {problem}")
@@ -783,7 +962,11 @@ def build(args, models):
             )
         )
 
-    return placed, span, max_radius, (centre_x, centre_y)
+    if args.walk:
+        lamps = add_inside_lights(spots, plan, new_collection("Lights", root))
+        print(f"[site]   {lamps} lamps inside, and the covers are opaque")
+
+    return placed, span, max_radius, (centre_x, centre_y), spots
 
 
 def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0,
@@ -859,7 +1042,7 @@ def main():
             "run:  python3 -m stardome build --all --polylines --weave-mode layered"
         )
 
-    placed, span, max_radius, centre = build(args, models)
+    placed, span, max_radius, centre, spots = build(args, models)
     tallest = max(
         m.get("overall_height", m["dome_height_measured"]) * MM for _, _, _, m in placed
     )
@@ -867,6 +1050,25 @@ def main():
         bpy.context.scene, span, max_radius, tallest,
         centre=centre, overhead=bool(args.plan),
     )
+    overview = bpy.context.scene.camera
+    if args.walk:
+        add_eye_camera(bpy.context.scene, spots)
+        # A lamp in every dome is a shadow map in every dome, and EEVEE's pool
+        # is 512 MB by default. Eight domes overran it.
+        try:
+            bpy.context.scene.eevee.shadow_pool_size = "2048"
+        except (AttributeError, TypeError):
+            pass
+        print(
+            "[site] walk mode: the Eye camera is the scene camera, 1.7 m up.\n"
+            "[site]   in Blender: Numpad 0 for the camera view, then Shift+` "
+            "to walk it.\n"
+            "[site]   W A S D to move, mouse to look, Q/E down and up, Shift "
+            "to run, Tab for gravity,\n"
+            "[site]   left-click to keep where you walked to and Esc to snap "
+            "back. Turning gravity on\n"
+            "[site]   for good is Preferences > Navigation > Walk > Gravity."
+        )
 
     print(f"[site] {len(placed)} domes over {span:.1f} m, tallest {tallest:.2f} m")
     for name, x, radius_m, meta in placed:
@@ -884,7 +1086,16 @@ def main():
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.out))
         print(f"[site] saved {args.out}")
     if args.render:
-        print(f"[site] rendered {render(bpy.context.scene, args.render)}")
+        # The Eye is the scene camera so that Numpad 0 lands you on the ground
+        # ready to walk. A still taken from it is a picture of the inside of
+        # one dome, which is no use as a preview, so the overview takes the
+        # render and hands the camera straight back.
+        scene = bpy.context.scene
+        eye = scene.camera
+        if args.walk and overview is not None:
+            scene.camera = overview
+        print(f"[site] rendered {render(scene, args.render)}")
+        scene.camera = eye
 
 
 if __name__ == "__main__":

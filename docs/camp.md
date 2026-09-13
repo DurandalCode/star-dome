@@ -138,6 +138,34 @@ Neither is the corridor being wrong. A person walks through every one of those
 doors. It means the junction needs the entrance/corridor interface from
 milestone 5, or a narrower corridor.
 
+## Walking through it
+
+```bash
+make camp CAMP=court CAMP_KIND=portal CAMP_FLAGS="--cover --figures one --walk"
+```
+
+`--walk` on `blender/build_site.py` changes three things at once, and it is
+useless without all three:
+
+- **the covers go opaque.** At 0.14 alpha a camp is a diagram; from the
+  inside it is not a room at all.
+- **a lamp goes inside every dome and every corridor.** An opaque dome under
+  sunlight is a black hole from within. Power follows the floor each lamp has
+  to cover, so the 12 m dome is not lit to the same few watts as the 4 m one.
+  The corridor lamps cast no shadow — sixteen shadow-casting lights asked
+  EEVEE for 2400 of the 2048 shadow maps it has, and a tunnel lamp is fill.
+- **the scene camera becomes an eye 1.7 m off the ground**, standing clear of
+  the camp and looking back at it, with a 24 mm lens and a 50 mm near clip so
+  putting your face through a doorway does not clip the world away.
+
+Blender does the walking: `Numpad 0`, then `Shift+\`` for Walk Navigation.
+Gravity is a preference and not a scene setting, so it cannot be shipped in
+the file — Preferences > Navigation > Walk > Gravity.
+
+The still preview is still taken from the overview camera. A render from the
+eye is a picture of the inside of whatever it happens to be facing, which is
+no use as a thumbnail.
+
 ## What it will not do
 
 **It will not fix a plan.** A corridor that does not fit the doorway it lands on
