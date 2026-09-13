@@ -81,6 +81,7 @@ writing the next.
 | [0021](0021-wind-is-the-only-load-case.md) | Wind is the only load case; the dome comes down before winter, so the answer is an operating limit | accepted |
 | [0022](0022-a-material-is-a-named-candidate-not-a-constant.md) | A material is a named candidate with its source attached, and the reference is a standard's minimum | accepted |
 | [0023](0023-the-strength-answer-is-a-band-until-the-frame-is-solved.md) | Strength reports two bounding readings, not one speed, until a frame solve closes the gap | accepted |
+| [0024](0024-a-dome-is-cut-into-two-lengths.md) | A dome is cut into at most two section lengths, solved dome-wide rather than bow by bow | accepted |
 
 ## Not here yet
 

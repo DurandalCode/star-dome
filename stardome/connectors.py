@@ -40,6 +40,28 @@ ANGLE_DP = 4
 # number, and if it moves, this moves with it.
 SPLICE_SLEEVE_DIAMETERS = 10.0
 
+# How many cut lengths one dome is allowed. See `_section_kit` and decision
+# 0024.
+#
+# Two, and it is a logistics number rather than a geometric one: the sections
+# are a kit somebody packs, carries and hands out, and lengths that differ by
+# 80 mm are lengths that get confused. The solver takes one where one will do.
+#
+# This is a policy statement, not a dial. Raising it would need `_section_kit`
+# rewritten -- it solves a 2x2 system, and three lengths is a different
+# problem -- so it is here to be asserted against and quoted, not turned up.
+SECTION_LENGTH_KINDS = 2
+
+# How many sections past the minimum a stretch may be cut into while the kit
+# is being searched for. A bow that needs a third piece to clear a crossing
+# should get one; a bow that needs a fourth is telling us the sleeve and the
+# transport length disagree, and that should be an error, not a longer search.
+_COUNT_SLACK = 2
+
+# What counts as the same length, in mm. Sections are metres of rod cut with a
+# saw; a micron of arithmetic drift is not a different part.
+_SECTION_TOL = 0.5
+
 # What still has to be *made*, against what merely has to be chosen.
 #
 # A driven steel angle takes the ground anchorage at every point that touches
@@ -487,9 +509,10 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         sleeve = SPLICE_SLEEVE_DIAMETERS * rod_diameter
         joints = splice_joints(data, section, sleeve)
         if joints:
+            kit = section_kit(data, section, sleeve)
             clear = min(j["clear_of_crossing_mm"] for j in joints)
             moved = max(abs(j["moved_mm"]) for j in joints)
-            longest = max(max(j["sections_mm"]) for j in joints)
+            longest = max(kit)
             parts.append(
                 {
                     "id": f"SPLICE-{rod_diameter:g}",
@@ -504,6 +527,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     "bend_radius": meta["dome_radius"],
                     "sleeve_length": round(sleeve, 3),
                     "section_length": section,
+                    "section_kit_mm": [round(x, 1) for x in kit],
                     "tightest_clearance_mm": round(clear, 1),
                     "longest_section_mm": round(longest, 1),
                     "worst_move_mm": round(moved, 1),
@@ -520,11 +544,15 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                         f"{meta['dome_radius']:.0f} mm radius afterwards, so "
                         "the ferrule's middle is relieved rather than "
                         "close-fitting -- it bears at its two ends and lets "
-                        "the bow curve through it. Joints sit at the even "
-                        "division of each bow where that clears the crossings "
-                        f"and up to {moved:.0f} mm off it where it does not; "
-                        f"longest section {longest:.0f} mm, tightest crossing "
-                        f"clearance {clear:.0f} mm."
+                        "the bow curve through it. The whole dome is cut "
+                        f"into {len(kit)} "
+                        f"length{'s' if len(kit) > 1 else ''} -- "
+                        + ", ".join(f"{x:.0f} mm" for x in kit)
+                        + " -- because a bag of sections is sorted by hand; "
+                        "which lengths go where is the bow's own business. "
+                        f"Joints sit up to {moved:.0f} mm off the even "
+                        f"division, tightest crossing clearance {clear:.0f} "
+                        "mm."
                     ),
                 }
             )
@@ -552,148 +580,310 @@ def _present_spans(rod: dict, cuts: dict) -> list:
     return out
 
 
-def _allowed_windows(blockers: list, keep_out: float, lo: float, hi: float) -> list:
-    """What is left of ``[lo, hi]`` once every blocker keeps its distance."""
-    forbidden = []
-    for b in blockers:
-        a, z = b - keep_out, b + keep_out
-        if z <= lo or a >= hi:
-            continue
-        forbidden.append((max(a, lo), min(z, hi)))
-    forbidden.sort()
-
-    windows = []
-    at = lo
-    for a, z in forbidden:
-        if a > at + 1e-9:
-            windows.append((at, a))
-        at = max(at, z)
-    if at < hi - 1e-9:
-        windows.append((at, hi))
-    return windows
+def _clears(at: float, blockers: list, keep_out: float) -> bool:
+    """Is a joint at ``at`` far enough from every crossing on this stretch?"""
+    return all(abs(at - b) >= keep_out - 1e-9 for b in blockers)
 
 
-def _nearest_allowed(target: float, windows: list):
-    """The point in ``windows`` closest to ``target``; None if there is none."""
-    best = None
-    for a, z in windows:
-        here = min(max(target, a), z)
-        if best is None or abs(here - target) < abs(best - target):
-            best = here
-    return best
+def _orders(length: float, blockers: list, keep_out: float, kit: tuple,
+            count: int) -> list:
+    """Every way to lay ``count`` pieces from ``kit`` end to end along a bow.
+
+    The pieces come from the kit, so this is not a division of the bow: it is
+    a choice of ORDER. A stretch of 12566 mm built from four 2149 mm sections
+    and two 1986 mm ones can put the short pair anywhere, and the orders
+    differ only in where the joints land -- which is the whole question, since
+    a joint on a crossing is not a joint.
+    """
+    out = []
+    ladder = sorted(set(kit), reverse=True)
+    shortest, longest = ladder[-1], ladder[0]
+
+    def walk(at: float, left: int, run: list):
+        if left == 0:
+            if abs(length - at) <= _SECTION_TOL:
+                out.append(tuple(run))
+            return
+        if not (left * shortest - _SECTION_TOL
+                <= length - at
+                <= left * longest + _SECTION_TOL):
+            return
+        for piece in ladder:
+            end = at + piece
+            if left > 1 and not _clears(end, blockers, keep_out):
+                continue
+            run.append(piece)
+            walk(end, left - 1, run)
+            run.pop()
+
+    walk(0.0, count, [])
+    return out
 
 
-def _place_joints(length: float, section: float, keep_out: float,
-                  blockers: list) -> list:
-    """Joint positions along one stretch: even if that works, nudged if not."""
-    sections = max(1, math.ceil(length / section))
-    # One extra section is always enough in this geometry -- crossings on a
-    # bow are hundreds of millimetres apart and a sleeve is tens -- but the
-    # loop is bounded rather than trusting that, so a change of proportions
-    # gives an error instead of hanging.
-    for extra in range(4):
-        n = sections + extra
-        joints = [length * i / n for i in range(1, n)]
-        ok = True
-        for i, target in enumerate(joints):
-            before = joints[i - 1] if i else 0.0
-            after = joints[i + 1] if i + 1 < len(joints) else length
-            windows = _allowed_windows(
-                blockers, keep_out,
-                max(0.0, after - section), min(length, before + section),
-            )
-            here = _nearest_allowed(target, windows)
-            if here is None:
-                ok = False
+def _evenness(order: tuple, length: float) -> float:
+    """How far this order's joints sit from the even division, squared.
+
+    The tie-break between orders that are all legal. Joints near the even
+    division are the ones a tape measure finds easiest and the ones with the
+    most room either side, so of two legal orders the more even one wins.
+    """
+    n = len(order)
+    at = 0.0
+    cost = 0.0
+    for i, piece in enumerate(order[:-1]):
+        at += piece
+        cost += (at - length * (i + 1) / n) ** 2
+    return cost
+
+
+def _fit(length: float, blockers: list, keep_out: float, kit: tuple,
+         count: int):
+    """The best legal order of ``count`` kit pieces along a stretch, or None."""
+    orders = _orders(length, blockers, keep_out, kit, count)
+    if not orders:
+        return None
+    return min(orders, key=lambda o: (_evenness(o, length),
+                                      tuple(-x for x in o)))
+
+
+def _schedule_kit(kinds: list, section: float, keep_out: float, kit: tuple):
+    """Lay every stretch out from ``kit``, at the fewest pieces each.
+
+    Returns ``(orders, pieces)`` -- one order per kind and the total number of
+    sections the dome is then cut into -- or ``None`` if any kind cannot be
+    built from this kit at all.
+    """
+    orders = []
+    pieces = 0
+    for length, blockers, rods in kinds:
+        floor = max(1, math.ceil(length / section - 1e-9))
+        best = None
+        for count in range(floor, floor + _COUNT_SLACK + 1):
+            best = _fit(length, blockers, keep_out, kit, count)
+            if best:
                 break
-            joints[i] = here
-        if not ok:
+        if not best:
+            return None
+        orders.append(best)
+        pieces += rods * len(best)
+    return orders, pieces
+
+
+def _splits(length: float, section: float) -> list:
+    """``(count, long_pieces)`` ways a stretch could be made of two lengths.
+
+    One split is one linear equation in the two kit lengths: ``length = a*A +
+    (n - a)*B``. Two splits are two equations, and two equations fix the kit.
+    """
+    floor = max(1, math.ceil(length / section - 1e-9))
+    return [
+        (n, a)
+        for n in range(floor, floor + _COUNT_SLACK + 1)
+        for a in range(n + 1)
+    ]
+
+
+def _candidate_kits(kinds: list, section: float, keep_out: float) -> list:
+    """Every two-length kit worth trying, deduplicated.
+
+    A kit is not searched for by moving joints around: it is SOLVED for. Pick
+    how many pieces of each length two stretches are made of, and the two
+    lengths follow from the two sums -- exactly, by 2x2 elimination. Every kit
+    that could possibly close a bow is reachable this way, and almost nothing
+    else is.
+    """
+    lengths = sorted({length for length, _, _ in kinds})
+    equations = [
+        (length, n, a)
+        for length in lengths
+        for n, a in _splits(length, section)
+    ]
+
+    seen = {}
+    for i, (l1, n1, a1) in enumerate(equations):
+        for l2, n2, a2 in equations[i + 1:]:
+            det = a1 * (n2 - a2) - a2 * (n1 - a1)
+            if det == 0:
+                continue
+            long_mm = (l1 * (n2 - a2) - l2 * (n1 - a1)) / det
+            short_mm = (a1 * l2 - a2 * l1) / det
+            if long_mm < short_mm:
+                long_mm, short_mm = short_mm, long_mm
+            if not keep_out <= short_mm <= long_mm <= section + _SECTION_TOL:
+                continue
+            key = (round(long_mm, 3), round(short_mm, 3))
+            seen.setdefault(key, (long_mm, short_mm))
+    return list(seen.values())
+
+
+def _section_kit(kinds: list, section: float, keep_out: float):
+    """The one or two lengths this whole dome is cut into, and how they lie.
+
+    **A dome is built from at most two cut lengths.** Not because the geometry
+    wants it -- dividing each bow evenly and nudging the joints that land on a
+    crossing is geometrically freer, and it is what this used to do -- but
+    because the sections are a kit that a person packs, carries, counts and
+    hands out. Four lengths within 180 mm of each other, which is what even
+    division and a nudge produced on S and L, is four lengths to tell apart
+    in a bag on wet grass, and getting it wrong is a bow that will not close.
+    So the constraint is logistical and it is hard: two, dome-wide, including
+    the two bows a doorway shortens.
+
+    The search is exact rather than heuristic:
+
+    1. **One length, if one will do.** A single length has to divide every
+       distinct stretch a whole number of times, so there is very little of it
+       to try: the divisors of the longest stretch that are short enough to
+       travel. A dome with an uncut door would take this branch.
+    2. **Otherwise two, solved rather than sought.** Choosing how many pieces
+       of each length two stretches are made of gives two linear equations in
+       the two lengths, which fix them exactly -- see `_candidate_kits`. Each
+       candidate kit is then laid out against every stretch, joints checked
+       against every crossing.
+
+    Of the kits that work, the one that cuts the dome into the fewest sections
+    wins; ties go to the kit whose two lengths are closest together, because
+    two lengths 160 mm apart are harder to confuse than two 700 mm apart only
+    in the sense that they are more nearly one length.
+    """
+    lengths = sorted({length for length, _, _ in kinds})
+    longest = lengths[-1]
+
+    floor = max(1, math.ceil(longest / section - 1e-9))
+    for count in range(floor, floor + _COUNT_SLACK + 1):
+        one = (longest / count,)
+        fitted = _schedule_kit(kinds, section, keep_out, one)
+        if fitted:
+            return one, fitted[0]
+
+    best = None
+    for kit in _candidate_kits(kinds, section, keep_out):
+        fitted = _schedule_kit(kinds, section, keep_out, kit)
+        if not fitted:
             continue
-        edges = [0.0] + joints + [length]
-        if max(b - a for a, b in zip(edges, edges[1:])) <= section + 1e-6:
-            return joints
+        orders, pieces = fitted
+        rank = (pieces, round(kit[0] - kit[1], 6), -round(kit[1], 6))
+        if best is None or rank < best[0]:
+            best = (rank, kit, orders)
+    if best:
+        return best[1], best[2]
+
     raise ValueError(
-        f"a {length:.0f} mm bow will not divide into sections of "
-        f"{section:.0f} mm with every joint {keep_out:.0f} mm clear of a "
-        "crossing; the transport length and the sleeve length disagree"
+        f"no kit of {SECTION_LENGTH_KINDS} cut lengths of at most "
+        f"{section:.0f} mm builds every bow of this dome with each joint "
+        f"{keep_out:.0f} mm clear of a crossing; the transport length and "
+        "the sleeve length disagree"
     )
+
+
+def _stretches(data: dict, mm_per_deg: float):
+    """Every stretch of every bow, and the distinct kinds among them.
+
+    A stretch is what survives of one bow after a doorway cut -- usually the
+    whole bow. Two things decide how it is cut and nothing else does: how long
+    it is, and where the crossings along it are. So stretches are grouped by
+    that pair, and a dome has only a handful of groups -- the two bow families,
+    plus whatever the doorway leaves of the two bows it shortens.
+
+    Arc length from the start of the stretch is the frame both constraints are
+    naturally stated in, so everything here is in millimetres along the bow.
+    """
+    cuts = doorway.removed_spans(data)
+    crossing_ts: dict = {}
+    for c in data["crossings"]:
+        for side in ("a", "b"):
+            crossing_ts.setdefault(c[f"rod_{side}"], []).append(c[f"t_{side}_deg"])
+
+    spans = []
+    kinds: dict = {}
+    for rod in data["rods"]:
+        ts = sorted(set(crossing_ts.get(rod["name"], [])))
+        for lo, hi in _present_spans(rod, cuts):
+            length = (hi - lo) * mm_per_deg
+            blockers = tuple((t - lo) * mm_per_deg for t in ts if lo <= t <= hi)
+            key = (round(length, 3), tuple(round(b, 3) for b in blockers))
+            if key not in kinds:
+                kinds[key] = [length, blockers, 0]
+            kinds[key][2] += 1
+            spans.append((rod["name"], lo, length, blockers, key))
+    return spans, kinds
+
+
+def section_kit(data: dict, section: float, sleeve: float) -> tuple:
+    """The cut lengths this dome is built from, longest first.
+
+    One or two numbers, and they are the cut list: what a saw is set to, and
+    what the sections in the bag get sorted into. See `_section_kit`.
+    """
+    mm_per_deg = math.pi * data["meta"]["dome_radius"] / 180.0
+    _, kinds = _stretches(data, mm_per_deg)
+    kit, _ = _section_kit(
+        [tuple(k) for k in kinds.values()], section, sleeve
+    )
+    return tuple(kit)
 
 
 def splice_joints(data: dict, section: float, sleeve: float) -> list:
     """Where each bow is joined along its length, and how clear of a crossing.
 
-    Two things decide this, and they pull against each other.
+    Three things decide this, and they pull against each other.
 
     **No section may be longer than the transport length.** That is what puts
-    the dome in a car, and it is the reason splices exist at all. It fixes how
-    many joints a bow needs: ``ceil(length / section)`` sections, one fewer
-    joints than sections.
+    the dome in a car, and it is the reason splices exist at all. It fixes the
+    fewest sections a bow can be cut into: ``ceil(length / section)``.
 
     **No joint may sit on a crossing.** A sleeve there cannot be clamped and
     cannot be woven past, and the crossing already carries a part of its own.
     So the sleeve clears the crossing by its own length, which leaves room for
     that part as well as for itself.
 
-    Even sections satisfy the first and, on M, happen to satisfy the second.
-    They do not in general: the bigger domes cut a bow into more sections, the
-    divisions fall closer together, and some land on a crossing. So sections
-    start even and each joint is then moved the shortest distance that clears,
-    staying inside the window where both of its own sections are still short
-    enough to travel. If nothing in that window is clear, the bow takes one
-    more section -- shorter ones, more slack, more room to move -- and it is
-    tried again.
+    **The whole dome is cut into at most two lengths.** A bag of sections is
+    sorted by hand, so a dome with four lengths 80 mm apart is a dome that
+    gets assembled wrong. See `_section_kit`, which owns this one.
 
-    Deterministic, and it prefers even sections: a bow that does not need the
-    help does not get any.
+    The first two used to be met bow by bow: divide evenly, then nudge each
+    joint that lands on a crossing the shortest distance that clears. That is
+    geometrically freer and logistically worse -- on S and L it produced four
+    cut lengths within 180 mm of each other. The kit is now solved once for
+    the whole dome and every stretch is laid out from it.
     """
     from . import geometry
 
     radius = data["meta"]["dome_radius"]
     mm_per_deg = math.pi * radius / 180.0
-    keep_out = sleeve
-    cuts = doorway.removed_spans(data)
-
-    crossing_ts: dict = {}
-    for c in data["crossings"]:
-        for side in ("a", "b"):
-            crossing_ts.setdefault(c[f"rod_{side}"], []).append(c[f"t_{side}_deg"])
+    spans, kinds = _stretches(data, mm_per_deg)
+    _, orders = _section_kit(
+        [tuple(k) for k in kinds.values()], section, sleeve
+    )
+    order_of = dict(zip(kinds, orders))
 
     bows = {b.name: b for b in geometry.build_bows()}
     out = []
-    for rod in data["rods"]:
-        bow = bows[rod["name"]]
-        ts = sorted(set(crossing_ts.get(rod["name"], [])))
-        for lo, hi in _present_spans(rod, cuts):
-            length = (hi - lo) * mm_per_deg
-            # Arc length from the start of this stretch: the frame both
-            # constraints are naturally stated in.
-            blockers = [(t - lo) * mm_per_deg for t in ts if lo <= t <= hi]
-            placed = _place_joints(length, section, keep_out, blockers)
-            edges = [0.0] + list(placed) + [length]
-            for i, s_mm in enumerate(placed):
-                t = lo + s_mm / mm_per_deg
-                clear = min(
-                    (abs(s_mm - b) for b in blockers), default=float("inf")
-                )
-                even = length * (i + 1) / (len(placed) + 1)
-                x, y, z = bow.point(t, radius)
-                out.append(
-                    {
-                        "rod": rod["name"],
-                        "t_deg": round(t, 6),
-                        "s_mm": round(s_mm, 3),
-                        "clear_of_crossing_mm": round(clear, 3),
-                        "moved_mm": round(s_mm - even, 3),
-                        "sections_mm": [
-                            round(edges[i + 1] - edges[i], 1),
-                            round(edges[i + 2] - edges[i + 1], 1),
-                        ],
-                        "x": round(x, 6),
-                        "y": round(y, 6),
-                        "z": round(z, 6),
-                    }
-                )
+    for name, lo, length, blockers, key in spans:
+        bow = bows[name]
+        order = order_of[key]
+        at = 0.0
+        for i, piece in enumerate(order[:-1]):
+            at += piece
+            t = lo + at / mm_per_deg
+            clear = min((abs(at - b) for b in blockers), default=float("inf"))
+            even = length * (i + 1) / len(order)
+            x, y, z = bow.point(t, radius)
+            out.append(
+                {
+                    "rod": name,
+                    "t_deg": round(t, 6),
+                    "s_mm": round(at, 3),
+                    "clear_of_crossing_mm": round(clear, 3),
+                    "moved_mm": round(at - even, 3),
+                    "sections_mm": [round(order[i], 1), round(order[i + 1], 1)],
+                    "x": round(x, 6),
+                    "y": round(y, 6),
+                    "z": round(z, 6),
+                }
+            )
     return out
+
 
 def _rod_offset_sampler(data: dict):
     """A rod's radial offset anywhere along it, read back from a built model.

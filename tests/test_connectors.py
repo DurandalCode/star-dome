@@ -618,6 +618,75 @@ def test_no_splice_lands_on_a_crossing():
             )
 
 
+def test_a_dome_is_cut_into_at_most_two_section_lengths(sched):
+    """Two cut lengths, dome-wide, doorway-shortened bows included.
+
+    This is a logistics constraint, not a geometric one, and it is the reason
+    the joints are not simply an even division of each bow. Dividing evenly
+    and nudging the joints that land on a crossing gave S four lengths --
+    2174, 2094, 2014 and 1655 -- and L four more, all within 180 mm of each
+    other. Those are four lengths to tell apart by eye in a bag on wet grass,
+    and getting one wrong is a bow that will not close.
+
+    So the whole dome is cut from a kit of at most two, and the bow that gets
+    the odd order is the one that has to take it.
+    """
+    splice = next(
+        (p for p in sched["parts"] if p["kind"] == "rod_splice"), None
+    )
+    if splice is None:
+        return
+    kit = splice["section_kit_mm"]
+    assert 1 <= len(kit) <= connectors.SECTION_LENGTH_KINDS, kit
+    assert kit == sorted(kit, reverse=True)
+
+    seen = set()
+    for joint in splice["joints"]:
+        seen.update(joint["sections_mm"])
+    assert seen <= set(kit), (seen, kit)
+
+
+def test_every_section_still_fits_in_a_car(sched):
+    """The kit is a choice of lengths, not an escape from the transport limit.
+
+    Unifying the cut list could have been bought by making one section
+    longer than the dome's transport length, which would defeat the reason
+    splices exist at all. It is not: every length in the kit travels.
+    """
+    splice = next(
+        (p for p in sched["parts"] if p["kind"] == "rod_splice"), None
+    )
+    if splice is None:
+        return
+    for length in splice["section_kit_mm"]:
+        assert 0 < length <= splice["section_length"] + 1e-6, length
+
+
+def test_every_bow_is_exactly_its_own_sections(sched):
+    """Sections are cut to sum to the stretch they make, not near it.
+
+    A kit of two lengths is only a kit if the pieces close the bow. A
+    millimetre of slack here is a millimetre the ferrule has to hide.
+    """
+    splice = next(
+        (p for p in sched["parts"] if p["kind"] == "rod_splice"), None
+    )
+    if splice is None:
+        return
+
+    runs = {}
+    for joint in splice["joints"]:
+        runs.setdefault(joint["rod"], []).append(joint)
+    for rod, joints in runs.items():
+        joints.sort(key=lambda j: j["s_mm"])
+        pieces = [joints[0]["sections_mm"][0]]
+        pieces += [j["sections_mm"][1] for j in joints]
+        # Consecutive joints agree about the section between them.
+        for a, b in zip(joints, joints[1:]):
+            assert a["sections_mm"][1] == b["sections_mm"][0], rod
+        assert sum(pieces) == pytest.approx(joints[-1]["s_mm"] + pieces[-1], abs=0.3)
+
+
 def test_the_stake_knows_which_way_is_out_and_which_way_is_down():
     """The driven angle is hardware, but where it stands is not arbitrary.
 
