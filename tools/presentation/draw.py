@@ -727,9 +727,10 @@ def cut_svg():
     """Each size's typical bow, laid out straight and to one common scale.
 
     A bow is bent, so where it gets cut is an arc length -- and arc length is
-    a straight line once the bow is unrolled. That is the frame the two rules
-    are naturally stated in: no section longer than the transport limit, no
-    joint within a sleeve of a crossing.
+    a straight line once the bow is unrolled. That is the frame all three
+    rules are naturally stated in: no section longer than the transport
+    limit, no joint within a sleeve of a crossing, and at most two cut
+    lengths for the whole dome. The tint says which of the two a section is.
     """
     rows = [(n, DATA['cuts'][n]) for n in CUT_ROWS]
     longest = max(c['bow_mm'] for _, c in rows)
@@ -751,9 +752,19 @@ def cut_svg():
         def X(mm):
             return pad_l + mm * scale
 
-        # the bow itself
+        # the bow itself, drawn a section at a time so the shorter of the
+        # dome's two cut lengths can be told from the longer at a glance
+        edges = [0.0] + ex['joints_mm'] + [L]
+        short = cut['kit_mm'][-1]
+        for i, length in enumerate(pat['sections_mm']):
+            fill = (f'fill="{SPLICE_COL}" fill-opacity="0.13"'
+                    if length == short and len(cut['kit_mm']) > 1
+                    else 'fill="var(--panel-2)"')
+            p.append(f'<rect x="{X(edges[i]):.1f}" y="{y:.1f}" '
+                     f'width="{(edges[i+1]-edges[i])*scale:.1f}" '
+                     f'height="{bar_h}" {fill}/>')
         p.append(f'<rect x="{X(0):.1f}" y="{y:.1f}" width="{L*scale:.1f}" '
-                 f'height="{bar_h}" rx="2" fill="var(--panel-2)" '
+                 f'height="{bar_h}" rx="2" fill="none" '
                  f'stroke="var(--rule)" stroke-width="1"/>')
 
         # keep-out: a sleeve either side of every crossing, which is the band
@@ -768,21 +779,15 @@ def cut_svg():
                      f'stroke-width="1"/>')
 
         # the cuts
-        for i, s in enumerate(ex['joints_mm']):
-            nudged = abs(ex['moved_mm'][i]) > 0.5
+        for s in ex['joints_mm']:
             p.append(f'<line x1="{X(s):.1f}" y1="{y-7:.1f}" x2="{X(s):.1f}" '
                      f'y2="{y+bar_h+7:.1f}" stroke="{SPLICE_COL}" '
                      f'stroke-width="2"/>')
             p.append(f'<rect x="{X(s)-3.2:.1f}" y="{y-10.2:.1f}" width="6.4" '
                      f'height="6.4" transform="rotate(45 {X(s):.1f} {y-7:.1f})" '
                      f'fill="{SPLICE_COL}"/>')
-            if nudged:
-                p.append(f'<text x="{X(s):.1f}" y="{y+bar_h+20:.1f}" '
-                         f'text-anchor="middle" class="dim" '
-                         f'fill="{C['U']}">↔{abs(ex["moved_mm"][i]):.0f}</text>')
 
         # section lengths, written in the section they belong to
-        edges = [0.0] + ex['joints_mm'] + [L]
         for i, length in enumerate(pat['sections_mm']):
             cx = (edges[i] + edges[i + 1]) / 2.0
             if (edges[i + 1] - edges[i]) * scale > 34:
@@ -809,8 +814,10 @@ def cut_svg():
              f'fill="{SPLICE_COL}"/>')
     p.append(f'<text x="{pad_l+301:.1f}" y="{ly+2:.1f}" class="dim">'
              f'рез · длины секций в мм</text>')
-    p.append(f'<text x="{pad_l+520:.1f}" y="{ly+2:.1f}" class="dim" '
-             f'fill="{C['U']}">↔ — стык сдвинут с ровного деления</text>')
+    p.append(f'<rect x="{pad_l+520:.1f}" y="{ly-9:.1f}" width="13" height="13" '
+             f'fill="{SPLICE_COL}" fill-opacity="0.13"/>')
+    p.append(f'<text x="{pad_l+539:.1f}" y="{ly+2:.1f}" class="dim">'
+             f'короткая из двух длин купола</text>')
     return svg(int(W), int(H), ''.join(p))
 
 
