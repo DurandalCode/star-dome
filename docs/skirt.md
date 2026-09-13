@@ -107,10 +107,10 @@ already has.
 
 ### The post is the stake, made longer
 
-`base_hub_v1` carries a **through slot for a driven steel angle** and two bolts
-across it. A skirt post is that same angle: driven at the bottom, standing in
-the hub's slot at the top, one member doing both jobs. So the post is no more a
-member of the base point than a stake is, and
+`base_hub_v1` carries a **pad and a bolt for a driven steel angle**. A skirt
+post is that same angle: driven at the bottom, bolted to the hub's pad at the
+top, one member doing both jobs. So the post is no more a member of the base
+point than a stake is, and
 
 **a skirted dome and a bare one use exactly the same base hub.**
 

@@ -249,13 +249,13 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     # Three rod ends meet here, and that is all that meets here -- with a skirt
     # as well as without one.
     #
-    # The hub already carries a through slot for a driven steel angle and two
-    # bolts across it. A skirt post is that same angle, longer: driven at the
-    # bottom, standing in the slot at the top, one member doing both jobs. So
-    # the post is not an extra member at this point any more than the stake
-    # is, and the skirt's own members -- two ring chords and two brace heads --
-    # land on a collar clamped to the post below the hub rather than on the
-    # hub. See COLLAR below and docs/skirt.md.
+    # The hub already carries a pad and a bolt for a driven steel angle. A
+    # skirt post is that same angle, longer: driven at the bottom, bolted to
+    # the pad at the top, one member doing both jobs. So the post is not an
+    # extra member at this point any more than the stake is, and the skirt's
+    # own members -- two ring chords and two brace heads -- land on a collar
+    # clamped to the post below the hub rather than on the hub. See COLLAR
+    # below and docs/skirt.md.
     at_base = {b["name"]: 3 for b in data["base_nodes"]}
 
     # A doorway cut takes a bow end off the two feet the door stands between,
@@ -276,10 +276,10 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
     for name, count in at_base.items():
         grouped.setdefault(count, []).append(name)
     for count, names in sorted(grouped.items(), reverse=True):
-        # Whether the angle in the hub's slot is driven straight into the
+        # Whether the angle on the hub's pad is driven straight into the
         # ground or is a post with the ground a skirt-height further down
         # changes its length and nothing else about this part. Either way the
-        # hub is held down by the thing standing in its slot.
+        # hub is held down by the thing it is bolted to.
         on_ground = True
         # Every point in a group has the same member count, and the fan is
         # the same shape at all of them up to the mirror, so one of them
@@ -288,7 +288,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
         here = fan["by_base"][sorted(names)[0]]
         bows_here = len(here["arms"])
         # The generator draws a flat fan of bow ends, however many, plus the
-        # slot the angle stands in. Nothing else arrives here.
+        # pad the angle bolts to. Nothing else arrives here.
         drawable = count == bows_here
         parts.append(
             {
@@ -322,7 +322,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                     + ". They arrive at "
                     + ("two" if bows_here == 2 else "three")
                     + " different inclinations and have to be held to each "
-                    "other and to the angle standing in the slot under them"
+                    "other and to the angle bolted to the pad under them"
                     + (
                         " -- which on a skirted dome is the post, not a short "
                         "stake, and reaches the ground a skirt-height below."
@@ -340,7 +340,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             }
         )
 
-    # The angle in the hub's slot. On a bare dome it is a stake and nothing
+    # The angle on the hub's pad. On a bare dome it is a stake and nothing
     # else; under a skirt the same member keeps going down to the ground and
     # is the post as well. One item on the list either way, and the only thing
     # that changes is how much of it stands above the soil.
@@ -1243,14 +1243,19 @@ def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
 
     It is vertical whatever the hub above it is doing -- you hammer it, and the
     ground is down -- so local +Z points down the way it goes in. What the foot
-    decides is the other two axes, and they matter: the hub carries its slot
-    UNDER the bow bundle, offset towards the dome centre, so a consumer needs
-    to know which way that is. Local +Y is outward, so the offset is negative
-    along it, and the two mirror sets of feet get it on the correct side
-    without anyone working out which set they are in.
+    decides is the other two axes, and they matter: the hub meets the angle on
+    a pad offset from the bow bundle along the stack axis, so a consumer needs
+    to know which way that axis runs. Local +Y is outward.
 
-    How far in, this does not say. That is a dimension of the hub, and the hub
-    is `base_hub_v1`'s business; this is the ground's frame, not the part's.
+    Which SIDE the angle ends up on is not settled here, and saying that it was
+    is the one thing this frame used to get wrong. The pad is on the outer face
+    of the hub's bottom plate, and five of the ten feet take that hub turned
+    over -- that is what the two mirror sets have always meant -- so five
+    angles stand inboard of the bundle and five outboard. It was true of the
+    through slot before the pad and nobody had noticed. See decision 0025.
+
+    How far off, this does not say either. That is a dimension of the hub, and
+    the hub is `base_hub_v1`'s business; this is the ground's frame.
     """
     from . import vec
 

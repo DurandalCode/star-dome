@@ -215,17 +215,31 @@ def fillet_by_predicate(shape, pred, radius, max_pass=2):
 # printability
 # --------------------------------------------------------------------------
 def _outward_normal(shape, face, u, v, eps=0.05):
-    """The face normal that points out of the solid.
+    """The face normal that points out of the solid, or None where it cannot
+    be told.
 
     `normalAt` follows the surface's own parameterisation, which after a cut
-    may point into the material. Probing just off the surface settles it.
+    may point into the material. Probing just off the surface settles it --
+    except where the sample lands on the face's own edge, and then the probe
+    ahead is outside the face's patch rather than outside the SOLID, and a
+    single probe reads it as material. That is not an obscure case: a hexagon
+    sampled on a square grid put four of its twelve usable samples on its own
+    boundary, which is how the base hub's stake nut pocket -- a pocket that
+    opens UPWARDS, away from the bed -- came to be reported as 91 mm2 of flat
+    ceiling.
+
+    So probe both ways. Agreement means the sample is on an edge and settles
+    nothing; a caller that cannot use a normal should drop it rather than take
+    the wrong one.
     """
     p = face.valueAt(u, v)
     n = face.normalAt(u, v)
-    probe = App.Vector(p.x + n.x * eps, p.y + n.y * eps, p.z + n.z * eps)
-    if shape.isInside(probe, 1e-7, True):
-        return App.Vector(-n.x, -n.y, -n.z)
-    return n
+    ahead = App.Vector(p.x + n.x * eps, p.y + n.y * eps, p.z + n.z * eps)
+    behind = App.Vector(p.x - n.x * eps, p.y - n.y * eps, p.z - n.z * eps)
+    into = shape.isInside(ahead, 1e-7, True)
+    if into == shape.isInside(behind, 1e-7, True):
+        return None
+    return App.Vector(-n.x, -n.y, -n.z) if into else n
 
 
 def printability(shape, flipped=False, samples=5):
@@ -256,9 +270,11 @@ def printability(shape, flipped=False, samples=5):
                 try:
                     if not face.isPartOfDomain(u, v):
                         continue
-                    normals.append(_outward_normal(shape, face, u, v))
+                    normal = _outward_normal(shape, face, u, v)
                 except Exception:
                     continue
+                if normal is not None:   # None means the sample sat on an edge
+                    normals.append(normal)
         if not normals:
             continue
         face_zs = [vx.Point.z for vx in face.Vertexes]
@@ -491,6 +507,19 @@ def fastener_size_for(rod_diameter):
     """Which metric bolt a rod of this size gets. Half the rod, snapped."""
     want = rod_diameter / 2.0
     return min(FASTENERS, key=lambda m: (abs(m - want), m))
+
+
+def fastener_for_clearance(clearance):
+    """The row whose clearance hole this is: 8.5 is the M8's, and so on.
+
+    Everything else in this table is reached through the rod, because the rod
+    is what the part is drawn around. One fastener is not: the bolt that holds
+    a base hub to its driven angle is sized by the ground, and it arrives as
+    the hole it needs rather than as a thread. Its nut still has to come from
+    somewhere, and it comes from here.
+    """
+    size = min(FASTENERS, key=lambda m: abs(FASTENERS[m]["clearance"] - clearance))
+    return size, FASTENERS[size]
 
 
 def pin_for(rod_diameter):

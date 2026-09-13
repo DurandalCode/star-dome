@@ -32,10 +32,46 @@ is the vertical tangent plane and the stack axis is horizontal and radial.
 Nothing in the geometry cares; only the installer does.
 
 **The empty sector points at the ground.** Three arms spanning 79 deg leave
-281 deg of nothing, and once the part is stood up that sector faces down. The
-driven steel angle that anchors this point goes there, in the fan plane,
-through a slot in the hub -- so the anchorage and the part share one place
-instead of competing for it.
+281 deg of nothing, and once the part is stood up that sector faces down. That
+is where the driven steel angle has to be met, and it is not a preference: the
+one direction a foot has no room in is straight up. Vertical out of the hub is
+azimuth 90, the U arm sits at 79.19, and a rod is 5.7 mm across with a wall
+round it -- so the vertical line is inside that arm for its first 67 mm. Above
+a foot there is nothing but bows. Below it there is nothing at all.
+
+THE ANGLE IS MET ON A PAD, NOT THREADED THROUGH THE HUB
+
+V1 ran the angle through an L-section slot cut clean across the base plate.
+It held, and it charged for it three times:
+
+    the plate     46.8 mm thick over all 104 x 113 mm of it, because the slot
+                  band and the floor under it are added to the WHOLE plate --
+                  258 cm3 of the hub's 431, and the base hubs were 59% of
+                  the dome's plastic (docs/bom.md)
+    the print     2643 mm2 of flat slot roof at 0 deg of overhang, the worst
+                  face in the kit and the one docs/roadmap.md names
+    the fit       100 mm of slot that a driven angle must be straight and
+                  untwisted along before the hub will go on at all
+
+None of that is what the slot was FOR. It was for three things: hold the hub
+down on the angle, let the hub find its own height whatever depth the ground
+gave, and let the angle stand proud above the foot for the cover's loops to
+drop over (decision 0014). A flat pad and one bolt do all three, on a lug
+38 mm wide and 45 long:
+
+    down          the bolt, in bearing. Per foot at 20 m/s the ground takes
+                  154 N of uplift and 188 N of shear (`make loads`); the
+                  bolt bears on 8.5 mm of the pad, which is 4 MPa
+    height        the angle carries a row of holes at 20 mm pitch, and the
+                  bolt goes through whichever one lands. The foot is then
+                  within 10 mm of nominal, which is the ground tolerance the
+                  project already budgets for (docs/tolerance.md)
+    twist         two flat faces, bolted. A twisted angle beds onto a pad
+                  and jams in a slot
+
+The angle passes the hub as it always did -- it just passes BESIDE it now,
+inboard of the bottom plate's outer face, where the whole half-space is empty,
+instead of through a hole in the middle of it.
 
 WHAT THIS PART DOES AND DOES NOT DO
 
@@ -57,8 +93,11 @@ part turned over serves the other five, so it is still one geometry.
 
 FIELD SEQUENCE
 
-    drop the hub over the driven angle -> bolt the four plates up ->
-    push each bow end into its channel -> pin it
+    at home   bolt the four plates up: two bolts, nut captive in the bottom
+              plate, head and washer down a counterbore in the cap. One tool,
+              one end, and nothing to hold on the other side
+    at the    drive the angle -> lay the hub's pad against its leg and bolt
+    dome      it -> push each bow end into its channel -> pin it
 
 Note the order. The four-rod node has to be opened, a rod laid, a plate
 closed, the next rod laid, and so on, because it CLAMPS its rods. This one
@@ -69,12 +108,33 @@ thing to be doing in a field with cold hands.
 The price of a slide fit is that the channel locates the rod and holds it
 against nothing, so each arm carries a cross pin through arm and rod together.
 
+EVERY NUT IN THIS PART IS CAPTIVE
+
+V1 drilled the two stack bolts straight through all four plates and left it
+there: no counterbore, no nut pocket, a bolt standing proud at one end and a
+loose nut at the other, and two spanners to do up a joint that is assembled
+blind inside a stack. The pockets were already in the parameter table --
+``nutAcrossFlats``, ``nutRecessDepth``, ``headBoreDepth`` -- and nothing cut
+them. They are cut now, the same way ``fan_node_v2`` cuts them:
+
+    bottom plate   hex pocket at its outer face, opening onto the print bed,
+                   with a cone up to the shank so the ceiling is not flat
+    cap            counterbore for head and washer at its outer face -- which
+                   is the cap's bed, because the cap prints flipped -- with a
+                   cone down to the shank for the same reason
+
+The stake bolt gets the same treatment from the other side: it goes in from
+the angle, through its drilled leg and the pad, into a nut sitting in a pocket
+in the pad's far face. So the one spanner you bring is for the head, and it is
+on the side you are already standing on.
+
 Helpers come from connectors/kit.py, shared with the other live generators.
 
 Run:  exec(open('.../connectors/base_hub_v1.py').read()) inside FreeCAD, or
 through connectors/generate_clamps.py, which drives it from the model data.
 """
 
+import itertools
 import math
 import os
 import sys
@@ -135,15 +195,21 @@ INPUTS = [
     ("stakeLegWidth",         30.0,  "mm",  "each leg of the driven steel angle, across"),
     ("stakeThickness",         3.0,  "mm",  "the angle's material thickness"),
     ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
-    ("stakeClearance",         0.6,  "mm",  "fit clearance on the stake slot, per side"),
-    ("stakeBoltDiameter",      8.5,  "mm",  "M8 clearance hole through the stake slot"),
+    ("stakeStandProud",      120.0,  "mm",  "how much of the angle is left above the foot once it is driven. Drawing only, but it is the field rule the reference solid checks: the angle has to clear the hub over all of it, and what stands above is what the cover's loop drops over -- decision 0014"),
+    ("stakeBoltDiameter",      8.5,  "mm",  "clearance hole for the bolt through the angle's leg and the pad. 8.5 is M8"),
+    ("stakeBoltAt",            0.0,  "mm",  "how far below the hub centre that bolt sits. 0 puts it as close in as its own nut pocket allows, which is the shortest pad that works"),
+    ("stakeHolePitch",        20.0,  "mm",  "pitch of the row of holes drilled in the angle. Drive it to whatever depth the ground gives, then bolt through whichever hole lands: the foot ends up within half a pitch of nominal, and 10 mm is the ground tolerance docs/tolerance.md already budgets"),
+    ("stakeLugWidth",          0.0,  "mm",  "across the pad. 0 takes it from the angle: its leg plus a wall either side"),
+    ("stakeLugThickness",      0.0,  "mm",  "through the pad, and it is what the bolt bears on. 0 stacks the nut pocket on top of one bolt diameter of bearing"),
     ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
     ("fastenerDiameter",       0.0,  "mm",  "clearance hole for the bolt. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("fastenerHeadDiameter",  0.0,  "mm",  "head / washer outside diameter. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("headClearance",          0.6,  "mm",  "diametral clearance for the head counterbore"),
     ("headBoreDepth",          0.0,  "mm",  "counterbore depth for head + washer. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("headConeHeight",         0.0,  "mm",  "taper off the head counterbore, so the cap prints upside down without a flat ceiling. 0 takes it from rodDiameter -- see kit.FASTENERS"),
     ("nutAcrossFlats",         0.0,  "mm",  "nut across flats + fit clearance. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("nutRecessDepth",         0.0,  "mm",  "captive nut pocket depth. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
+    ("nutConeHeight",          0.0,  "mm",  "taper off the nut pocket, for the same reason. 0 takes it from rodDiameter -- see kit.FASTENERS"),
     ("boltHoleClearance",      0.4,  "mm",  "diametral print clearance on the bolt shank hole"),
     ("hubRadiusFactor",        2.2,  "-",   "hub radius as a multiple of rodDiameter"),
     ("armWidthFactor",         1.6,  "-",   "arm width as a multiple of the boss diameter"),
@@ -154,22 +220,6 @@ INPUTS = [
 # --------------------------------------------------------------------------
 # geometry helpers
 # --------------------------------------------------------------------------
-def widest_arm_gap(azimuths):
-    """The bisector of the widest gap *between two arms*, and its size.
-
-    Not the empty sector -- that is the 281 deg with nothing in it at all.
-    This is the roomiest place among the arms, which is where a slot running
-    right through the hub has to come out.
-    """
-    ordered = sorted(a % 360.0 for a in azimuths)
-    best = None
-    for i in range(len(ordered) - 1):
-        size = ordered[i + 1] - ordered[i]
-        if best is None or size > best[1]:
-            best = ((ordered[i] + ordered[i + 1]) / 2.0, size)
-    return best
-
-
 def empty_sector(azimuths):
     """The one sector with no arm in it, as (start, size) in degrees.
 
@@ -211,38 +261,42 @@ def rod_channel(radius, length, azimuth_deg, z, tilt_deg, reach_back, steps=2):
     return solid
 
 
-def angle_profile(leg, thickness, length, azimuth_deg, clearance=0.0):
-    """A steel angle: an L in section, run along one azimuth.
+def driven_angle(leg, thickness, seat_z, y_from, y_to):
+    """The steel angle as it stands in the ground, in the part's own frame.
 
-    An angle rather than a flat bar, and that is not a detail. A blade in a
-    slot can rotate in its own plane; an L cannot, because turning it drives
-    one leg into the side of the slot. The hub gets its resistance to twisting
-    on the stake for free, out of the section.
+    Vertical, because you hammer it and the ground is down -- so it runs along
+    Y, not along an azimuth. One leg lies flat against the pad's seating face
+    at `seat_z` and is what the bolt goes through; the other drops away from it
+    inboard, where the whole half-space below the bottom plate is empty.
 
-    Built in a local frame -- section in (Y, Z), extruded along +X -- then
-    turned to the azimuth, the same way the rod channels are, because building
-    boxes at an angle in world coordinates is where OCC starts producing
-    invalid solids.
+    Which way that second leg points is free -- it meets nothing either way --
+    and it is drawn inboard so that the section reads as the L it is rather
+    than as a bar seen edge on.
     """
-    half = leg / 2.0 + clearance
-    t = thickness + 2.0 * clearance
-    # Two legs sharing the corner at (-half, -half) of a leg-square centred on
-    # the axis, so the section sits centred whatever the leg width.
-    flat = Part.makeBox(length, 2.0 * half, t, App.Vector(0.0, -half, -half))
-    upright = Part.makeBox(length, t, 2.0 * half, App.Vector(0.0, -half, -half))
-    solid = flat.fuse(upright).removeSplitter()
-    solid.rotate(App.Vector(0, 0, 0), App.Vector(0, 0, 1), azimuth_deg)
-    return solid
+    across = Part.makeBox(
+        leg, y_to - y_from, thickness,
+        App.Vector(-leg / 2.0, y_from, seat_z - thickness),
+    )
+    down = Part.makeBox(
+        thickness, y_to - y_from, leg,
+        App.Vector(-leg / 2.0, y_from, seat_z - leg),
+    )
+    return across.fuse(down).removeSplitter()
 
 
 def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
-                azimuths, stake_azimuth, stake_reach, bolt_points=()):
-    """Hub disc, one arm per rod, a tail to the stake slot, and a boss per bolt.
+                azimuths, bolt_points=()):
+    """Hub disc, one arm per rod, and a boss per bolt.
 
     The bosses are not decoration. The bolts sit 35 mm out on azimuths 55 deg
-    either side of the stake, and the hub disc reaches 22 mm while the tail is
-    only 15 deg wide -- so without them the bolt holes were cut through open
-    air and the stack had nothing holding it together at all.
+    either side of straight down and the hub disc reaches 22 mm -- so without
+    them the bolt holes were cut through open air and the stack had nothing
+    holding it together at all.
+
+    There used to be a tail here as well, carrying material out to and around
+    the stake slot. The slot is gone and the tail went with it: the stake pad
+    belongs to the bottom plate alone, and the other three were paying for a
+    spar to a hole they do not have.
     """
     height = z_hi - z_lo
     body = Part.makeCylinder(
@@ -250,10 +304,6 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
     )
     for az in azimuths:
         body = body.fuse(kit.arm(arm_length, arm_width, height, z_lo, az))
-    # The tail: material out to and around the stake slot, in the empty sector.
-    body = body.fuse(
-        kit.arm(stake_reach, boss_radius * 2.0, height, z_lo, stake_azimuth)
-    )
     for point in bolt_points:
         boss = Part.makeCylinder(
             boss_radius, height, App.Vector(point.x, point.y, z_lo),
@@ -266,6 +316,45 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
             kit.arm(reach, boss_radius, height, z_lo, az)
         )
     return body.removeSplitter()
+
+
+def bolt_reach(bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back):
+    """How far out the two stack bolts must sit to miss every rod channel.
+
+    An arm is a RAY, not a line: the rods END at the hub and there is nothing
+    on the far side. Treating them as lines -- which the first version did,
+    copying the node, where every rod does pass through -- makes a bolt sitting
+    nearly opposite an arm look blocked by it, and the offset needed to "clear"
+    a phantom ran to 247 mm. The tail then reached out that far and the bottom
+    plate came out 311 mm across.
+
+    But the ray is not the whole story either, and the slot used to hide that.
+    Every channel is cut `reach_back` past the hub centre, so a bow end pushed
+    home bottoms out on material rather than on air; that stub is real, and the
+    bolt at 215 deg sits 2.4 deg off the line of the arm at 37.4 -- squarely
+    behind it. While the slot was there it forced the bolts out to 34.9 mm and
+    the question never came up. With the slot gone, nothing else would have
+    kept them off the stub.
+
+    So each bolt clears each channel whichever of the two ways is cheaper: past
+    its flank, or past the blunt end of the stub behind it.
+    """
+    want = 0.0
+    for b in bolt_azimuths:
+        for a in azimuths:
+            separation = abs((b - a + 180.0) % 360.0 - 180.0)
+            if separation < 90.0:                    # in front: the arm itself
+                sideways = math.sin(math.radians(separation))
+                want = max(want, (boss_r + channel_r) / max(sideways, 1e-6))
+                continue
+            behind = 180.0 - separation              # the stub, reach_back long
+            sideways = math.sin(math.radians(behind))
+            endwise = math.cos(math.radians(behind))
+            ways = [(boss_r + channel_r) / max(sideways, 1e-6)]
+            if endwise > 1e-6:
+                ways.append((reach_back + boss_r + wall) / endwise)
+            want = max(want, min(ways))
+    return want
 
 
 def build(values, fan_gaps=None):
@@ -298,53 +387,12 @@ def build(values, fan_gaps=None):
     # An earlier version put the stake on the middle of the widest gap between
     # arms, which gave it the most room and had it entering the earth 32 deg
     # off plumb. Room is worth having; plumb is worth more.
-    #
-    # A through slot is what makes the part usable in the field: drive the
-    # angle to whatever depth the ground gives, then drop the hub on and it
-    # finds its own height. A blind slot means controlling the driven depth to
-    # the millimetre, standing in a field, ten times per dome.
-    stake_axis = 270.0
-    exit_azimuth = (stake_axis + 180.0) % 360.0
-    exit_gap = min(
-        abs((exit_azimuth - a + 180.0) % 360.0 - 180.0) for a in azimuths
-    )
+    stake_azimuth = 270.0
 
     boss_r = values["fastenerHeadDiameter"] / 2.0 + wall
-    slot_half = values["stakeLegWidth"] / 2.0 + values["stakeClearance"]
-
-    # Two bolts, one either side of the stake slot, far enough round that each
-    # clears the nearest arm and far enough out that its boss clears the slot.
-    # fan_node_v2 puts them opposite each other, which works for a fan that
-    # spans 180; three arms spanning 79 put the opposite direction 2 deg from
-    # an arm, so they go side by side instead.
-    stake_azimuth = stake_axis
-    bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
-    bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
-    # An arm is a RAY, not a line: the rods end at the hub and there is nothing
-    # on the far side. Treating them as lines -- which the first version did,
-    # copying the node where every rod does pass through -- makes a bolt sitting
-    # nearly opposite an arm look blocked by it, and the offset needed to
-    # "clear" a phantom ran to 247 mm. The tail then reached out that far and
-    # the bottom plate came out 311 mm across.
-    ratios = []
-    for b in bolt_azimuths:
-        for a in azimuths:
-            separation = abs((b - a + 180.0) % 360.0 - 180.0)
-            if separation >= 90.0:
-                continue  # behind the hub; that arm is not there
-            ratios.append(math.sin(math.radians(separation)))
-    clear_of_arms = (
-        (boss_r + channel_r) / max(min(ratios), 1e-6) if ratios else 0.0
-    )
-    clear_of_slot = (slot_half + boss_r + wall) / max(
-        abs(math.sin(math.radians(bolt_spread))), 1e-6
-    )
-    bolt_offset = max(clear_of_arms, clear_of_slot)
-
     hub_r = values["hubRadiusFactor"] * rod_d
     arm_w = values["armWidthFactor"] * boss_r * 2.0
     arm_len = values["rodEngagement"] + values["channelOverrun"]
-    stake_reach = bolt_offset + boss_r + values["edgeRadius"]
 
     length = arm_len
     reach_back = hub_r
@@ -354,21 +402,22 @@ def build(values, fan_gaps=None):
     pitch = rod_d + values["rodGap"]
     levels = [(k - (arm_count - 1) / 2.0) * pitch for k in range(arm_count)]
 
-    # The angle passes right through, and it cannot go through the middle: its
-    # section is 30 mm deep along the stack axis whatever way it is rolled,
-    # and the three rods with their walls already occupy 38 of the stack's
-    # 43 mm. There is no room, and the check below says so in mm3.
-    #
-    # So it goes UNDER the bundle, through a deepened base plate. In the part's
-    # own frame that is -Z; installed, the stack axis is horizontal and radial,
-    # so the angle still stands vertical in the fan plane and is simply offset
-    # radially from the rods. The offset is a moment, and it is the one the
-    # ground and the angle's own bending are best placed to take.
-    slot_span = values["stakeLegWidth"] + 2.0 * values["stakeClearance"]
-    slot_top = levels[0] - channel_r - tilt_slack - wall
-    slot_bottom = slot_top - slot_span
-    z_bottom = slot_bottom - values["baseFloor"]
+    # The floor under the lowest channel and the cap over the highest, and
+    # nothing else. The base plate used to carry the stake slot's 31 mm band
+    # as well -- across the whole plate, because a plate is one thickness --
+    # which is where 258 of the hub's 431 cm3 went.
+    z_bottom = levels[0] - channel_r - tilt_slack - values["baseFloor"]
     z_top = levels[-1] + channel_r + tilt_slack + values["capThickness"]
+
+    # Two bolts, one either side of straight down, far enough round that each
+    # clears the nearest arm. fan_node_v2 puts them opposite each other, which
+    # works for a fan that spans 180; three arms spanning 79 put the opposite
+    # direction 2 deg from an arm, so they go side by side instead.
+    bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
+    bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
+    bolt_offset = bolt_reach(
+        bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back
+    )
 
     bolt_points = [
         App.Vector(
@@ -376,6 +425,31 @@ def build(values, fan_gaps=None):
         )
         for az in bolt_azimuths
     ]
+
+    # --- where the angle is met ---------------------------------------------
+    #
+    # On the bottom plate's outer face, straight down from the hub: a pad the
+    # angle's leg lies against, one bolt through both, and the nut in a pocket
+    # on the far side so only one end of it needs a tool.
+    #
+    # The face is the one the plate is printed on, and that is not a detail --
+    # it is the whole reason the pad is on this side and this way up. Material
+    # on the far side of the angle's leg would have to hang below that face,
+    # which on an FDM bed means below the bed. Everything this part offers the
+    # angle is therefore a flat face and a hole, and everything the slot used
+    # to offer -- flanks, a roof, a closed section -- is what it cost.
+    stake_size, stake_bolt = kit.fastener_for_clearance(values["stakeBoltDiameter"])
+    nut_circum = stake_bolt["nut_af"] / math.sqrt(3.0)
+    lug_w = values["stakeLugWidth"] or (values["stakeLegWidth"] + 2.0 * wall)
+    lug_thick = max(
+        values["stakeLugThickness"]
+        or (stake_bolt["nut_depth"] + values["stakeBoltDiameter"]),
+        levels[0] - z_bottom,
+    )
+    stake_bolt_at = values["stakeBoltAt"] or (hub_r + nut_circum + wall)
+    stake_reach = stake_bolt_at + nut_circum + wall
+    pad_top = z_bottom + lug_thick
+    bolt_bearing = lug_thick - stake_bolt["nut_depth"]
 
     shank_r = (values["fastenerDiameter"] + values["boltHoleClearance"]) / 2.0
     head_r = (values["fastenerHeadDiameter"] + values["headClearance"]) / 2.0
@@ -425,42 +499,95 @@ def build(values, fan_gaps=None):
         for p in bolt_points
     ]
 
-    # The stake slot: an L-section hole running out along the bisector of the
-    # empty sector, so that once the part is stood up it points at the ground.
-    # The angle passes right through the hub and on into the earth, so the slot
-    # runs the full reach and out the back.
-    through = stake_reach + arm_len + 8.0
-    slot_centre_z = (slot_top + slot_bottom) / 2.0
-    slot = angle_profile(
-        values["stakeLegWidth"],
-        values["stakeThickness"],
-        2.0 * through,
-        stake_azimuth,
-        values["stakeClearance"],
-    )
-    slot.translate(
-        App.Vector(
-            -kit.direction(stake_azimuth).x * through,
-            -kit.direction(stake_azimuth).y * through,
-            slot_centre_z,
+    # The pad. A spar straight down from the hub, as thick as a nut pocket
+    # and a bolt diameter stacked -- which is thicker than the plate it grows
+    # from, so the part of it that stands above the plate has to keep out of
+    # every other plate's way. It is cut to shape by the neighbours themselves
+    # rather than by a clearance somebody guessed: build their footprint a
+    # millimetre fat and take it out of the pad.
+    pad = kit.arm(stake_reach, lug_w, lug_thick, z_bottom, stake_azimuth)
+    if pad_top > levels[0] + 1e-9:
+        room = 1.0
+        pad = pad.cut(
+            plate_blank(
+                hub_r + room, arm_len + room, arm_w + 2.0 * room, boss_r + room,
+                levels[0], pad_top + 1.0, azimuths, bolt_points,
+            )
         )
+    pad = pad.removeSplitter()
+
+    # The bolt through pad and angle together, and the nut pocket it lands in.
+    # The bolt is drawn long enough to pass the angle's whole section, so that
+    # the hole is a hole whichever way the angle was rolled.
+    stake_point = kit.direction(stake_azimuth).multiply(stake_bolt_at)
+    stake_shank_r = (
+        values["stakeBoltDiameter"] + values["boltHoleClearance"]
+    ) / 2.0
+    stake_shank = Part.makeCylinder(
+        stake_shank_r,
+        lug_thick + values["stakeLegWidth"] + 4.0,
+        App.Vector(
+            stake_point.x, stake_point.y,
+            z_bottom - values["stakeLegWidth"] - 2.0,
+        ),
+        App.Vector(0, 0, 1),
+    )
+    stake_nut = kit.hex_prism(
+        stake_bolt["nut_af"],
+        stake_bolt["nut_depth"] + 1.0,
+        App.Vector(
+            stake_point.x, stake_point.y, pad_top - stake_bolt["nut_depth"]
+        ),
     )
 
-    # And a cross bolt through it, perpendicular to the blade and in the fan
-    # plane, which is what stops the hub lifting off the stake.
-    cross_at = bolt_offset * 0.55
-    cross_dir = kit.direction(stake_azimuth + 90.0)
-    cross_centre = kit.direction(stake_azimuth).multiply(cross_at)
-    cross = Part.makeCylinder(
-        values["stakeBoltDiameter"] / 2.0,
-        (slot_half + boss_r + wall) * 2.0 + 4.0,
-        App.Vector(
-            cross_centre.x - cross_dir.x * ((slot_half + boss_r + wall) + 2.0),
-            cross_centre.y - cross_dir.y * ((slot_half + boss_r + wall) + 2.0),
-            slot_centre_z,
-        ),
-        cross_dir,
-    )
+    # The nut pocket and the head counterbore for the two stack bolts. Both
+    # open onto the face their plate is printed on -- the bottom plate's outer
+    # face is its bed, and so is the cap's, because the cap prints flipped so
+    # its channel faces up. Each gets a cone up to the shank, because the step
+    # from a pocket to a hole is otherwise a flat ceiling, and a flat ceiling
+    # is the one thing an FDM machine cannot do at all.
+    nut_af = values["nutAcrossFlats"]
+    nut_circum_stack = nut_af / math.sqrt(3.0)
+
+    def nut_pockets():
+        cuts = []
+        for p in bolt_points:
+            cuts.append(
+                kit.hex_prism(
+                    nut_af, values["nutRecessDepth"] + 1.0,
+                    App.Vector(p.x, p.y, z_bottom - 1.0),
+                )
+            )
+            cuts.append(
+                Part.makeCone(
+                    nut_circum_stack, shank_r, values["nutConeHeight"],
+                    App.Vector(p.x, p.y, z_bottom + values["nutRecessDepth"]),
+                    App.Vector(0, 0, 1),
+                )
+            )
+        return cuts
+
+    def head_bores():
+        cuts = []
+        for p in bolt_points:
+            cuts.append(
+                Part.makeCylinder(
+                    head_r, values["headBoreDepth"] + 1.0,
+                    App.Vector(p.x, p.y, z_top - values["headBoreDepth"]),
+                    App.Vector(0, 0, 1),
+                )
+            )
+            cuts.append(
+                Part.makeCone(
+                    shank_r, head_r, values["headConeHeight"],
+                    App.Vector(
+                        p.x, p.y,
+                        z_top - values["headBoreDepth"] - values["headConeHeight"],
+                    ),
+                    App.Vector(0, 0, 1),
+                )
+            )
+        return cuts
 
     names = plate_names(arm_count)
     plates = []
@@ -468,9 +595,10 @@ def build(values, fan_gaps=None):
         z_lo = z_bottom if i == 0 else levels[i - 1]
         z_hi = z_top if i == len(names) - 1 else levels[i]
         blank = plate_blank(
-            hub_r, arm_len, arm_w, boss_r, z_lo, z_hi,
-            azimuths, stake_azimuth, stake_reach, bolt_points,
+            hub_r, arm_len, arm_w, boss_r, z_lo, z_hi, azimuths, bolt_points,
         )
+        if i == 0:
+            blank = blank.fuse(pad).removeSplitter()
         solid = blank
         for ch in channels:
             solid = solid.cut(ch)
@@ -478,32 +606,31 @@ def build(values, fan_gaps=None):
             solid = solid.cut(bolt)
         for pin in pins:
             solid = solid.cut(pin)
-        solid = solid.cut(slot)
-        solid = solid.cut(cross)
+        if i == 0:
+            solid = solid.cut(stake_shank).cut(stake_nut)
+            for cut in nut_pockets():
+                solid = solid.cut(cut)
+        if i == len(names) - 1:
+            for cut in head_bores():
+                solid = solid.cut(cut)
         solid = solid.removeSplitter()
         if not kit.has_volume(solid):
             raise RuntimeError(f"plate {names[i]} came out invalid")
         plates.append(solid)
 
-    # The angle itself, drawn: mostly in the ground, and the reason the empty
-    # sector exists.
-    # Drawn centred on the hub, so equal lengths stand out either side and the
-    # slot is visibly a through hole rather than a socket the angle happens to
-    # bottom out in. On site most of that length is in the ground; this is a
-    # reference solid, not a placement.
-    protrude = values["stakeLength"] / 2.0
-    stake = angle_profile(
+    # The angle itself, drawn where it is driven: standing on the pad's face,
+    # mostly in the ground, and `stakeStandProud` of it above the foot. That
+    # last part is the interesting one -- it runs up PAST the hub, on the
+    # inboard side of the bottom plate, and what it has to miss up there is the
+    # whole part. So it is drawn over all of that length rather than stopping
+    # at the pad, and `verify` asks whether it touches anything.
+    proud = values["stakeStandProud"]
+    stake = driven_angle(
         values["stakeLegWidth"],
         values["stakeThickness"],
-        values["stakeLength"],
-        stake_azimuth,
-    )
-    stake.translate(
-        App.Vector(
-            -kit.direction(stake_azimuth).x * protrude,
-            -kit.direction(stake_azimuth).y * protrude,
-            slot_centre_z,
-        )
+        z_bottom,
+        -(values["stakeLength"] - proud),
+        proud,
     )
 
     # A keep-out around each rod: the channel plus a wall, over the length the
@@ -537,7 +664,29 @@ def build(values, fan_gaps=None):
             )
             for p in bolt_points
         ],
-        "slot": slot,
+        # The same probe for the stake bolt: a ring of pad that has to be
+        # there round the hole, or the bolt is a hole in the air again.
+        "stake_probe": Part.makeCylinder(
+            nut_circum + wall, lug_thick,
+            App.Vector(stake_point.x, stake_point.y, z_bottom),
+            App.Vector(0, 0, 1),
+        ).cut(
+            Part.makeCylinder(
+                stake_shank_r + 0.01, lug_thick + 2.0,
+                App.Vector(stake_point.x, stake_point.y, z_bottom - 1.0),
+                App.Vector(0, 0, 1),
+            )
+        ),
+        "stake_cuts": [stake_shank, stake_nut],
+        # The nut has to go in from somewhere. Its pocket opens away from the
+        # angle, into the space the rest of the stack lives in, so what must
+        # be empty is the column above it.
+        "nut_access": Part.makeCylinder(
+            nut_circum, z_top - pad_top,
+            App.Vector(stake_point.x, stake_point.y, pad_top),
+            App.Vector(0, 0, 1),
+        ),
+        "pad": pad,
         "stake": stake,
     }
     dims = {
@@ -556,13 +705,26 @@ def build(values, fan_gaps=None):
         "ref_rod_length_mm": ref_len,
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
-        "stake_exit_azimuth_deg": exit_azimuth,
-        "stake_exit_clearance_deg": exit_gap,
         "first_arm_rise_deg": values["firstArmRise"],
         "stake_leg_mm": values["stakeLegWidth"],
-        "slot_centre_z_mm": slot_centre_z,
-        "slot_clear_of_rods_mm": levels[0] - channel_r - slot_top,
         "stake_thickness_mm": values["stakeThickness"],
+        "stake_bolt_at_mm": stake_bolt_at,
+        "stake_bolt_size": stake_size,
+        "stake_bolt_mm": values["stakeBoltDiameter"],
+        "stake_bolt_bearing_mm": bolt_bearing,
+        "stake_bolt_length_mm": (
+            values["stakeThickness"] + lug_thick + 2.0
+        ),
+        "stake_nut_af_mm": stake_bolt["nut_af"],
+        "stake_offset_mm": abs(z_bottom) + values["stakeLegWidth"] / 2.0,
+        "stake_stand_proud_mm": proud,
+        "stake_hole_pitch_mm": values["stakeHolePitch"],
+        "lug_width_mm": lug_w,
+        "lug_thickness_mm": lug_thick,
+        "stack_bolt_length_mm": (
+            (z_top - values["headBoreDepth"]) - z_bottom
+            + values["nutRecessDepth"]
+        ),
         "z_bottom_mm": z_bottom,
         "z_top_mm": z_top,
         "stack_height_mm": z_top - z_bottom,
@@ -607,14 +769,11 @@ def verify(geo, dims, values):
 
     # The stack must not be taller than the rods are apart times their count,
     # plus the floor and cap -- a sanity bound that catches a runaway pitch.
-    # The slot band is part of the stack now: the angle passes under the rods,
-    # so the base plate carries its own leg width plus a wall.
+    # It used to carry the slot band as well, which is 31 mm of it gone.
     bound = (
         dims["pitch_mm"] * 3
         + values["baseFloor"]
         + values["capThickness"]
-        + values["stakeLegWidth"]
-        + 2.0 * values["stakeClearance"]
         + values["minimumWall"]
         + 8.0
     )
@@ -623,20 +782,18 @@ def verify(geo, dims, values):
             f"stack is {dims['stack_height_mm']:.1f} mm, expected under {bound:.1f}"
         )
 
-    # The angle's leg has to fit between the outer faces of the stack, or the
-    # slot breaks out of the top or bottom instead of being a slot.
-    if dims["slot_clear_of_rods_mm"] < values["minimumWall"] - 1e-6:
-        problems.append(
-            f"only {dims['slot_clear_of_rods_mm']:.1f} mm of material between "
-            f"the slot and the lowest rod, wanted {values['minimumWall']:.1f}"
-        )
-
-    # And the plates must not eat into it either.
+    # The angle passes the hub rather than through it now, and that claim is
+    # the one thing about this design that could quietly stop being true: it is
+    # drawn over its whole standing length, and it must touch nothing. A face
+    # to face contact on the pad is not a touch -- it has no volume.
     if geo.get("stake") is not None:
         for name, plate in zip(geo["names"], plates):
             v = kit.vol(plate.common(geo["stake"]))
             if v > 0.5:
-                problems.append(f"{name} overlaps the stake by {v:.1f} mm3")
+                problems.append(
+                    f"{name} is in the angle's way by {v:.1f} mm3 -- it has "
+                    f"{dims['stake_stand_proud_mm']:.0f} mm to stand proud in"
+                )
 
     # Every bolt has to pass through material, in every plate. Cutting a hole
     # through open air leaves the stack with nothing holding it together, and
@@ -650,29 +807,64 @@ def verify(geo, dims, values):
                     "cut through air"
                 )
 
-    # A slot that runs right through can take the wall out from under a rod.
-    # Check inside the part only: two lines in one plane always cross
-    # eventually, and where they cross out in the air there is nothing to
-    # remove.
-    if geo.get("slot") is not None:
+    # And the same for the one bolt that holds the whole dome down.
+    probe = geo.get("stake_probe")
+    if probe is not None:
+        v = kit.vol(plates[0].common(probe))
+        if v < 1.0:
+            problems.append(
+                "the stake bolt has no pad round it: the hole is cut through air"
+            )
+
+    # And it has to be possible to put the nut in it.
+    access = geo.get("nut_access")
+    if access is not None:
+        for name, plate in zip(geo["names"][1:], plates[1:]):
+            v = kit.vol(plate.common(access))
+            if v > 0.5:
+                problems.append(
+                    f"{name} stands over the stake nut pocket by {v:.1f} mm3: "
+                    "the nut cannot be dropped in"
+                )
+
+    # Nothing cut for the stake may take the wall out from under a rod.
+    for cut in geo.get("stake_cuts", []):
         for i, keepout in enumerate(geo.get("keepouts", [])):
-            v = kit.vol(geo["slot"].common(keepout))
+            v = kit.vol(cut.common(keepout))
             if v > 1.0:
                 problems.append(
-                    f"the stake slot cuts {v:.1f} mm3 out of the wall around "
+                    f"the stake bolt cuts {v:.1f} mm3 out of the wall around "
                     f"rod {i + 1}"
                 )
 
-    # The stake slot has to be in the empty sector, not through an arm.
+    # The pad has to be in the empty sector, not under an arm.
     for az in dims["arm_azimuths_deg"]:
         separation = abs(
             (dims["stake_azimuth_deg"] - az + 180.0) % 360.0 - 180.0
         )
         if separation < 30.0:
             problems.append(
-                f"stake slot at {dims['stake_azimuth_deg']:.1f} deg is only "
+                f"the stake pad at {dims['stake_azimuth_deg']:.1f} deg is only "
                 f"{separation:.1f} deg from the arm at {az:.1f}"
             )
+
+    # No two plates may occupy the same place. Nothing checked this while every
+    # plate was one flat slab; the pad is the first feature that stands off its
+    # own plate and into the next one's band, so it is the first that could.
+    for (name_a, a), (name_b, b) in itertools.combinations(
+        list(zip(geo["names"], plates)), 2
+    ):
+        v = kit.vol(a.common(b))
+        if v > 0.5:
+            problems.append(f"{name_a} and {name_b} overlap by {v:.1f} mm3")
+
+    # The bolt has to bear on something. A nut pocket eats the pad from one
+    # side, and there is a thickness at which what is left is a washer.
+    if dims["stake_bolt_bearing_mm"] < dims["stake_bolt_mm"] - 1e-6:
+        problems.append(
+            f"the stake bolt bears on {dims['stake_bolt_bearing_mm']:.1f} mm "
+            f"of pad, under its own {dims['stake_bolt_mm']:.1f} mm diameter"
+        )
 
     # The cap prints flipped so its channel faces up; every other plate prints
     # with its upward channel up. Same convention as the four-rod node.
@@ -706,9 +898,9 @@ def derived_rows(dims, values):
         ("fanSpread", round(dims["fan_spread_deg"], 4), "deg",
          "angle from the lowest arm to the highest"),
         ("emptySector", round(dims["empty_sector_deg"], 4), "deg",
-         "the sector with no arm; the stake and both bolts live here"),
+         "the sector with no arm; the stake pad and both bolts live here"),
         ("stakeAzimuth", round(dims["stake_azimuth_deg"], 4), "deg",
-         "bisector of that sector; points at the ground once installed"),
+         "where the pad reaches for the angle; straight down once installed"),
         ("boltOffset", round(dims["bolt_offset_mm"], 3), "mm",
          "how far out the bolts sit"),
         ("stackHeight", round(dims["stack_height_mm"], 3), "mm",
@@ -719,20 +911,41 @@ def derived_rows(dims, values):
          "length of each reference rod; drawing only"),
         ("stakeLeg", round(dims["stake_leg_mm"], 1), "mm",
          "each leg of the driven angle"),
-        ("slotCentre", round(dims["slot_centre_z_mm"], 2), "mm",
-         "where the through slot sits on the stack axis; below every rod"),
-        ("slotClearance", round(dims["slot_clear_of_rods_mm"], 2), "mm",
-         "material between the slot and the lowest rod"),
-        ("stakeExit", round(dims["stake_exit_azimuth_deg"], 2), "deg",
-         "where the angle comes out the top"),
-        ("stakeExitClear", round(dims["stake_exit_clearance_deg"], 2), "deg",
-         "how far that is from the nearest arm"),
-        ("stakePlumb", "vertical", "-",
-         "the stake axis is straight down once installed; that is what "
-         "firstArmRise is for"),
         ("stakeSection", f"L{dims['stake_leg_mm']:g}x{dims['stake_leg_mm']:g}"
          f"x{dims['stake_thickness_mm']:g}", "-",
          "the angle to buy"),
+        ("stakePlumb", "vertical", "-",
+         "the stake axis is straight down once installed; that is what "
+         "firstArmRise is for"),
+        ("padReach", round(dims["stake_reach_mm"], 2), "mm",
+         "hub centre to the end of the pad, straight down"),
+        ("padSize", f"{dims['lug_width_mm']:g} x {dims['lug_thickness_mm']:g}",
+         "mm", "across the pad and through it"),
+        ("stakeBoltAt", round(dims["stake_bolt_at_mm"], 2), "mm",
+         "how far down the pad the one bolt sits"),
+        ("stakeBolt",
+         f"M{dims['stake_bolt_size']:g} x "
+         f"{math.ceil(dims['stake_bolt_length_mm'] / 5.0) * 5:g}", "-",
+         "the bolt to buy, with a washer under its head and the nut captive "
+         "in the pad"),
+        ("stakeBoltBearing", round(dims["stake_bolt_bearing_mm"], 2), "mm",
+         "pad left under the nut pocket for the bolt to bear on. At 20 m/s "
+         "the ground takes 154 N of uplift per foot, which is 4 MPa on this"),
+        ("stakeHolePitch", round(dims["stake_hole_pitch_mm"], 1), "mm",
+         "pitch of the row of holes to drill down the angle's leg. Bolt "
+         "through whichever one lands and the foot is within half of this"),
+        ("stakeStandProud", round(dims["stake_stand_proud_mm"], 1), "mm",
+         "leave this much of the angle above the foot: it clears the hub over "
+         "all of it, and the cover's loop drops over what is left"),
+        ("stakeOffset", round(dims["stake_offset_mm"], 2), "mm",
+         "how far the angle's section sits inboard of the bow bundle. It is a "
+         "moment, and it is the one the ground and the angle's own bending "
+         "are best placed to take"),
+        ("stackBolt",
+         f"M{dims['chosen_from_rod'].get('fastenerSize', 0):g} x "
+         f"{math.ceil(dims['stack_bolt_length_mm'] / 5.0) * 5:g}", "-",
+         "the two that hold the plates together: head and washer down the "
+         "cap's counterbore, nut captive in the bottom plate"),
         ("plateCount", dims["plate_count"], "-", "prints per hub"),
         ("rodFit", f"slide, {values['rodClearance']:g} mm", "-",
          "bolt the stack up first, then push the bow ends in and pin them"),

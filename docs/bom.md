@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8      32     430.5     3444.1   50.0%
+  BASE3-10                   8      32     231.3     1850.5   37.2%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -48,17 +48,27 @@ here multiplies by a density.
 
 ## What it showed the first time it ran
 
-**The base hubs are half the plastic in the dome.** On M, `BASE3` and `BASE2`
-together are 4040 cm³ of 6891 — 59% — and one `BASE3-10` is 430 cm³, of which
-258 is a single bottom plate. It is four and a half times the four-rod fan that
-holds twice as many rods.
+**The base hubs were half the plastic in the dome.** On M, `BASE3` and `BASE2`
+together came to 4040 cm³ of 6891 — 59% — and one `BASE3-10` was 430 cm³, of
+which 258 was a single bottom plate. It was four and a half times the four-rod
+fan that holds twice as many rods.
 
-That is not news, exactly: [decision 0013](decisions/0013-the-bolt-is-half-the-rod.md)
-already recorded that the base hub does not scale, because its size is set by the
-30 mm stake slot and the bolt spread around it rather than by the rod. What the
-list adds is the price of it. `STAKE-BASE` is the one position in the schedule
-with no answer at all, and until it has one the biggest single item in the dome
-is sized by a guess.
+That was not news, exactly: [decision 0013](decisions/0013-the-bolt-is-half-the-rod.md)
+had already recorded that the base hub does not scale, because its size was set
+by the 30 mm stake slot and the bolt spread around it rather than by the rod.
+What the list added was the price of it — and the price is what got the slot
+looked at again.
+
+**It is now 2134 cm³ of 4976 — 43%.** The slot is gone: the angle is met on a
+pad on the outside of the bottom plate with one bolt through it, so the 31 mm
+band the slot needed is no longer added to the whole plate. One `BASE3-10` is
+231 cm³, of which 73 is the bottom plate, and the dome's plastic is down 28%
+overall. See [decision 0025](decisions/0025-the-angle-is-met-on-a-pad.md).
+
+`STAKE-BASE` is still the one position in the schedule with no answer at all,
+and it now carries a requirement as well: the angle has to be drilled with a row
+of holes for the hub to bolt to. Until it is chosen, the item the limiting wind
+speed hangs on is still sized by a guess.
 
 ## The fasteners are counted, and split
 

@@ -82,6 +82,7 @@ writing the next.
 | [0022](0022-a-material-is-a-named-candidate-not-a-constant.md) | A material is a named candidate with its source attached, and the reference is a standard's minimum | accepted |
 | [0023](0023-the-strength-answer-is-a-band-until-the-frame-is-solved.md) | Strength reports two bounding readings, not one speed, until a frame solve closes the gap | accepted |
 | [0024](0024-a-dome-is-cut-into-two-lengths.md) | A dome is cut into at most two section lengths, solved dome-wide rather than bow by bow | accepted |
+| [0025](0025-the-angle-is-met-on-a-pad.md) | The base hub meets its driven angle on a flat pad with one bolt, not in a slot through the plate | accepted |
 
 ## Not here yet
 
