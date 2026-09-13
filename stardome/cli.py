@@ -278,6 +278,16 @@ def cmd_cover(args) -> int:
 
 
 def cmd_corridor(args) -> int:
+    # Each kind has its own sensible size, so an unset flag means "this kind's
+    # default" rather than "the hoop's default applied to a timber frame".
+    if args.kind == "portal":
+        args.width = args.width or corridor.DEFAULT_PORTAL_WIDTH_MM
+        args.height = args.height or corridor.DEFAULT_PORTAL_HEIGHT_MM
+        args.pitch = args.pitch or corridor.DEFAULT_PORTAL_PITCH_MM
+    else:
+        args.width = args.width or corridor.DEFAULT_WIDTH_MM
+        args.height = args.height or corridor.DEFAULT_HEIGHT_MM
+        args.pitch = args.pitch or corridor.DEFAULT_PITCH_MM
     for name in _variant_names(args):
         variant = config.load(name, args.config)
         if args.skirt is not None:
@@ -292,12 +302,17 @@ def cmd_corridor(args) -> int:
                 height=args.height,
                 length=args.length,
                 pitch=args.pitch,
+                kind=args.kind,
+                brace_leg=args.brace,
             )
         )
     return 0
 
 
 def cmd_camp(args) -> int:
+    # An unset size means this kind's own default, and camp.KIND_DEFAULTS is
+    # where that lives -- one place, so the library and the command line
+    # cannot come to different answers.
     camps = camp.load_all(args.camps)
     wanted = args.variant or (list(camps) if args.all else None)
     if not wanted:
@@ -315,7 +330,8 @@ def cmd_camp(args) -> int:
             include_polylines=args.json,
         )
         plan, models = ready["plan"], ready["models"]
-        kwargs = dict(width=args.width, height=args.height, pitch=args.pitch)
+        kwargs = dict(width=args.width, height=args.height, pitch=args.pitch,
+                      kind=args.kind, brace_leg=args.brace)
         if args.json:
             out = Path(args.out) / name
             # Each dome in a camp is its own model -- it carries a door per
@@ -530,15 +546,42 @@ def build_parser() -> argparse.ArgumentParser:
                 help="fabric roll width, mm; sets the gore count",
             )
         if name == "corridor":
-            p.add_argument("--width", type=float, default=corridor.DEFAULT_WIDTH_MM)
-            p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
+            p.add_argument(
+                "--kind",
+                choices=corridor.KINDS,
+                default="hoop",
+                help="hoop: bent rod, narrow. portal: boards in a P-frame with "
+                     "knee braces, 1.5-2 m wide",
+            )
+            p.add_argument("--width", type=float, default=None)
+            p.add_argument("--height", type=float, default=None)
             p.add_argument("--length", type=float, default=corridor.DEFAULT_LENGTH_MM)
-            p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+            p.add_argument("--pitch", type=float, default=None)
+            p.add_argument(
+                "--brace",
+                type=float,
+                default=corridor.DEFAULT_BRACE_LEG_MM,
+                help="knee-brace leg, mm; portal only",
+            )
         if name == "camp":
             p.add_argument("--camps", default=None, help="path to camps.toml")
-            p.add_argument("--width", type=float, default=corridor.DEFAULT_WIDTH_MM)
-            p.add_argument("--height", type=float, default=corridor.DEFAULT_HEIGHT_MM)
-            p.add_argument("--pitch", type=float, default=corridor.DEFAULT_PITCH_MM)
+            p.add_argument(
+                "--kind",
+                choices=corridor.KINDS,
+                default="hoop",
+                help="what the corridors are: hoop (bent rod, narrow) or "
+                     "portal (boards in a P-frame with knee braces, 1.5-2 m "
+                     "wide). A link in camps.toml can override it.",
+            )
+            p.add_argument("--width", type=float, default=None)
+            p.add_argument("--height", type=float, default=None)
+            p.add_argument("--pitch", type=float, default=None)
+            p.add_argument(
+                "--brace",
+                type=float,
+                default=corridor.DEFAULT_BRACE_LEG_MM,
+                help="knee-brace leg, mm; portal only",
+            )
             p.add_argument("--json", action="store_true",
                            help="write the plan instead of printing it")
             p.add_argument("-o", "--out", default="exports/model", type=Path)

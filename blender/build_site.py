@@ -116,6 +116,15 @@ def parse_args(argv):
     )
     p.add_argument("--no-labels", action="store_true")
     p.add_argument(
+        "--figures",
+        choices=("every", "one", "none"),
+        default="every",
+        help="how many of the two reference figures to stand in the scene. "
+             "A size row wants them at every dome, which is the point of it; "
+             "a camp of eight wants one pair somewhere to read the scale by, "
+             "and sixteen people standing in doorways is clutter",
+    )
+    p.add_argument(
         "--hide-cuts",
         action="store_true",
         help="leave the removed pieces out entirely instead of ghosting them, "
@@ -293,6 +302,10 @@ COVER_ALPHA = 0.14
 # purchasing decision nobody has taken.
 CORRIDOR_HOOP_COLOUR = (0.75, 0.55, 0.25, 1.0)
 CORRIDOR_HOOP_RADIUS_M = 0.005
+# The other kind of corridor is boards, not rod: a timber P-frame. It arrives
+# as solid meshes rather than centrelines, because a board has a thickness and
+# a bent rod does not.
+CORRIDOR_BOARD_COLOUR = (0.55, 0.38, 0.20, 1.0)
 
 
 def load_plan(path):
@@ -355,6 +368,7 @@ def add_corridors(plan, collection, lift_is_ground=True):
     made = 0
     skin_mat = make_transparent(material("Corridor", COVER_COLOUR), COVER_ALPHA)
     hoop_mat = material("Corridor_Hoop", CORRIDOR_HOOP_COLOUR)
+    board_mat = material("Corridor_Board", CORRIDOR_BOARD_COLOUR)
     for index, one in enumerate(plan.get("links") or ()):
         drawing = one.get("drawing")
         if not drawing:
@@ -393,6 +407,18 @@ def add_corridors(plan, collection, lift_is_ground=True):
             hoop.data.materials.append(hoop_mat)
             bpy.context.scene.collection.objects.link(hoop)
             move_to(hoop, collection)
+
+        # A timber portal is five boards with thickness, so the plan ships it
+        # as a solid rather than as a curve to be bevelled.
+        for k, frame in enumerate(drawing.get("frames") or ()):
+            verts = [(px * MM, py * MM, pz * MM) for px, py, pz in frame["vertices"]]
+            fmesh = bpy.data.meshes.new(f"Frame_{index}_{k}")
+            fmesh.from_pydata(verts, [], [list(f) for f in frame["faces"]])
+            fmesh.update()
+            board = bpy.data.objects.new(f"Frame_{index}_{k}", fmesh)
+            board.data.materials.append(board_mat)
+            bpy.context.scene.collection.objects.link(board)
+            move_to(board, collection)
         made += 1
     return made
 
@@ -579,6 +605,22 @@ def build(args, models):
     span_guess = sum(d["meta"]["dome_radius"] * MM * 2 for d in models) + (
         args.gap * max(0, len(models) - 1)
     )
+    # Which domes get the two reference figures. "one" puts the pair at the
+    # biggest dome in the scene: it is the one whose door has the most room to
+    # spare, so a figure standing in it reads as scale rather than as a fit
+    # check somebody has to squint at.
+    if args.figures == "none" or not layout:
+        figures_at = set()
+    elif args.figures == "one":
+        figures_at = {
+            max(
+                range(len(layout)),
+                key=lambda k: layout[k]["data"]["meta"]["dome_radius"],
+            )
+        }
+    else:
+        figures_at = set(range(len(layout)))
+
     for index, item in enumerate(layout):
         data = item["data"]
         meta = data["meta"]
@@ -666,17 +708,19 @@ def build(args, models):
                 )
         if door:
             add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
-            # In the doorway, not beside it: the row exists to be read at a
-            # glance, and the one thing worth reading is whether the person
-            # gets in.
-            add_humans(
-                x, -radius_m, human_mats, coll, meta["variant"], origin_y=y0
-            )
-        else:
-            add_humans(
-                x + radius_m * 0.45, 0.0, human_mats, coll, meta["variant"],
-                origin_y=y0,
-            )
+        if index in figures_at:
+            if door:
+                # In the doorway, not beside it: the row exists to be read at
+                # a glance, and the one thing worth reading is whether the
+                # person gets in.
+                add_humans(
+                    x, -radius_m, human_mats, coll, meta["variant"], origin_y=y0
+                )
+            else:
+                add_humans(
+                    x + radius_m * 0.45, 0.0, human_mats, coll, meta["variant"],
+                    origin_y=y0,
+                )
 
         if not args.no_labels:
             skirt_mm = meta.get("skirt_height", 0.0)

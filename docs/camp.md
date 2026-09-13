@@ -12,9 +12,11 @@ make camp CAMP=tree       # an XL hub and six domes hanging off it
 python3 -m stardome camp tree
 ```
 
-Three camps ship: `pair`, two M domes on one corridor; `yard`, three round a
-yard; and `tree`, an XL hub with two L halls, two M off one hall and two S off
-one of those — seven domes and six corridors.
+Four camps ship: `pair`, two M domes on one corridor; `yard`, three round a
+yard; `tree`, an XL hub with two L halls, two M off one hall and two S off one
+of those — seven domes and six corridors; and `court`, which closes the far
+end of that tree back on itself, so six of its eight domes stand round an open
+yard and every one of them is reachable two ways.
 
 ## What is written down, and what is derived
 
@@ -83,6 +85,58 @@ apart and the corridor grows by exactly 2 m; there is no number anybody chose in
 it. When two domes are close enough that their covers would touch it comes out
 negative, and that is reported as the overlap it is rather than as a corridor of
 negative length.
+
+## A ring, and why the chain in it has three domes
+
+`court` is `tree` with its far end closed: `hall_west` carries two M, and the
+two M are joined back to each other by a chain of S. That makes a **cycle**,
+and a cycle is what the 72° rule above cannot always serve.
+
+The derived turns alternate 0° and 36° along every corridor, which is a
+two-colouring of the link graph — and a graph is two-colourable only if every
+cycle in it is even. A chain of two S closes the ring with five corridors and
+one door lands 36° out. Three closes it with six, and every door lands square.
+
+The positions are not laid out by eye either. Round the ring, the angle at
+each dome between its two neighbours must be a multiple of 72°, and the six of
+them must sum to 720° — which leaves 72° at the two M and 144° everywhere
+else, and that in turn forces the three edge lengths to satisfy
+
+    L–M  =  S–S  +  0.618 × M–S
+
+Pick the two short ones at two metres of free run and the long one follows.
+`hall_west` also carries the hub, so the bearing to the hub has to be a
+multiple of 72° from the bearings to both M: 216° is and 180° is not, which is
+why the plan is not symmetric about an axis.
+
+## Two kinds of corridor, and a junction is not a bearing
+
+```bash
+make camp CAMP=court CAMP_KIND=portal
+python3 -m stardome camp court --kind portal --pitch 3000
+```
+
+A link is joined by a bent-rod **hoop** (900 × 1950 by default) or by a timber
+**portal** — two posts, a header and a knee brace in each top corner, 1800 ×
+2100 out of 45 × 145 board. See [`corridor.md`](corridor.md) for the section
+each one leaves. `--kind` sets the camp's default and a link in
+`configs/camps.toml` can override it with its own `kind`, so one camp can hold
+both.
+
+The kind is not a finish. The mouth is cut to the section, so a wider corridor
+reaches less far up the sphere and leaves a **longer** free run between the
+same two covers: on `pair`, 4027 mm on hoops against 4234 mm on portals.
+
+And the plan now answers two questions rather than one. The layout solves
+**bearings**; whether the section also passes **through** the bay it lands on
+is separate, and reported separately — saying only the first would be true and
+misleading in the same breath. A portal is wider than every bay in the family,
+so its posts come down on the bows; the 900 mm hoop passes at S, which stands
+on a skirt, and fails at bare M and bare L.
+
+Neither is the corridor being wrong. A person walks through every one of those
+doors. It means the junction needs the entrance/corridor interface from
+milestone 5, or a narrower corridor.
 
 ## What it will not do
 

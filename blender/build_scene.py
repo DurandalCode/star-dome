@@ -614,7 +614,20 @@ def add_corridor(corridor, rod_radius_m, collection, lift):
     fits = corridor.get("through_doorway", {}).get("fits", True)
     colour = CORRIDOR_COLOUR if fits else GHOST_COLOUR
     hoop_mat = make_material("Corridor_Hoop" if fits else "Corridor_TooBig", colour)
-    for i, hoop in enumerate(drawing["hoops"], start=1):
+    for i, frame in enumerate(drawing.get("frames") or [], start=1):
+        mesh = bpy.data.meshes.new(f"Corridor_Frame_{i}")
+        mesh.from_pydata(
+            [(x * MM, y * MM, z * MM + lift) for x, y, z in frame["vertices"]],
+            [],
+            [f[:] for f in frame["faces"]],
+        )
+        mesh.update()
+        obj = bpy.data.objects.new(f"Corridor_Frame_{i}", mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.data.materials.append(hoop_mat)
+        move_to(obj, collection)
+
+    for i, hoop in enumerate(drawing.get("hoops") or [], start=1):
         curve = bpy.data.curves.new(f"Corridor_Hoop_{i}", "CURVE")
         curve.dimensions = "3D"
         spline = curve.splines.new("POLY")

@@ -237,12 +237,17 @@ lineup:
 # which one. FLAGS adds --connectors real once `make clamps` has run for every
 # variant the plan uses.
 CAMP ?= yard
-CAMP_FLAGS ?= --cover
+# One pair of figures, not one per dome: eight domes would stand sixteen
+# people in eight doorways, and the scene is about the camp.
+CAMP_FLAGS ?= --cover --figures one
+# What joins the domes: hoop (bent rod, 900 mm) or portal (timber P-frames,
+# 1800 mm). See docs/corridor.md.
+CAMP_KIND ?= hoop
 
 camp:
 	$(PYTHON) -m stardome build --all --polylines --weave-mode woven -o $(OUT)
-	$(PYTHON) -m stardome camp $(CAMP) --json -o $(OUT)
-	$(PYTHON) -m stardome camp $(CAMP)
+	$(PYTHON) -m stardome camp $(CAMP) --kind $(CAMP_KIND) --json -o $(OUT)
+	$(PYTHON) -m stardome camp $(CAMP) --kind $(CAMP_KIND)
 	$(BLENDER_RUN) --python blender/build_site.py -- \
 		--dir $(OUT) --plan $(OUT)/$(CAMP)/camp.json \
 		--hide-cuts --no-labels $(CAMP_FLAGS) \
