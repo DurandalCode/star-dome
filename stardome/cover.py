@@ -56,6 +56,15 @@ import math
 # a fact about the world: change it to whatever the supplier actually sells.
 DEFAULT_ROLL_WIDTH_MM = 1500.0
 
+# How far an upper lane laps over the one below it in the leaf cut. Enough to
+# shed water down the slope and to take a line of stitching clear of both raw
+# edges; a cutting-room number, so it is an input like the roll width.
+DEFAULT_LAP_MM = 80.0
+
+# Leaves in the leaf cut. Five puts one leaf on each of the dome's own fifths,
+# so a vertical seam can follow a bow instead of crossing the field of one.
+DEFAULT_LEAVES = 5
+
 # Drawing resolution for the exported mesh. 60 meridians divides by 5, so the
 # dome's own symmetry lands on mesh edges rather than across them.
 # How many rods meet at a lashed node, and how close two vertices must be to
@@ -184,9 +193,102 @@ def gores(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
         "gore_length_mm": round(length, 1),
         "seam_count": count,
         "seam_length_mm": round(count * length, 1),
+        # Each gore lies along the roll and takes its own length of it. The
+        # taper is waste and nesting does not recover it: at the equator the
+        # gore is already the full strip width, so a flipped neighbour has
+        # nowhere to go. That is the 2/pi fill, and it is exact.
+        "roll_length_mm": round(count * length, 1),
+        "fill_of_bounding_box": round(2.0 / math.pi, 5),
         "note": (
             "Hemisphere only, no seam allowance and no hem. The skirt, where "
             "there is one, is a cylinder and cuts flat from the same roll."
+        ),
+    }
+
+
+def leaf(data: dict, leaves: int = DEFAULT_LEAVES,
+         roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+         lap_mm: float = DEFAULT_LAP_MM) -> dict:
+    """The gore's problem solved sideways: build each one from lanes.
+
+    A gore is limited by the roll because it must cross it whole, and that is
+    what makes it dear: it fills exactly ``2/pi`` of its own bounding
+    rectangle, at any radius and any count, and nesting cannot beat that --
+    at the equator the gore is already the full strip width, so a flipped
+    neighbour has nowhere to go.
+
+    A **leaf** is a gore that has given up crossing the roll in one piece. It
+    spans ``360/leaves`` of azimuth, far wider than any roll, and is built up
+    from horizontal lanes laid overlapping, upper over lower. Two things fall
+    out of that:
+
+    - The lane is cut with its height across the roll and its width along it,
+      so the roll no longer caps the leaf's width. Lanes are near-trapezoids,
+      and turning every other one end for end lets two share a rectangle --
+      so a lane costs its **mean** width rather than its widest. That is what
+      buys the fabric back.
+    - The horizontal joints are **laps, not seams**. Upper over lower sheds
+      water down the slope without the joint having to be watertight, which is
+      the reference's own reason for cutting it this way for rain.
+
+    The trade against ``gores`` is fabric for joining: fewer roll metres,
+    but a lap at every lane boundary on top of the vertical seams. See
+    ``layouts`` for the three side by side.
+    """
+    if leaves < 3:
+        raise ValueError("a leaf cover wants at least three leaves")
+    if roll_width_mm - lap_mm <= 0:
+        raise ValueError("the lap cannot be as wide as the roll")
+
+    r = radius(data)
+    slant = math.pi * r / 2.0
+    lanes = max(1, math.ceil((slant - lap_mm) / (roll_width_mm - lap_mm)))
+    # Divide the slant evenly rather than packing lanes at full roll width and
+    # letting the last one hang off the end. Same lane count, no overhang, and
+    # every lane is the same piece -- which is also easier to cut.
+    step = (slant - lap_mm) / lanes
+
+    def width_at(arc: float) -> float:
+        return 2.0 * math.pi * r * math.sin(min(arc / r, math.pi / 2.0)) / leaves
+
+    roll_plain = 0.0
+    roll_nested = 0.0
+    widths = []
+    for i in range(lanes):
+        s_top = i * step
+        s_low = min(slant, (i + 1) * step + lap_mm)
+        w_top, w_low = width_at(s_top), width_at(s_low)
+        widths.append(round(w_low, 1))
+        roll_plain += w_low
+        # Exact for a straight-sided trapezoid, and slightly optimistic here
+        # because the sides are sine curves rather than lines.
+        roll_nested += 0.5 * (w_top + w_low)
+    roll_plain *= leaves
+    roll_nested *= leaves
+
+    lane_height = step + lap_mm
+    return {
+        "pattern": "leaf",
+        "leaves": leaves,
+        "lanes_per_leaf": lanes,
+        "piece_count": leaves * lanes,
+        "lane_height_mm": round(lane_height, 1),
+        "lane_widths_mm": widths,
+        "lap_mm": round(lap_mm, 1),
+        # The lane rarely fills the roll's width exactly, and what is left is
+        # a continuous strip down the whole run -- patches come out of it.
+        "offcut_strip_mm": round(roll_width_mm - lane_height, 1),
+        "roll_width_mm": round(roll_width_mm, 1),
+        "roll_length_mm": round(roll_nested, 1),
+        "roll_unnested_mm": round(roll_plain, 1),
+        "seam_length_mm": round(leaves * slant, 1),
+        "lap_length_mm": round(leaves * sum(widths[:-1]), 1),
+        "note": (
+            "Vertical seams run down the slope, where water leaves; the "
+            "horizontal joints are laps, not seams. Roll length assumes "
+            "alternate lanes are turned end for end so two share a "
+            f"rectangle; cut them all the same way round and it is "
+            f"{roll_plain / 1000.0:.1f} m instead."
         ),
     }
 
@@ -491,8 +593,9 @@ def mesh(
     }
 
 
-def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
-    """The two ways to cut this cover, side by side on one roll.
+def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM,
+            leaves: int = DEFAULT_LEAVES, lap_mm: float = DEFAULT_LAP_MM) -> dict:
+    """The three ways to cut this cover, side by side on one roll.
 
     Kept together because the choice is not obvious and the numbers move with
     the roll. Gores are the answer for a sphere; faces are the answer for this
@@ -500,9 +603,17 @@ def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
     roll the faces cost more seam, on a wide one they cost less, and the
     crossover is close enough to standard fabric to be worth recomputing
     rather than remembering.
+
+    The leaf is the answer for a **budget**. It is the only one of the three
+    that escapes the roll width -- its lanes run along the roll rather than
+    across it -- and so the only one that buys fabric back. It pays for that
+    in joining rather than in cloth: laps at every lane boundary, on top of
+    its vertical seams. Compare ``roll_mm`` for the cost in fabric and
+    ``seam_mm`` plus ``lap_mm`` for the cost in work.
     """
     strips = gores(data, roll_width_mm)
     faces = panels(data, roll_width_mm)
+    leafed = leaf(data, leaves, roll_width_mm, lap_mm)
     hem = 2.0 * math.pi * radius(data)
     return {
         "roll_width_mm": round(roll_width_mm, 1),
@@ -510,6 +621,8 @@ def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
             "pieces": strips["count"],
             "shapes": 1,
             "seam_mm": strips["seam_length_mm"],
+            "lap_mm": 0.0,
+            "roll_mm": strips["roll_length_mm"],
             "seams_on_a_bow": 0,
             "hem_mm": round(hem, 1),
             "piece_mm": [strips["gore_width_mm"], strips["gore_length_mm"]],
@@ -521,15 +634,32 @@ def layouts(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
             "pieces": faces["pieces"],
             "shapes": len(faces["by_sides"]),
             "seam_mm": faces["seam_length_mm"],
+            "lap_mm": 0.0,
+            # A face cut is a packing problem, not a run down the roll, and
+            # this module does not solve packing. Absent rather than guessed.
+            "roll_mm": None,
             "seams_on_a_bow": faces["seams_on_a_bow"],
             "hem_mm": faces["hem_mm"],
             "piece_mm": [faces["edge_mm"]] * 2,
             "crown": "a pentagon; nothing converges",
         },
+        "leaf": {
+            "pieces": leafed["piece_count"],
+            "shapes": leafed["lanes_per_leaf"],
+            "seam_mm": leafed["seam_length_mm"],
+            "lap_mm": leafed["lap_length_mm"],
+            "roll_mm": leafed["roll_length_mm"],
+            "seams_on_a_bow": 0,
+            "hem_mm": round(hem, 1),
+            "piece_mm": [leafed["lane_height_mm"], max(leafed["lane_widths_mm"])],
+            "crown": f"{leaves} seams meet at a point; wants a crown patch",
+        },
         "note": (
-            "Seam totals exclude the hem, which both need and which is the "
-            "same length either way. Neither includes seam allowance, and "
-            "the face cut's flat panels want easing onto the sphere."
+            "Seam totals exclude the hem, which all three need and which is "
+            "the same length whichever is cut. None includes seam allowance, "
+            "and the face cut's flat panels want easing onto the sphere. "
+            "The leaf's lap length is joint, not seam: it is lapped and "
+            "stitched through, not sewn edge to edge."
         ),
     }
 
@@ -548,6 +678,7 @@ def analyse(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) -> dict:
         "over_nominal_pct": round(100.0 * (r * r - nominal * nominal) / (nominal * nominal), 2),
         "areas": area,
         "gores": g,
+        "leaf": leaf(data, roll_width_mm=roll_width_mm),
         "panels": panels(data, roll_width_mm),
         "layouts": layouts(data, roll_width_mm),
         "opening": opening(data),
@@ -577,18 +708,27 @@ def format_analysis(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) ->
     lines += [
         f"  total           {area['total_m2']:8.2f} m2",
         "",
-        f"  two ways to cut it, on a {roll_width_mm:.0f} mm roll:",
+        f"  three ways to cut it, on a {roll_width_mm:.0f} mm roll:",
         "",
-        "                  pieces  shapes   seam    on a bow   crown",
+        "                  pieces  shapes   seam     lap     roll   on a bow",
     ]
     for label, cut in (("gores", a["layouts"]["gores"]),
-                       ("faces", a["layouts"]["faces"])):
+                       ("faces", a["layouts"]["faces"]),
+                       ("leaf", a["layouts"]["leaf"])):
+        roll = ("      --" if cut["roll_mm"] is None
+                else f"{cut['roll_mm'] / 1000.0:>6.1f} m")
+        lap = ("      --" if not cut["lap_mm"]
+               else f"{cut['lap_mm'] / 1000.0:>6.1f} m")
         lines.append(
             f"  {label:<14}{cut['pieces']:>5}{cut['shapes']:>8}"
-            f"{cut['seam_mm'] / 1000.0:>8.1f} m{cut['seams_on_a_bow']:>9}"
-            f"   {cut['crown']}"
+            f"{cut['seam_mm'] / 1000.0:>8.1f} m{lap}{roll}{cut['seams_on_a_bow']:>9}"
         )
+    for label, cut in (("gores", a["layouts"]["gores"]),
+                       ("faces", a["layouts"]["faces"]),
+                       ("leaf", a["layouts"]["leaf"])):
+        lines.append(f"  {label:<14}{cut['crown']}")
     faces = a["panels"]
+    lf = a["leaf"]
     lines += [
         "",
         f"  gore            {g['gore_width_mm']:.0f} x {g['gore_length_mm']:.0f} mm, "
@@ -598,8 +738,13 @@ def format_analysis(data: dict, roll_width_mm: float = DEFAULT_ROLL_WIDTH_MM) ->
             f"{v['count']}x{k}-sided in {v['strips']} strip(s)"
             for k, v in faces["shapes"].items()
         ),
+        f"  leaf            {lf['leaves']} leaves of {lf['lanes_per_leaf']} lanes, "
+        f"{lf['lane_height_mm']:.0f} mm high, lapped {lf['lap_mm']:.0f} mm; "
+        f"widest lane {max(lf['lane_widths_mm']):.0f} mm",
+        f"                  leaves {lf['offcut_strip_mm']:.0f} mm of roll "
+        f"unused down the whole run -- patches come out of it",
         f"  hem             {a['layouts']['gores']['hem_mm'] / 1000.0:.1f} m, "
-        "the same either way",
+        "the same whichever is cut",
         "",
         "  Shape and area only. No sag, no seam allowance, no load claim.",
     ]

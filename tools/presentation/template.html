@@ -418,8 +418,8 @@ pre{background:var(--panel-2);border:1px solid var(--hair);padding:14px 16px;
 
   <p class="intro">Покрышка ложится не на сам каркас, а на сферу чуть больше него —
   <strong>ткань лежит на прутке снаружи</strong>, поэтому радиус на 20 мм больше номинала,
-  а площадь на 1,3% больше. Кроить её можно двумя способами, и они дают <strong>разное число швов,
-  разное число деталей и разный характер протечек</strong>.</p>
+  а площадь на 1,3% больше. Кроить её можно <strong>тремя</strong> способами, и они дают разное
+  число швов, разное количество ткани и разный характер протечек.</p>
 
   <div class="scroll">
   <table>
@@ -465,41 +465,98 @@ pre{background:var(--panel-2);border:1px solid var(--hair);padding:14px 16px;
     Отсюда 32 детали вместо 16.</figcaption>
   </figure>
 
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Способ третий: лепестки</h3>
+  <p class="intro">Клин упирается в ширину рулона, потому что обязан пересечь его целиком.
+  Отсюда его цена: <strong>клин заполняет ровно <span class="mono">2/π</span> = 63,66% своего
+  описанного прямоугольника</strong> — при любом радиусе и любом числе клиньев, и раскладкой это
+  не побить. <strong>Лепесток перестаёт платить этот налог</strong>: он бросает попытку пересечь
+  рулон одним куском и набирается из горизонтальных полос внахлёст, верхняя на нижнюю.</p>
+
+  <figure>
+    <div class="plate">{{svg:leaf}}</div>
+    <figcaption><b>Один лепесток M · D6.</b> Пятая часть купола по азимуту — шире любого рулона,
+    поэтому и набирается полосами. Цифры справа — ширина полосы по нижнему краю, мм.
+    Горизонтальные соединения — <b>нахлёсты, а не швы</b>: верхняя на нижнюю, вода уходит по скату,
+    и стык не обязан быть герметичным. Вертикальные швы идут туда же, вниз по скату.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="plate">{{svg:leaf_roll}}</div>
+    <figcaption><b>Вот за счёт чего экономия.</b> Полоса кроится высотой поперёк рулона, а шириной
+    <b>вдоль</b> него — рулон больше ничего не ограничивает. Полосы почти трапеции, поэтому каждая
+    вторая переворачивается валетом, и две делят один прямоугольник: полоса стоит <b>средней</b>
+    ширины вместо наибольшей.</figcaption>
+  </figure>
+
   <div class="scroll">
   <table>
-    <caption>Два раскроя рядом — M · D6, рулон 1500 мм</caption>
+    <caption>Три раскроя рядом — M · D6, рулон 1500 мм</caption>
     <thead><tr>
-      <th>Раскрой</th><th class="n">Деталей</th><th class="n">Форм</th><th class="n">Швов, м</th>
-      <th class="n">Швов на прутке</th><th>Чем платим</th>
+      <th>Раскрой</th><th class="n">Деталей</th><th class="n">Швов, м</th><th class="n">Нахлёстов, м</th>
+      <th class="n">Рулона, м</th><th class="n">Швов на прутке</th><th>Чем платим</th>
     </tr></thead>
     <tbody>
-      <tr><td class="name">Клинья</td><td class="n">13</td><td class="n">1</td><td class="n">61,7</td><td class="n">0</td><td>13 швов сходятся в одну точку — нужна накладка на макушке</td></tr>
-      <tr><td class="name">Грани</td><td class="n">32</td><td class="n">2</td><td class="n">77,1</td><td class="n">25</td><td>Вдвое больше деталей и на 15 м больше швов; зато ничего не сходится в точку</td></tr>
+      <tr><td class="name">Лепестки ×5</td><td class="n">20</td><td class="n">23,7</td><td class="n">38,8</td><td class="n"><b>47,8</b></td><td class="n">0</td><td>Нахлёсты в довесок к швам; 5 швов сходятся на полюсе</td></tr>
+      <tr><td class="name">Клинья</td><td class="n">13</td><td class="n">61,7</td><td class="n">—</td><td class="n">61,7</td><td class="n">0</td><td>Меньше всего деталей; 13 швов сходятся в одну точку — нужна накладка</td></tr>
+      <tr><td class="name">Грани</td><td class="n">32</td><td class="n">77,1</td><td class="n">—</td><td class="n">—</td><td class="n">25</td><td>Вдвое больше деталей; зато каждый шов лежит на прутке и ничего не сходится в точку</td></tr>
     </tbody>
-    <tfoot><tr><td colspan="6">Клинья — меньше швов и меньше деталей, но вся сходимость собрана
-    на полюсе. Грани — больше работы, зато каждый шов лежит на пруткe и ни один узел не собирает
-    на себе тринадцать слоёв ткани. Это форма и площадь, <b>без провиса, без припуска на шов
+    <tfoot><tr><td colspan="7">Лепестки экономят <b>22,6% ткани</b> на M и выигрывают у клиньев
+    по числу швов — но добавляют 38,8 м нахлёстов. Для граней метраж рулона не посчитан:
+    это задача упаковки, а не прогон по рулону, и модель честно оставляет клетку пустой,
+    вместо того чтобы гадать. Всё это — форма и площадь, <b>без провиса, без припуска на шов
     и без каких-либо утверждений о нагрузке</b>.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note blue">
+    <b>Выгодность нахлёстов зависит от размера — и меняет знак.</b> Число швов у клина задано
+    рулоном, поэтому растёт вместе с куполом: 7 на D3, 26 на D12. У лепестка вертикальных швов
+    <b>всегда пять</b>, сколько бы купол ни рос, — добавляются только нахлёсты. Ниже M лепесток
+    меняет немного лишней работы на ткань; <b>начиная с L он просто дешевле сразу по обоим
+    показателям</b>, а на D12 экономит 78 м ткани и 48 м соединений одновременно.
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>Лепестки против клиньев по всему ряду — рулон 1500 мм</caption>
+    <thead><tr>
+      <th>Размер</th><th class="n">Клиньев</th><th class="n">Клинья: рулона</th>
+      <th class="n">Лепестки: полос</th><th class="n">Лепестки: рулона</th>
+      <th class="n">Экономия ткани</th><th class="n">Клинья: швов</th><th class="n">Лепестки: швы + нахлёсты</th>
+    </tr></thead>
+    <tbody>
+      <tr class="muted"><td class="name">D3</td><td class="n">7</td><td class="n">16,7</td><td class="n">5 × 2</td><td class="n">11,5</td><td class="n">31%</td><td class="n">16,7</td><td class="n">18,8</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">9</td><td class="n">28,5</td><td class="n">5 × 3</td><td class="n">23,7</td><td class="n">17%</td><td class="n">28,5</td><td class="n">33,5</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">13</td><td class="n">61,7</td><td class="n">5 × 4</td><td class="n">47,8</td><td class="n">23%</td><td class="n">61,7</td><td class="n">62,5</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">17</td><td class="n">107,3</td><td class="n">5 × 5</td><td class="n">79,8</td><td class="n">26%</td><td class="n">107,3</td><td class="n"><b>99,5</b></td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">22</td><td class="n">173,6</td><td class="n">5 × 6</td><td class="n">120,0</td><td class="n">31%</td><td class="n">173,6</td><td class="n"><b>144,5</b></td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">26</td><td class="n">246,0</td><td class="n">5 × 7</td><td class="n">168,2</td><td class="n">32%</td><td class="n">246,0</td><td class="n"><b>197,5</b></td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="8">Метры рулона, не площадь. Жирным — где лепесток обходит клин
+    и по соединениям тоже: перелом между M и L. «5 × 4» читается как пять лепестков по четыре
+    полосы. Больше лепестков ткани не добавляет: десять лепестков вдвое уже каждый,
+    рулон тот же, удваивается только число вертикальных швов.</td></tr></tfoot>
   </table>
   </div>
 
   <div class="scroll">
   <table>
-    <caption>Ткань по размерам — рулон 1500 мм</caption>
+    <caption>Площадь покрышки по размерам</caption>
     <thead><tr>
       <th>Размер</th><th class="n">Купол, м²</th><th class="n">Юбка, м²</th><th class="n">Проём</th>
-      <th class="n">Итого, м²</th><th class="n">Клиньев</th><th class="n">Швов, м</th><th class="n">Подгибка, м</th>
+      <th class="n">Итого, м²</th><th class="n">Подгибка, м</th>
     </tr></thead>
     <tbody>
-      <tr class="muted"><td class="name">D3</td><td class="n">14,44</td><td class="n">9,53</td><td class="n">—</td><td class="n">23,97</td><td class="n">7</td><td class="n">16,7</td><td class="n">9,5</td></tr>
-      <tr><td class="name">S · D4</td><td class="n">25,54</td><td class="n">17,10</td><td class="n">−1,15</td><td class="n">41,48</td><td class="n">9</td><td class="n">28,5</td><td class="n">12,7</td></tr>
-      <tr><td class="name">M · D6</td><td class="n">57,31</td><td class="n">—</td><td class="n">−2,59</td><td class="n">54,71</td><td class="n">13</td><td class="n">61,7</td><td class="n">19,0</td></tr>
-      <tr><td class="name">L · D8</td><td class="n">101,54</td><td class="n">—</td><td class="n">−4,62</td><td class="n">96,92</td><td class="n">17</td><td class="n">107,3</td><td class="n">25,3</td></tr>
-      <tr><td class="name">XL · D10</td><td class="n">158,59</td><td class="n">—</td><td class="n">−7,21</td><td class="n">151,38</td><td class="n">22</td><td class="n">173,6</td><td class="n">31,6</td></tr>
-      <tr class="muted"><td class="name">D12</td><td class="n">228,01</td><td class="n">—</td><td class="n">−10,39</td><td class="n">217,62</td><td class="n">26</td><td class="n">246,0</td><td class="n">37,8</td></tr>
+      <tr class="muted"><td class="name">D3</td><td class="n">14,44</td><td class="n">9,53</td><td class="n">—</td><td class="n">23,97</td><td class="n">9,5</td></tr>
+      <tr><td class="name">S · D4</td><td class="n">25,54</td><td class="n">17,10</td><td class="n">−1,15</td><td class="n">41,48</td><td class="n">12,7</td></tr>
+      <tr><td class="name">M · D6</td><td class="n">57,31</td><td class="n">—</td><td class="n">−2,59</td><td class="n">54,71</td><td class="n">19,0</td></tr>
+      <tr><td class="name">L · D8</td><td class="n">101,54</td><td class="n">—</td><td class="n">−4,62</td><td class="n">96,92</td><td class="n">25,3</td></tr>
+      <tr><td class="name">XL · D10</td><td class="n">158,59</td><td class="n">—</td><td class="n">−7,21</td><td class="n">151,38</td><td class="n">31,6</td></tr>
+      <tr class="muted"><td class="name">D12</td><td class="n">228,01</td><td class="n">—</td><td class="n">−10,39</td><td class="n">217,62</td><td class="n">37,8</td></tr>
     </tbody>
-    <tfoot><tr><td colspan="8">Число клиньев растёт с размером, потому что ширина рулона не растёт:
-    у D12 клин пришлось бы делить, если бы их было меньше 26. Юбка, где она есть, — цилиндр
+    <tfoot><tr><td colspan="6">Это площадь поверхности, а не метры рулона: сколько ткани ляжет
+    на купол, а не сколько её придётся купить. Разница — отход раскроя, и он свой у каждого
+    из трёх способов выше. Подгибка одинакова при любом раскрое. Юбка, где она есть, — цилиндр
     и кроится плоскими полосами из того же рулона.</td></tr></tfoot>
   </table>
   </div>

@@ -569,6 +569,152 @@ def faces_svg():
     return svg(W, H, ''.join(p))
 
 
+
+
+# ---------------------------------------------------------------------------
+# 7. The leaf: the cut that escapes the roll width
+# ---------------------------------------------------------------------------
+LEAF_COLS = ['#268CF2', '#3E9BF5', '#5BAAF7', '#79B9F9']
+
+
+def _lanes():
+    """Rebuild each lane's top and bottom width from the leaf plan."""
+    cv = DATA['cover_d6']
+    lf = cv['leaf']
+    r = cv['radius_mm']
+    leaves, lap, lanes = lf['leaves'], lf['lap_mm'], lf['lanes_per_leaf']
+    slant = math.pi * r / 2.0
+    step = (slant - lap) / lanes
+
+    def width_at(arc):
+        return 2.0 * math.pi * r * math.sin(min(arc / r, math.pi / 2.0)) / leaves
+
+    out = []
+    for i in range(lanes):
+        s_top = i * step
+        s_low = min(slant, (i + 1) * step + lap)
+        out.append((i, s_top, s_low, width_at(s_top), width_at(s_low)))
+    return lf, slant, out
+
+
+def leaf_svg():
+    """One leaf, assembled: four lanes lapped, narrow at the pole."""
+    lf, slant, lanes = _lanes()
+    # Full width like the other plates, so it renders at the same scale as
+    # them rather than being blown up to fit the container.
+    W, pad_t, pad_b = 1180, 40, 54
+    widest = lanes[-1][4]
+    scale = min((W - 420) / widest, (500 - pad_t - pad_b) / slant)
+    H = slant * scale + pad_t + pad_b
+    cx = W / 2
+    p = []
+
+    def Y(s):
+        return pad_t + s * scale
+
+    for i, s_top, s_low, w_top, w_low in lanes:
+        col = LEAF_COLS[i % len(LEAF_COLS)]
+        pts = (f'{cx-w_top/2*scale:.1f},{Y(s_top):.1f} '
+               f'{cx+w_top/2*scale:.1f},{Y(s_top):.1f} '
+               f'{cx+w_low/2*scale:.1f},{Y(s_low):.1f} '
+               f'{cx-w_low/2*scale:.1f},{Y(s_low):.1f}')
+        p.append(f'<polygon points="{pts}" fill="{col}" fill-opacity="0.17" '
+                 f'stroke="{col}" stroke-width="1.5"/>')
+        p.append(f'<text x="{cx:.1f}" y="{Y((s_top+s_low)/2)+4:.1f}" '
+                 f'text-anchor="middle" class="mono-sm">полоса {i+1}</text>')
+        p.append(f'<text x="{cx+w_low/2*scale+9:.1f}" y="{Y(s_low)-3:.1f}" '
+                 f'class="dim">{w_low:.0f}</text>')
+    # the slant
+    dx = 46
+    p.append(f'<line x1="{dx:.1f}" y1="{Y(0):.1f}" x2="{dx:.1f}" y2="{Y(slant):.1f}" '
+             f'stroke="var(--rule)" stroke-width="1"/>')
+    for yy in (Y(0), Y(slant)):
+        p.append(f'<line x1="{dx-4:.1f}" y1="{yy:.1f}" x2="{dx+4:.1f}" y2="{yy:.1f}" '
+                 f'stroke="var(--rule)" stroke-width="1"/>')
+    p.append(f'<text x="{dx-7:.1f}" y="{Y(slant/2):.1f}" text-anchor="middle" '
+             f'class="dim" transform="rotate(-90 {dx-7:.1f} {Y(slant/2):.1f})">'
+             f'дуга {slant:.0f} мм</text>')
+    p.append(f'<text x="{cx:.1f}" y="{H-14:.1f}" text-anchor="middle" class="lbl-sm">'
+             f'один лепесток из {lf["lanes_per_leaf"]} полос · нахлёст '
+             f'{lf["lap_mm"]:.0f} мм · всего {lf["leaves"]} лепестков</text>')
+    return svg(int(W), int(H), ''.join(p))
+
+
+def leaf_roll_svg():
+    """Why it is cheap: two lanes share a rectangle, turned end for end."""
+    lf, slant, lanes = _lanes()
+    roll = lf['roll_width_mm']
+    lane_h = lf['lane_height_mm']
+    run = sum(w_top + w_low for _, _, _, w_top, w_low in lanes)
+
+    # Two stacked dimensions in the left margin: the roll, and the lane in it.
+    W, pad_l, pad_r, pad_t, pad_b = 1180, 112, 28, 40, 58
+    scale = (W - pad_l - pad_r) / run
+    H = roll * scale + pad_t + pad_b
+    p = []
+
+    def X(mm):
+        return pad_l + mm * scale
+
+    def Y(mm):
+        return pad_t + mm * scale
+
+    p.append(f'<rect x="{X(0):.1f}" y="{Y(0):.1f}" width="{run*scale:.1f}" '
+             f'height="{roll*scale:.1f}" fill="var(--roll-fill)" '
+             f'stroke="var(--rule)" stroke-width="1.25"/>')
+    # the leftover strip down the whole run
+    p.append(f'<rect x="{X(0):.1f}" y="{Y(lane_h):.1f}" width="{run*scale:.1f}" '
+             f'height="{(roll-lane_h)*scale:.1f}" fill="var(--offcut)"/>')
+
+    cursor = 0.0
+    for i, _, _, w_top, w_low in lanes:
+        col = LEAF_COLS[i % len(LEAF_COLS)]
+        up = (f'{X(cursor):.1f},{Y(0):.1f} {X(cursor+w_top):.1f},{Y(0):.1f} '
+              f'{X(cursor+w_low):.1f},{Y(lane_h):.1f} {X(cursor):.1f},{Y(lane_h):.1f}')
+        p.append(f'<polygon points="{up}" fill="{col}" fill-opacity="0.20" '
+                 f'stroke="{col}" stroke-width="1.4"/>')
+        # its partner, turned end for end, filling the rest of the rectangle
+        dn = (f'{X(cursor+w_top):.1f},{Y(0):.1f} {X(cursor+w_top+w_low):.1f},{Y(0):.1f} '
+              f'{X(cursor+w_top+w_low):.1f},{Y(lane_h):.1f} {X(cursor+w_low):.1f},{Y(lane_h):.1f}')
+        p.append(f'<polygon points="{dn}" fill="{col}" fill-opacity="0.36" '
+                 f'stroke="{col}" stroke-width="1.4"/>')
+        mid = cursor + (w_top + w_low) / 2
+        p.append(f'<text x="{X(mid):.1f}" y="{Y(lane_h/2)-2:.1f}" '
+                 f'text-anchor="middle" class="mono-sm">полоса {i+1} ×2</text>')
+        p.append(f'<text x="{X(mid):.1f}" y="{Y(lane_h/2)+13:.1f}" '
+                 f'text-anchor="middle" class="dim">{w_top:.0f} → {w_low:.0f}</text>')
+        cursor += w_top + w_low
+
+    dx = pad_l - 16
+    p.append(f'<line x1="{dx:.1f}" y1="{Y(0):.1f}" x2="{dx:.1f}" y2="{Y(roll):.1f}" '
+             f'stroke="var(--rule)" stroke-width="1"/>')
+    for yy in (Y(0), Y(roll)):
+        p.append(f'<line x1="{dx-4:.1f}" y1="{yy:.1f}" x2="{dx+4:.1f}" y2="{yy:.1f}" '
+                 f'stroke="var(--rule)" stroke-width="1"/>')
+    p.append(f'<text x="{dx-8:.1f}" y="{Y(roll/2):.1f}" text-anchor="middle" class="dim" '
+             f'transform="rotate(-90 {dx-8:.1f} {Y(roll/2):.1f})">рулон {roll:.0f} мм</text>')
+    dh = pad_l - 52
+    p.append(f'<line x1="{dh:.1f}" y1="{Y(0):.1f}" x2="{dh:.1f}" y2="{Y(lane_h):.1f}" '
+             f'stroke="var(--rule)" stroke-width="1"/>')
+    for yy in (Y(0), Y(lane_h)):
+        p.append(f'<line x1="{dh-4:.1f}" y1="{yy:.1f}" x2="{dh+4:.1f}" y2="{yy:.1f}" '
+                 f'stroke="var(--rule)" stroke-width="1"/>')
+    p.append(f'<text x="{dh-8:.1f}" y="{Y(lane_h/2):.1f}" text-anchor="middle" '
+             f'class="dim" transform="rotate(-90 {dh-8:.1f} {Y(lane_h/2):.1f})">'
+             f'полоса {lane_h:.0f}</text>')
+    # the leftover runs the whole length; mark it at the end rather than across it
+    p.append(f'<line x1="{X(run):.1f}" y1="{Y(lane_h):.1f}" x2="{X(run)+14:.1f}" '
+             f'y2="{Y(lane_h):.1f}" stroke="var(--rule)" stroke-width="0.9"/>')
+    p.append(f'<line x1="{X(run)+10:.1f}" y1="{Y(lane_h):.1f}" x2="{X(run)+10:.1f}" '
+             f'y2="{Y(roll):.1f}" stroke="var(--rule)" stroke-width="0.9"/>')
+    p.append(f'<text x="{X(run/2):.1f}" y="{Y(roll)+26:.1f}" text-anchor="middle" '
+             f'class="dim">по одной паре каждой полосы · на весь купол '
+             f'{lf["roll_length_mm"]/1000:.1f} м рулона, а не '
+             f'{lf["roll_unnested_mm"]/1000:.1f} м, если кроить всё в одну сторону '
+             f'· сверху остаётся лента {roll-lane_h:.0f} мм по всей длине</text>')
+    return svg(int(W), int(H), ''.join(p))
+
+
 figs = {
     'sizes': sizes_svg(),
     'elevation': dome_view('elevation', 'family'),
@@ -578,6 +724,8 @@ figs = {
     'gore': gore_svg(),
     'gore_roll': gore_roll_svg(),
     'faces': faces_svg(),
+    'leaf': leaf_svg(),
+    'leaf_roll': leaf_roll_svg(),
 }
 for k, v in figs.items():
     open(OUT + k + '.svg', 'w').write(v)

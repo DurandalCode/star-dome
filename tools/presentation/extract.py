@@ -50,11 +50,28 @@ def collect() -> dict:
     flat = model.build(config.load(REFERENCE))
     gores = cover.gores(flat)
     out['cover_d6'] = {
+        'radius_mm': cover.radius(flat),
         'gores': gores,
         'outline': cover.gore_outline(flat, gores['count']),
+        'leaf': cover.leaf(flat),
         'panels': cover.panels(flat),
+        'layouts': cover.layouts(flat),
         'analyse': cover.analyse(flat),
     }
+
+    # The leaf/gore trade reverses across the family, so the page shows it as a
+    # row per size rather than asserting one direction.
+    out['cover_sizes'] = {}
+    for name in SIZES:
+        d = model.build(config.load(name))
+        cuts = cover.layouts(d)
+        out['cover_sizes'][name] = {
+            'alias': d['meta'].get('alias'),
+            'areas': cover.areas(d),
+            'gores': cuts['gores'],
+            'leaf': cuts['leaf'],
+            'faces': cuts['faces'],
+        }
 
     out['connectors'] = {}
     out['bom'] = {}

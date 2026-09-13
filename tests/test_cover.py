@@ -213,3 +213,99 @@ def test_the_roll_decides_which_cut_is_cheaper(roll, pieces, strips5, strips3):
     # gore cut is always shorter, and what the faces buy is elsewhere: seams
     # that land on a member, and a crown that is a pentagon.
     assert both["faces"]["seam_mm"] > both["gores"]["seam_mm"]
+
+
+def test_the_leaf_lanes_cover_the_whole_slant(built):
+    """Every lane but the first laps the one below; together they reach the base.
+
+    The lane heights are a division of the slant, so the count times the step
+    has to arrive at the quarter-circumference exactly -- a lane short and
+    there is a gap at the hem, a lane over and the last one hangs off.
+    """
+    lf = cover.leaf(built)
+    slant = math.pi * cover.radius(built) / 2.0
+    step = lf["lane_height_mm"] - lf["lap_mm"]
+    # Reported lengths are rounded to 0.1 mm, so allow the rounding and no more.
+    assert lf["lanes_per_leaf"] * step == pytest.approx(slant - lf["lap_mm"], abs=0.5)
+    assert lf["lane_height_mm"] <= lf["roll_width_mm"]
+
+
+def test_the_leaf_widens_all_the_way_down(built):
+    """A leaf is a gore: narrow at the pole, widest where it meets the ground."""
+    widths = cover.leaf(built)["lane_widths_mm"]
+    assert widths == sorted(widths)
+    equator = 2.0 * math.pi * cover.radius(built) / cover.DEFAULT_LEAVES
+    assert widths[-1] == pytest.approx(equator, rel=1e-3)
+
+
+def test_nesting_the_lanes_is_what_makes_the_leaf_cheap(built):
+    """Turn every other lane end for end and two share a rectangle.
+
+    Without that the leaf costs each lane its widest section; with it, its
+    mean. This is the whole reason the pattern is worth the extra joints.
+    """
+    lf = cover.leaf(built)
+    assert lf["roll_length_mm"] < lf["roll_unnested_mm"]
+
+
+def test_the_leaf_always_saves_both_fabric_and_seam(built):
+    """It escapes the roll width, so the cloth is never a question.
+
+    The lanes run *along* the roll rather than across it, which is the whole
+    trick: the leaf's width is no longer capped by what the supplier sells.
+    And its vertical seams are one per leaf against one per gore, of which
+    there are always more than five.
+    """
+    cuts = cover.layouts(built)
+    leafed, strips = cuts["leaf"], cuts["gores"]
+    assert leafed["roll_mm"] < strips["roll_mm"]
+    assert leafed["seam_mm"] < strips["seam_mm"]
+
+
+def test_whether_the_laps_are_worth_it_depends_on_the_size():
+    """The leaf's laps are the price, and the dome decides if it is worth it.
+
+    A gore's seam count is set by the roll, so it grows with the dome: 7 on
+    D3, 26 on D12. The leaf's stays at five however big the dome gets, and
+    only its laps grow. Below M the laps outrun what the seams save; from L
+    up the leaf is simply cheaper on both counts at once.
+
+    This is the one number here that reverses across the family, so it is
+    worth a test rather than a sentence.
+    """
+
+    def joining(name):
+        cuts = cover.layouts(model.build(config.load(name)))
+        leafed, strips = cuts["leaf"], cuts["gores"]
+        return leafed["seam_mm"] + leafed["lap_mm"], strips["seam_mm"]
+
+    small_leaf, small_gore = joining("D4")
+    assert small_leaf > small_gore
+
+    big_leaf, big_gore = joining("D10")
+    assert big_leaf < big_gore
+
+
+def test_a_gore_fills_two_over_pi_of_its_rectangle(built):
+    """Exact, at any radius and any count -- which is what the leaf escapes."""
+    g = cover.gores(built)
+    box = g["count"] * g["gore_width_mm"] * g["gore_length_mm"]
+    assert cover.areas(built)["dome_m2"] * 1e6 / box == pytest.approx(
+        2.0 / math.pi, rel=1e-3
+    )
+
+
+def test_more_leaves_do_not_change_the_area_only_the_seams(built):
+    """Five leaves or ten, it is the same hemisphere cut into more pieces."""
+    five, ten = cover.leaf(built, leaves=5), cover.leaf(built, leaves=10)
+    assert ten["seam_length_mm"] == pytest.approx(2.0 * five["seam_length_mm"], abs=0.5)
+    # Each leaf is half as wide and there are twice as many, so the roll it
+    # eats is untouched -- only the number of vertical seams doubles.
+    assert ten["roll_length_mm"] == pytest.approx(five["roll_length_mm"], abs=0.5)
+
+
+def test_a_lap_as_wide_as_the_roll_is_refused(built):
+    with pytest.raises(ValueError):
+        cover.leaf(built, lap_mm=cover.DEFAULT_ROLL_WIDTH_MM)
+    with pytest.raises(ValueError):
+        cover.leaf(built, leaves=2)
