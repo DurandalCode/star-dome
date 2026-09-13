@@ -25,7 +25,17 @@ import re
 
 import pytest
 
-from stardome import bom, config, connectors, model, span, tolerance
+from stardome import (
+    bom,
+    config,
+    connectors,
+    loads,
+    material,
+    model,
+    span,
+    strength,
+    tolerance,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -35,6 +45,21 @@ NAMED = ["D4", "D6", "D8", "D10", "D12"]
 @pytest.fixture(scope="module")
 def built():
     return {name: model.build(config.load(name)) for name in NAMED}
+
+
+@pytest.fixture(scope="module")
+def verdict():
+    """M's strength verdict, on the reference stock.
+
+    Built separately from `built` because strength needs the woven route and
+    the rod polylines: the tributary partition measures distance to a
+    centreline, and in flat mode every crossing has two rods in the same
+    place.
+    """
+    data = model.build(
+        config.load("D6"), weave_mode="woven", include_polylines=True
+    )
+    return strength.analyse(data, material.load(), loads.load())
 
 
 def read(relative: str) -> str:
@@ -151,6 +176,41 @@ def test_every_named_size_walks_in(built):
 # --- the registry -----------------------------------------------------------
 
 
+def _strength_claims(verdict) -> list:
+    """Claims about the first numbers in this project with a load in them.
+
+    Registered narrowly and on purpose. A limiting wind speed is exactly the
+    kind of figure a reader lifts out of a table without the qualifiers that
+    surround it, so what is pinned here is the number **and the material it
+    belongs to** -- decision 0022 -- plus the verdict on D3, which is the one
+    result that changes what gets built.
+    """
+    stock = material.load()
+    membrane = verdict["paths"]["membrane"]["limit_ms"]
+    return [
+        (
+            "docs/strength.md",
+            f"{verdict['residual']['stress_mpa']:.0f} MPa",
+            "M's permanent stress from being bent to shape",
+        ),
+        (
+            "docs/strength.md",
+            f"{stock.allowable('sustained', 'tension'):.0f} MPa allowed permanently",
+            "the creep-rupture allowance everything above is judged against",
+        ),
+        (
+            "docs/strength.md",
+            f"**{membrane:.1f}**",
+            "M's limiting wind speed on the membrane reading",
+        ),
+        (
+            "docs/strength.md",
+            f"**{stock.bendable_diameter(1500.0):.1f} mm rod, or a bigger dome.**",
+            "the fix for D3, which fails bent before any wind blows",
+        ),
+    ]
+
+
 def _claims(built) -> list:
     """``(document, what it must contain, why)``.
 
@@ -184,6 +244,25 @@ def _claims(built) -> list:
             "what a 10% curvature budget allows on M",
         ),
     ]
+
+
+def test_registered_strength_claims_still_hold(verdict):
+    for document, wanted, why in _strength_claims(verdict):
+        text = read(document)
+        assert wanted in text, (
+            f"{document} no longer contains {wanted!r} ({why}). Either the "
+            f"document drifted from the model, or the sentence holding this "
+            f"number was rewritten -- update the document, then this registry."
+        )
+
+
+def test_the_strength_document_names_the_material_it_belongs_to():
+    """Decision 0022: a wind speed without its stock is not a result. A reader
+    who lifts a number out of the table and leaves the qualifier behind has
+    the wrong number, so the document has to carry the name next to it."""
+    text = read("docs/strength.md")
+    assert "GOST 31938" in text
+    assert "band" in text
 
 
 def test_registered_claims_still_hold(built):

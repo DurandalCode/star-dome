@@ -1,0 +1,150 @@
+# ---------------------------------------------------------------------------
+# configs/materials.toml -- what the bows are actually made of.
+#
+# THIS FILE IS THE SOURCE OF TRUTH FOR MATERIAL PROPERTIES.
+#
+# It is the companion to configs/variants.toml. That file says how big a dome
+# is and how thick its rod; this one says what the rod can take. Nothing in
+# stardome/ contains a material number.
+#
+# Units: stress in MPa (= N/mm^2), density in kg/m^3, everything else
+# dimensionless. Lengths elsewhere in this project are millimetres, and MPa is
+# newtons per square millimetre, so the two systems already agree.
+#
+# ---------------------------------------------------------------------------
+# EVERY NUMBER CARRIES ITS SOURCE, AND MOST OF THEM ARE MINIMA
+#
+# A standard states what a bar may not be worse than. A real bar is usually
+# better, sometimes much better, and nobody in this project has measured one
+# -- milestone 3. So a verdict computed from these values is a verdict about
+# the worst bar the standard permits, not about the bar in the coil.
+#
+# That cuts both ways and it is worth saying out loud:
+#
+#   - a variant that PASSES on these numbers passes on any conforming stock,
+#     which is the useful direction;
+#   - a variant that FAILS may still be fine on measured stock, and the thing
+#     to do about it is measure, not argue.
+#
+# `source` is required on every material. A number without one is a guess
+# wearing a standard's clothes.
+#
+# ---------------------------------------------------------------------------
+# THE TWO ALLOWABLES, AND WHY THERE ARE TWO
+#
+# A bow in this dome is bent to the dome radius and STAYS bent for as long as
+# the dome is up. That is a permanent stress, and glass fibre composites fail
+# under permanent stress at a small fraction of their short-term strength --
+# creep rupture. Wind, by contrast, is minutes.
+#
+# So every material carries two reductions and `stardome/material.py` builds
+# two allowables from them:
+#
+#   sustained   = sustained_stress_ratio * environmental_factor * strength
+#   short_term  = environmental_factor * strength / safety_factor
+#
+# The bend stress E*d/(2R) is checked against the first. The bend plus wind is
+# checked against the second. Which one bites is not obvious in advance and is
+# the first thing `stardome strength` reports.
+#
+# ---------------------------------------------------------------------------
+# BENDING IS NOT SYMMETRIC IN THIS MATERIAL
+#
+# Glass composite is much weaker in compression than in tension -- GOST 31938
+# asks 800 MPa in tension and only 300 in compression. A bent rod puts one
+# outer fibre in tension and the opposite one in compression at the same
+# magnitude, so the compression side is checked against its own strength, not
+# against the tensile one. `compressive_strength_mpa` is not decoration.
+# ---------------------------------------------------------------------------
+
+[defaults]
+# Fraction of the guaranteed strength left after weather. ACI 440.1R-15 table
+# 6.2 gives 0.7 for GFRP exposed to earth and weather, which is what a dome
+# standing in a field is. A dome that lives in a bag eleven months a year is
+# arguably better off than a bar cast into a bridge deck, but nobody has
+# measured that either.
+environmental_factor = 0.7
+# Partial factor on the short-term case. A JUDGEMENT, not a code number: there
+# is no design code for a temporary bent-rod lattice, and this is the margin
+# this project is choosing to carry. Change it and the wind limits move.
+safety_factor = 1.5
+# Fraction of the guaranteed strength allowed as a permanent stress. ACI
+# 440.1R-15 section 7.4.1 gives 0.20 for GFRP; it is the creep-rupture limit,
+# and it is the harshest number in this file by a wide margin.
+sustained_stress_ratio = 0.20
+# Solid round bar unless a material says otherwise. A tube sets wall_ratio to
+# wall thickness over outside diameter, so the section scales with the rod the
+# way every other dimension in this project does.
+wall_ratio = 0.0
+# The shear modulus is an INPUT, not E/2(1+nu).
+#
+# That formula is for an isotropic material and this one is nothing of the
+# kind: a pultruded rod is glass fibre running one way in a soft matrix, so it
+# is stiff along the fibres and floppy across them. Unidirectional E-glass
+# runs G/E of roughly 0.06-0.09, against an isotropic 0.4 -- so deriving G
+# from a Poisson's ratio overstates torsional stiffness by about five times.
+#
+# It does not matter to the closed-form checks, which are bending and axial.
+# It matters a great deal to a frame solve, because a bow is a CURVED member
+# and out-of-plane load on a curved member is carried in bending and torsion
+# together. Getting it wrong there would stiffen the dome against exactly the
+# action the wind applies.
+shear_modulus_mpa = 4000
+
+# ---------------------------------------------------------------------------
+
+[materials.gost31938]
+label = "композитная арматура АКС (ГОСТ 31938)"
+# The rod this is most likely to be built from in Russia: sold in 50 m coils
+# at about 42 RUB/m -- see docs/roadmap.md milestone 3. Every value below is
+# the MINIMUM the standard permits, so this is the pessimistic column.
+modulus_mpa = 50000
+tensile_strength_mpa = 800
+compressive_strength_mpa = 300
+shear_strength_mpa = 150
+# Not in the standard either. Typical G12 for unidirectional E-glass in
+# polyester; G/E = 0.08 here.
+shear_modulus_mpa = 4000
+# Not in the standard. Typical for E-glass/polyester rebar at the usual fibre
+# fraction, and flagged as typical rather than guaranteed.
+density_kg_m3 = 2000
+# Named by the EQUIVALENT diameter -- the one its cross-section area gives --
+# with a winding that stands proud of it. Strength follows this diameter;
+# what has to fit is variants.toml's rod_outer_diameter. Nobody has measured
+# the difference; see configs/variants.toml and docs/roadmap.md milestone 3.
+named_by = "equivalent"
+source = "ГОСТ 31938-2012 табл. 1 (АКС); плотность -- типовая, не нормируется"
+
+[materials.pultruded_rod]
+label = "пултрузионный стеклопластиковый пруток"
+# Solid unidirectional E-glass in polyester or vinylester, the stock tent
+# poles and kite spars are made of. Better in bending than rebar and sold as a
+# rod rather than as reinforcement, but not a coil and not 42 RUB/m.
+modulus_mpa = 40000
+tensile_strength_mpa = 700
+compressive_strength_mpa = 400
+shear_strength_mpa = 60
+shear_modulus_mpa = 3500
+density_kg_m3 = 1900
+named_by = "outside"
+source = "типовые паспортные значения однонаправленного E-glass/полиэфир; нормативного минимума нет"
+
+[materials.gfrp_tube]
+label = "стеклопластиковая труба"
+# The same material with the middle taken out. Second moment of area per unit
+# mass is far better, which is the whole reason milestone 7 lists a tube as a
+# reinforcement candidate -- but decision 0015 already notes a tube puts no
+# support in the middle of a bow, so it cannot move the family's ceiling. It
+# is here to be measured, not to be assumed.
+modulus_mpa = 40000
+tensile_strength_mpa = 700
+compressive_strength_mpa = 400
+shear_strength_mpa = 60
+shear_modulus_mpa = 3500
+density_kg_m3 = 1900
+# Wall over outside diameter. 0.2 is a 2 mm wall on a 10 mm tube, which is
+# about what stock fibreglass tube is. rod_diameter then means the OUTSIDE
+# diameter, and the bend strain d/(2R) is unchanged by hollowing it.
+wall_ratio = 0.2
+named_by = "outside"
+source = "типовые паспортные значения; стенка -- параметр, а не замер"

@@ -1,0 +1,113 @@
+# ---------------------------------------------------------------------------
+# configs/loads.toml -- what the dome is asked to carry.
+#
+# THIS FILE IS THE SOURCE OF TRUTH FOR LOADS.
+#
+# Units: pressure in Pa, speed in m/s, density in kg/m^3, areal mass in g/m^2,
+# linear mass in g/m, force in N.
+#
+# ---------------------------------------------------------------------------
+# WIND ONLY, AND THAT IS A DECISION
+#
+# There is no snow in this file. A Star Dome here is a temporary event
+# structure: it goes up for a weekend and comes down again, and it is not
+# standing in February. Leaving snow out is what makes the answer a wind
+# speed rather than a map of Russia -- see docs/strength.md.
+#
+# If that ever stops being true -- a dome left up over a winter, a dome in a
+# ski camp -- this file is where snow goes, and every number downstream moves.
+# Do not quietly assume the wind answer covers it. It does not: 1.8 kPa of
+# snow on a 6 m dome is 51 kN of vertical load, and the wind case that governs
+# here is 300 Pa acting mostly sideways.
+#
+# ---------------------------------------------------------------------------
+# THE SPEED IS A GUST AT THE DOME, NOT A MAP REFERENCE
+#
+# `stardome strength --wind V` takes V as the PEAK GUST speed at the top of
+# the dome, and turns it into pressure with q = 0.5 * rho * V^2. There is no
+# terrain category, no height profile and no gust factor in this project,
+# because those describe a site and this repository describes a dome.
+#
+# To go from a code's reference wind to a number to type here: take the site's
+# basic wind velocity, apply its own terrain and height rules at 3-6 m, and
+# use the resulting PEAK velocity. For central Russia, SP 20.13330.2016 wind
+# district I is w0 = 0.23 kPa, which is a 10-minute mean of about 19 m/s at
+# 10 m in open terrain; at 3 m with a gust factor that lands near 22-25 m/s.
+# That is the range to sanity-check results against, not a value this file
+# asserts.
+#
+# ---------------------------------------------------------------------------
+# THE PRESSURE COEFFICIENTS ARE FOR A SMOOTH HEMISPHERE
+#
+# A dome with an open doorway, a fabric skin that flogs, and fifteen rods
+# standing proud of it is not a wind-tunnel hemisphere. These are the nearest
+# published figures and they are an approximation -- one of the named limits
+# in docs/strength.md.
+# ---------------------------------------------------------------------------
+
+[wind]
+# EN 1991-1-4 section 4.5 recommended value.
+air_density_kg_m3 = 1.25
+
+# EN 1991-1-4 figure 7.12, cpe,10 for a dome with a circular base sitting on
+# the ground: h/d = 0, f/d = 0.5, which is exactly a hemisphere. Three points
+# around the windward-to-leeward arc, interpolated between.
+#   A -- windward springing, at ground level facing the wind
+#   B -- the crown
+#   C -- leeward springing
+cp_windward = 0.8
+cp_crown = -1.2
+cp_lee = -0.4
+
+# Internal pressure. A dome has one dominant opening -- its door -- so which
+# way the door faces changes the answer, and the two readings are both here.
+#
+# `open` is the door facing the wind: EN 1991-1-4 section 7.2.9(3) gives
+# cpi = 0.75 * cpe at the dominant face, so 0.75 * 0.8 = 0.6. This is the
+# worst case for uplift, because internal pressure pushes out everywhere the
+# outside is already sucking.
+#
+# `closed` is the door leeward or shut: the code's other value, -0.3.
+cp_internal_open = 0.6
+cp_internal_closed = -0.3
+
+[weights]
+gravity_m_s2 = 9.80665
+# Cover fabric. AN ASSUMPTION -- docs/cover.md picks no material at all, and
+# this is a lightweight coated polyester, the sort a 55 m^2 cover would be cut
+# from if somebody had to carry it. A PVC tarpaulin is 500-650 and would more
+# than double the cover's mass.
+fabric_g_m2 = 250
+# Printed parts. bom.py measures the SOLID volume of each part off its mesh;
+# real filament at a normal infill is roughly half of it (docs/bom.md), and
+# PETG is 1.27 g/cm^3.
+plastic_density_kg_m3 = 1270
+infill_fraction = 0.5
+# The cover's hardware, from stardome/attachment.py: a bolt rope in the hem
+# and five straps over the crown. Both are small, both are counted, and
+# neither has been chosen -- these are stock 6 mm polyester rope and 25 mm
+# polyester webbing.
+hem_rope_g_m = 20
+webbing_g_m = 30
+
+[anchors]
+# What one driven steel angle holds against being pulled out. THIS IS A SOIL
+# QUESTION, NOT A DOME QUESTION, and it is the weakest number in this file:
+# pull-out in dry sand and in wet clay differ by more than an order of
+# magnitude. 500 N is a placeholder for a 500 mm angle in firm ground, and it
+# is here so that the anchor check has something to report rather than
+# because anybody measured it.
+#
+# STAKE-BASE has not even been chosen yet -- it is the one item in the
+# connector schedule with no answer (docs/roadmap.md milestone 5), and the
+# base hub that holds it is 59% of the dome's plastic. Sizing it is
+# downstream of this number.
+capacity_n = 500
+# And against being dragged sideways. A bare dome has no tension ring -- its
+# ten feet are ten free rod ends with nothing tying them to each other, as
+# stardome/model.py says in the skirt code -- so the whole of the drag, plus
+# the bows' own outward thrust, arrives at the angles as horizontal shear. A
+# driven angle is better in shear than in pull-out, hence the larger figure,
+# and it is a placeholder in exactly the same way.
+shear_capacity_n = 1200
+count = 10

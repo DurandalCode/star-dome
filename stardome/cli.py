@@ -29,7 +29,10 @@ from . import (
     export,
     interior,
     model,
+    loads as loads_mod,
+    material as material_mod,
     span,
+    strength,
     tolerance,
     topology,
     verify,
@@ -373,6 +376,48 @@ def cmd_bom(args) -> int:
     return 0
 
 
+def cmd_material(args) -> int:
+    """What each candidate stock can take. No dome in it at all."""
+    materials = material_mod.load_all(args.materials)
+    names = [args.material] if args.material else sorted(materials)
+    for name in names:
+        print(material_mod.format_material(materials[name], args.rod))
+    return 0
+
+
+def cmd_loads(args) -> int:
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        data = model.build(variant, weave_mode="woven", include_polylines=True)
+        print(loads_mod.format_analysis(
+            data, material_mod.load(args.material, args.materials),
+            loads_mod.load(args.loads), args.wind, args.door,
+        ))
+    return 0
+
+
+def cmd_strength(args) -> int:
+    material = material_mod.load(args.material, args.materials)
+    loads = loads_mod.load(args.loads)
+    for name in _variant_names(args):
+        variant = config.load(name, args.config)
+        # The weave is the route the rods actually take, and the tributary
+        # partition measures distance to it. `flat` would put every centreline
+        # on the nominal sphere and quietly change which bow carries what.
+        data = model.build(variant, weave_mode="woven", include_polylines=True)
+        if args.json:
+            out = strength.analyse(data, material, loads, args.holds, args.door)
+            path = Path(args.out) / name / "strength.json"
+            export.write_json(out, path)
+            print(f"{name}: {path}")
+            continue
+        print(strength.format_analysis(data, material, loads,
+                                       args.holds, args.door))
+        if args.compare:
+            print(strength.format_comparison(data, material, loads, args.holds))
+    return 0
+
+
 def cmd_span(args) -> int:
     ref_variant = config.load(args.reference, args.config)
     ref = span.reference(
@@ -453,6 +498,9 @@ def build_parser() -> argparse.ArgumentParser:
         ("attachment", cmd_attachment, "how the cover is held on, and on what"),
         ("corridor", cmd_corridor, "a covered corridor on the doorway, and whether it fits"),
         ("span", cmd_span, "the longest unsupported span, and the ceiling it sets"),
+        ("material", cmd_material, "what each candidate rod can take, and for how long"),
+        ("loads", cmd_loads, "what the wind does to the shell, and to the anchors"),
+        ("strength", cmd_strength, "the limiting wind speed, and which check sets it"),
         ("bom", cmd_bom, "everything one dome is made of, counted in one place"),
         ("camp", cmd_camp, "several domes joined by corridors, laid out from a plan"),
     ):
@@ -612,6 +660,48 @@ def build_parser() -> argparse.ArgumentParser:
                 "--clamps",
                 action="store_true",
                 help="also price the thirty free crossings, in span and in rod",
+            )
+            p.add_argument("--json", action="store_true",
+                           help="write the analysis instead of printing it")
+            p.add_argument("-o", "--out", default="exports/model", type=Path)
+        if name in ("material", "loads", "strength"):
+            p.add_argument(
+                "--material",
+                default="" if name == "material" else material_mod.REFERENCE_MATERIAL,
+                help="candidate stock from configs/materials.toml; every "
+                     "result is a result about one of them",
+            )
+            p.add_argument("--materials", default=None,
+                           help="alternative configs/materials.toml")
+        if name in ("loads", "strength"):
+            p.add_argument("--loads", default=None,
+                           help="alternative configs/loads.toml")
+            p.add_argument(
+                "--door",
+                default="shut",
+                choices=loads_mod.DOOR_STATES,
+                help="shut, or open and facing the wind -- the worst case for "
+                     "uplift, and the reason there is a field rule",
+            )
+        if name == "material":
+            p.add_argument("--rod", type=float, default=10.0,
+                           help="rod diameter to report section properties at")
+        if name == "loads":
+            p.add_argument("--wind", type=float, default=20.0,
+                           help="peak gust speed at the dome, m/s")
+        if name == "strength":
+            p.add_argument(
+                "--holds",
+                default="lashed",
+                choices=span.HOLDS,
+                help="what holds a bow: lashed (feet and tie marks, the "
+                     "conservative reading) or contact (every crossing clamped)",
+            )
+            p.add_argument(
+                "--compare",
+                action="store_true",
+                help="also price the choices: every candidate stock, both "
+                     "readings of held, and the door open against shut",
             )
             p.add_argument("--json", action="store_true",
                            help="write the analysis instead of printing it")

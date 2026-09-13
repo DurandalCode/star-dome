@@ -44,6 +44,9 @@ python3 -m stardome build --all       # model.json + CSV into exports/model
 python3 -m stardome assembly --all    # the order the bows go up in
 python3 -m stardome tolerance --all   # what the tape measure has to achieve
 python3 -m stardome span --all        # the longest unsupported span, and the ceiling
+python3 -m stardome material          # what each candidate rod can take, and for how long
+python3 -m stardome loads --all       # what the wind does to the shell, and to the anchors
+python3 -m stardome strength --all    # the limiting wind speed, and which check sets it
 python3 -m stardome bom --all         # everything one dome is made of
 python3 -m stardome camp yard         # domes joined by corridors, from a plan
 make venv && make check               # invariants + test suite
@@ -72,6 +75,7 @@ single interchange format every other tool reads — see
 - Putting it up: [`docs/assembly.md`](docs/assembly.md)
 - How accurately to measure it: [`docs/tolerance.md`](docs/tolerance.md)
 - How far it scales, and why: [`docs/span.md`](docs/span.md)
+- What the rod can actually take: [`docs/strength.md`](docs/strength.md)
 - What one dome is made of: [`docs/bom.md`](docs/bom.md)
 - A camp of them: [`docs/camp.md`](docs/camp.md)
 
@@ -108,6 +112,16 @@ D3 stays in `configs/variants.toml` without a short name: at 1473 mm of dome
 it is not standing height, and [decision 0009](docs/decisions/0009-d3-on-a-skirt-is-dominated.md)
 records why a skirt does not rescue it. See
 [`docs/doorway.md`](docs/doorway.md) for where each skirt height comes from.
+
+**D3 as configured is not buildable, and that is now a calculation rather than
+an opinion.** Its 8 mm rod bent to a 1500 mm radius carries 0.267% permanent
+strain against the 0.224% composite rebar allows under sustained load — it is
+over its creep-rupture limit standing in a dead calm. It wants 6.7 mm rod, or
+a bigger dome. Nobody was being asked to build it; what is new is the reason.
+And the direction is the opposite of what this project assumed: **the rod is
+worked hardest on the smallest dome**, not the largest, because diameter is
+quantised at 8/10/12 mm while the radius halves. See
+[`docs/strength.md`](docs/strength.md).
 
 The full geometric family is D3, D4, D6, D8, D10 and D12 — one entry per
 diameter, nothing else fixed. D12 in particular is explicitly experimental:
