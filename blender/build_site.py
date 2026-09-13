@@ -293,6 +293,10 @@ COVER_ALPHA = 0.14
 # purchasing decision nobody has taken.
 CORRIDOR_HOOP_COLOUR = (0.75, 0.55, 0.25, 1.0)
 CORRIDOR_HOOP_RADIUS_M = 0.005
+# The other kind of corridor is boards, not rod: a timber P-frame. It arrives
+# as solid meshes rather than centrelines, because a board has a thickness and
+# a bent rod does not.
+CORRIDOR_BOARD_COLOUR = (0.55, 0.38, 0.20, 1.0)
 
 
 def load_plan(path):
@@ -355,6 +359,7 @@ def add_corridors(plan, collection, lift_is_ground=True):
     made = 0
     skin_mat = make_transparent(material("Corridor", COVER_COLOUR), COVER_ALPHA)
     hoop_mat = material("Corridor_Hoop", CORRIDOR_HOOP_COLOUR)
+    board_mat = material("Corridor_Board", CORRIDOR_BOARD_COLOUR)
     for index, one in enumerate(plan.get("links") or ()):
         drawing = one.get("drawing")
         if not drawing:
@@ -393,6 +398,18 @@ def add_corridors(plan, collection, lift_is_ground=True):
             hoop.data.materials.append(hoop_mat)
             bpy.context.scene.collection.objects.link(hoop)
             move_to(hoop, collection)
+
+        # A timber portal is five boards with thickness, so the plan ships it
+        # as a solid rather than as a curve to be bevelled.
+        for k, frame in enumerate(drawing.get("frames") or ()):
+            verts = [(px * MM, py * MM, pz * MM) for px, py, pz in frame["vertices"]]
+            fmesh = bpy.data.meshes.new(f"Frame_{index}_{k}")
+            fmesh.from_pydata(verts, [], [list(f) for f in frame["faces"]])
+            fmesh.update()
+            board = bpy.data.objects.new(f"Frame_{index}_{k}", fmesh)
+            board.data.materials.append(board_mat)
+            bpy.context.scene.collection.objects.link(board)
+            move_to(board, collection)
         made += 1
     return made
 

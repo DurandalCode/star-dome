@@ -52,7 +52,7 @@ def test_a_tunnel_shorter_than_its_own_arch_is_refused():
 
 # --- the hoop -------------------------------------------------------------
 def test_the_hoop_bends_rod_harder_than_the_dome_does(built):
-    h = built["corridor"]["hoop"]
+    h = built["corridor"]["rib"]
     assert h["bend_radius_mm"] < h["dome_bend_radius_mm"]
     assert h["times_tighter_than_dome"] > 1.0
 
@@ -167,3 +167,96 @@ def test_quantities_scale_with_length():
 def test_a_variant_with_no_doorway_has_nothing_to_attach_to():
     d3 = model.build(config.load("D3"), corridor_spec={})
     assert d3["corridor"]["present"] is False
+
+
+# --- the timber portal ----------------------------------------------------
+def test_the_portal_opening_is_a_trapezoid_not_a_rectangle():
+    """The knee braces cut both top corners, and that is clear opening lost."""
+    s = corridor.portal_section(1800.0, 2100.0, 300.0)
+    assert s[0] == (0.0, 900.0)
+    assert s[1] == (1800.0, 900.0)
+    assert s[-1] == (2100.0, 600.0)
+
+
+def test_a_brace_wider_than_the_opening_is_refused():
+    with pytest.raises(ValueError):
+        corridor.portal_section(500.0, 2100.0, 300.0)
+
+
+def test_the_portal_cut_list_adds_up():
+    f = corridor.portal_frame(1800.0, 2100.0, 300.0)
+    total = sum(m["count"] * m["length_mm"] for m in f["members"])
+    assert f["board_length_mm"] == pytest.approx(total, abs=0.2)
+    assert f["overall_width_mm"] > f["clear_width_mm"]
+    assert f["overall_height_mm"] > f["clear_height_mm"]
+
+
+def test_the_brace_is_the_hypotenuse_of_its_own_corner():
+    f = corridor.portal_frame(1800.0, 2100.0, 300.0)
+    brace = next(m for m in f["members"] if m["name"] == "knee brace")
+    assert brace["length_mm"] == pytest.approx(300.0 * math.sqrt(2.0), abs=0.1)
+
+
+def test_the_portal_is_wider_where_it_matters():
+    """Full width up to the braces is the whole point of a square frame.
+
+    Not that it admits more silhouettes -- at 2100 mm both kinds pass every
+    template, because the widest of them is only 800 mm across. The portal's
+    gain is room: at head height it is more than twice as wide, and that is
+    two-way traffic and furniture rather than one more person shape.
+    """
+    hoop = corridor.section(900.0, 2100.0)
+    portal = corridor.portal_section(1800.0, 2100.0, 300.0)
+    at_head = 1800.0
+    assert corridor._clear_half_width(portal, at_head) > (
+        2.0 * corridor._clear_half_width(hoop, at_head)
+    )
+
+
+def test_the_portal_is_worse_at_getting_through_the_lancet():
+    """Its advantage inside is its disadvantage at the door.
+
+    A bay narrows toward its head, and a portal demands full width right up to
+    the braces -- where the hoop has already curved in.
+    """
+    d10 = model.build(config.load("D10"), weave_mode="layered")
+    hoop = corridor.widest_that_fits(d10, 1950.0, 25.0, "hoop")["widest_mm"]
+    portal = corridor.widest_that_fits(d10, 1950.0, 25.0, "portal")["widest_mm"]
+    assert portal < hoop
+
+
+def test_a_portal_wider_than_its_door_is_reported_as_a_bottleneck_not_a_failure():
+    d10 = model.build(config.load("D10"), weave_mode="layered")
+    c = corridor.place(d10, width=1800.0, height=2100.0, kind="portal")
+    assert not c["through_doorway"]["fits"]
+    assert c["bottleneck"]["at"] == "the dome's doorway"
+    # And a person is still unaffected: the doorway admits them anyway.
+    assert "carry" in c["bottleneck"]["doorway_admits"]
+
+
+def test_both_kinds_measure_skin_and_floor_the_same_way():
+    d10 = model.build(config.load("D10"), weave_mode="layered")
+    for kind, w, h in (("hoop", 900.0, 1950.0), ("portal", 1800.0, 2100.0)):
+        c = corridor.place(d10, width=w, height=h, kind=kind)
+        assert c["floor_m2"] == pytest.approx(w * c["length_mm"] / 1e6, rel=1e-6)
+        assert c["cover_m2"] > 0
+        assert c["kind"] == kind
+
+
+def test_an_unknown_kind_is_refused():
+    with pytest.raises(ValueError):
+        corridor.section_for("geodesic", 900.0, 1950.0)
+
+
+def test_the_portal_draws_as_boards():
+    d10 = model.build(config.load("D10"), weave_mode="layered")
+    c = corridor.place(
+        d10, width=1800.0, height=2100.0, pitch=1200.0,
+        kind="portal", include_geometry=True,
+    )
+    drawing = c["drawing"]
+    assert drawing["kind"] == "portal"
+    assert drawing["frames"] and not drawing["hoops"]
+    # Five members, eight corners each.
+    assert len(drawing["frames"][0]["vertices"]) == 40
+    assert len(drawing["frames"][0]["faces"]) == 30

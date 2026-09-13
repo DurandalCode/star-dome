@@ -178,6 +178,39 @@ def test_the_shipped_tree_is_a_camp_of_seven_that_works():
 # --- what gets drawn --------------------------------------------------------
 
 
+def test_a_camp_can_be_joined_by_timber_portals(models):
+    """The other kind of corridor: boards, not a bent hoop.
+
+    A portal is wider, so its mouth reaches less far up the sphere and the run
+    between the covers comes out LONGER than the hoop's on the same two domes.
+    """
+    plan = CAMPS["pair"]
+    hoop = camp.analyse(plan, models)["links"][0]
+    portal = camp.analyse(plan, models, kind="portal")["links"][0]
+
+    assert portal["material"] == "board" and hoop["material"] == "rod"
+    assert portal["length_mm"] > hoop["length_mm"]
+    assert portal["rib"]["members"][0]["name"] == "post"
+    # Frames are placed, not interpolated, so a portal ships those and no rings.
+    assert len(portal["drawing"]["frames"]) == portal["ribs"]
+    assert portal["drawing"]["rings"] == []
+    assert len(hoop["drawing"]["frames"]) == 0
+
+
+def test_a_junction_is_checked_as_well_as_a_bearing(models):
+    """Landing on a bay and passing through it are two questions.
+
+    The pair is two bare M domes, and bare M passes neither section -- which
+    is the whole reason the check exists.
+    """
+    a = camp.analyse(CAMPS["pair"], models)
+    ends = a["links"][0]["through_the_bay"]
+    assert [e["end"] for e in ends] == ["east", "west"]
+    assert not any(e["passes"] for e in ends)
+    # The door is not the problem: a person still walks through it.
+    assert "walk" in ends[0]["door_admits"]
+
+
 def test_the_drawing_is_in_camp_coordinates(models):  # noqa: ARG001
     """Blender consumes it and computes nothing, so the mouths have to arrive
     where the domes actually stand."""
@@ -187,7 +220,7 @@ def test_the_drawing_is_in_camp_coordinates(models):  # noqa: ARG001
     first, second = drawing["mouths"]
 
     assert len(first) == len(second)
-    assert len(drawing["rings"]) == a["links"][0]["hoops"]
+    assert len(drawing["rings"]) == a["links"][0]["ribs"]
 
     east = next(d for d in a["domes"] if d["name"] == "east")
     west = next(d for d in a["domes"] if d["name"] == "west")

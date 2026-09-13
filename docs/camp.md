@@ -84,6 +84,35 @@ it. When two domes are close enough that their covers would touch it comes out
 negative, and that is reported as the overlap it is rather than as a corridor of
 negative length.
 
+## Two kinds of corridor, and a junction is not a bearing
+
+```bash
+make camp CAMP=tree CAMP_KIND=portal
+python3 -m stardome camp tree --kind portal
+```
+
+A link is joined by a bent-rod **hoop** (900 × 1950 by default) or by a timber
+**portal** — two posts, a header and a knee brace in each top corner, 1800 ×
+2100 out of 45 × 145 board. See [`corridor.md`](corridor.md) for the section
+each one leaves. `--kind` sets the camp's default and a link in
+`configs/camps.toml` can override it with its own `kind`, so one camp can hold
+both.
+
+The kind is not a finish. The mouth is cut to the section, so a wider corridor
+reaches less far up the sphere and leaves a **longer** free run between the
+same two covers: on `pair`, 4027 mm on hoops against 4234 mm on portals.
+
+And the plan now answers two questions rather than one. The layout solves
+**bearings**; whether the section also passes **through** the bay it lands on
+is separate, and reported separately — saying only the first would be true and
+misleading in the same breath. A portal is wider than every bay in the family,
+so its posts come down on the bows; the 900 mm hoop passes at S, which stands
+on a skirt, and fails at bare M and bare L.
+
+Neither is the corridor being wrong. A person walks through every one of those
+doors. It means the junction needs the entrance/corridor interface from
+milestone 5, or a narrower corridor.
+
 ## What it will not do
 
 **It will not fix a plan.** A corridor that does not fit the doorway it lands on

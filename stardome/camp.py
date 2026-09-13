@@ -245,28 +245,66 @@ def _to_camp(points: list, dome: dict) -> list:
     ]
 
 
-def _tube(loop_a: list, loop_b: list, hoops: int) -> dict:
-    """The corridor as geometry: two mouths, the rings between, and a skin.
+def _junction(data: dict, name: str, shape: list) -> dict:
+    """Does this corridor's section pass the bay it lands on?"""
+    fit = doorway.fit_shape(data, shape, "corridor")
+    return {
+        "end": name,
+        "passes": bool(fit["fits"]),
+        "spare_mm": fit.get("spare_mm"),
+        "door_admits": list((data.get("doorway") or {}).get("admits", [])),
+    }
 
-    Every ring is the same section, so a ring part way along is the two mouths
+
+def _frames(at: list, bearing: float, reach: float, free: float, count: int,
+            width: float, height: float, brace_leg: float) -> list:
+    """The portal frames along one corridor, as boards in camp coordinates.
+
+    A hoop is a curve and interpolating the two mouths gives it for nothing. A
+    frame is five boards with thickness, so it is placed rather than
+    interpolated: every frame is the same frame, square to the run, standing
+    on the camp's own ground at z = 0.
+    """
+    a = math.radians(bearing)
+    along = (math.cos(a), math.sin(a))
+    across = (-math.sin(a), math.cos(a))
+    out = []
+    for k in range(1, max(0, count) + 1):
+        d = reach + free * k / (count + 1.0)
+        origin = (at[0] + along[0] * d, at[1] + along[1] * d, 0.0)
+        out.append(
+            corridor.frame_boards(origin, along, across, width, height, brace_leg)
+        )
+    return out
+
+
+def _tube(loop_a: list, loop_b: list, ribs: int, kind: str = "hoop",
+          frames: list | None = None) -> dict:
+    """The corridor as geometry: two mouths, the ribs between, and a skin.
+
+    Every rib is the same section, so a hoop part way along is the two mouths
     interpolated -- which is also why the skin is a quad strip between them
-    and needs nothing solved.
+    and needs nothing solved. A timber frame is not a curve and does not
+    interpolate; it arrives already placed, in ``frames``.
     """
     rings = []
-    for k in range(1, max(0, hoops) + 1):
-        f = k / (hoops + 1.0)
-        rings.append(
-            [
+    if kind != "portal":
+        for k in range(1, max(0, ribs) + 1):
+            f = k / (ribs + 1.0)
+            rings.append(
                 [
-                    round(pa[i] + (pb[i] - pa[i]) * f, 3)
-                    for i in range(3)
+                    [
+                        round(pa[i] + (pb[i] - pa[i]) * f, 3)
+                        for i in range(3)
+                    ]
+                    for pa, pb in zip(loop_a, loop_b)
                 ]
-                for pa, pb in zip(loop_a, loop_b)
-            ]
-        )
+            )
     return {
+        "kind": kind,
         "mouths": [loop_a, loop_b],
         "rings": rings,
+        "frames": list(frames or ()),
         "skin_note": (
             "A quad strip between the two mouths: matching points joined in "
             "order, both loops closed and equally sampled."
@@ -276,12 +314,19 @@ def _tube(loop_a: list, loop_b: list, hoops: int) -> dict:
 
 def link(a: dict, b: dict, width: float, height: float,
          pitch: float = corridor.DEFAULT_PITCH_MM,
-         samples: int = corridor.ARC_SAMPLES) -> dict:
+         samples: int = corridor.ARC_SAMPLES,
+         kind: str = "hoop",
+         brace_leg: float = corridor.DEFAULT_BRACE_LEG_MM) -> dict:
     """One corridor between two domes, measured on both of them.
 
     ``a`` and ``b`` are ``{"name", "at", "data"}``. Nothing about the corridor
     is chosen here beyond its section: where it runs and how long it is are
     read off the two positions.
+
+    ``kind`` picks which corridor this is -- a bent rod hoop or a timber
+    portal frame. It changes the section, and the section is what the mouth is
+    cut to, so the two kinds do not merely look different: a wider mouth
+    reaches less far up the sphere and leaves a longer run between the covers.
     """
     to_b = bearing_deg(a["at"], b["at"])
     to_a = (to_b + 180.0) % 360.0
@@ -291,10 +336,12 @@ def link(a: dict, b: dict, width: float, height: float,
     # expressed in the dome's own frame -- turning the dome turns the wall the
     # corridor lands on with it.
     mouth_a = corridor.mouth(
-        a["data"], (to_b - a["turn"]) % 360.0, width, height, samples
+        a["data"], (to_b - a["turn"]) % 360.0, width, height, samples,
+        kind, brace_leg,
     )
     mouth_b = corridor.mouth(
-        b["data"], (to_a - b["turn"]) % 360.0, width, height, samples
+        b["data"], (to_a - b["turn"]) % 360.0, width, height, samples,
+        kind, brace_leg,
     )
     on_both = mouth_a.get("fits_on_dome") and mouth_b.get("fits_on_dome")
 
@@ -303,32 +350,53 @@ def link(a: dict, b: dict, width: float, height: float,
     free = centres - reach_a - reach_b
 
     covers = cover.radius(a["data"]) + cover.radius(b["data"])
-    hoops = int(free // pitch) + 1 if free > 0 else 0
+    ribs = int(free // pitch) + 1 if free > 0 else 0
+
+    if kind == "portal":
+        rib = corridor.portal_frame(width, height, brace_leg)
+        material = "board"
+        per_rib = rib["board_length_mm"]
+    else:
+        rib = corridor.hoop(
+            width, height, a["data"]["meta"]["rod_diameter"],
+            a["data"]["meta"]["dome_radius"],
+        )
+        material = "rod"
+        per_rib = rib["rod_length_mm"]
+
+    # Landing on a bay's AZIMUTH is what the layout solves. Whether the
+    # section also passes THROUGH that bay is a separate question, and for a
+    # wide timber portal the answer is usually no: its posts come down on the
+    # bows rather than inside the opening. Saying only the first would be true
+    # and misleading in the same breath.
+    shape = corridor.section_for(kind, width, height, samples, brace_leg)
+    through = [
+        _junction(a["data"], a["name"], shape),
+        _junction(b["data"], b["name"], shape),
+    ]
 
     return {
         "between": [a["name"], b["name"]],
         "bearing_deg": round(to_b, 3),
         "centres_mm": round(centres, 1),
         "length_mm": round(free, 1),
-        "section": {"width_mm": width, "height_mm": height},
+        "section": {
+            "kind": kind,
+            "width_mm": width,
+            "height_mm": height,
+            "brace_leg_mm": brace_leg if kind == "portal" else None,
+        },
         "meets_the_cover": bool(on_both),
         "reach_mm": [round(reach_a, 1), round(reach_b, 1)],
         "joint_off_flat_mm": [
             mouth_a.get("step_mm"), mouth_b.get("step_mm")
         ],
         "mouths": [mouth_a, mouth_b],
-        "hoops": hoops,
-        "hoop": corridor.hoop(
-            width, height, a["data"]["meta"]["rod_diameter"],
-            a["data"]["meta"]["dome_radius"],
-        ),
-        "rod_mm": round(
-            hoops * corridor.hoop(
-                width, height, a["data"]["meta"]["rod_diameter"],
-                a["data"]["meta"]["dome_radius"],
-            )["rod_length_mm"],
-            1,
-        ),
+        "ribs": ribs,
+        "rib": rib,
+        "material": material,
+        "rib_material_mm": round(ribs * per_rib, 1),
+        "through_the_bay": through,
         "doors": [
             door_facing(a["data"], to_b, a["turn"]),
             door_facing(b["data"], to_a, b["turn"]),
@@ -341,7 +409,14 @@ def link(a: dict, b: dict, width: float, height: float,
             _tube(
                 _to_camp(mouth_a["points"], a),
                 _to_camp(mouth_b["points"], b),
-                hoops,
+                ribs,
+                kind=kind,
+                frames=(
+                    _frames(a["at"], to_b, reach_a, free, ribs,
+                            width, height, brace_leg)
+                    if kind == "portal"
+                    else []
+                ),
             )
             if on_both
             else None
@@ -410,10 +485,33 @@ def prepare(camp: dict, config_path=None, weave_mode: str = "flat",
     }
 
 
-def analyse(camp: dict, models: dict, width: float = corridor.DEFAULT_WIDTH_MM,
-            height: float = corridor.DEFAULT_HEIGHT_MM,
-            pitch: float = corridor.DEFAULT_PITCH_MM) -> dict:
+# Each kind of corridor has its own sensible size. An unset one therefore
+# means "this kind's default" rather than "the hoop's default applied to a
+# timber frame", which would draw a 900 mm portal nobody asked for.
+KIND_DEFAULTS = {
+    "hoop": (corridor.DEFAULT_WIDTH_MM, corridor.DEFAULT_HEIGHT_MM,
+             corridor.DEFAULT_PITCH_MM),
+    "portal": (corridor.DEFAULT_PORTAL_WIDTH_MM,
+               corridor.DEFAULT_PORTAL_HEIGHT_MM,
+               corridor.DEFAULT_PORTAL_PITCH_MM),
+}
+
+
+def analyse(camp: dict, models: dict, width: float | None = None,
+            height: float | None = None,
+            pitch: float | None = None,
+            kind: str = "hoop",
+            brace_leg: float = corridor.DEFAULT_BRACE_LEG_MM) -> dict:
     """The whole plan: where everything stands and what joins it."""
+    if kind not in KIND_DEFAULTS:
+        raise ValueError(
+            f"unknown corridor kind {kind!r}; know "
+            + ", ".join(sorted(KIND_DEFAULTS))
+        )
+    default_w, default_h, default_p = KIND_DEFAULTS[kind]
+    width = default_w if width is None else width
+    height = default_h if height is None else height
+    pitch = default_p if pitch is None else pitch
     by_name = {}
     for dome in camp["domes"]:
         canonical = config.resolve(dome["variant"])
@@ -438,6 +536,9 @@ def analyse(camp: dict, models: dict, width: float = corridor.DEFAULT_WIDTH_MM,
                 float(spec.get("width", width)),
                 float(spec.get("height", height)),
                 float(spec.get("pitch", pitch)),
+                corridor.ARC_SAMPLES,
+                str(spec.get("kind", kind)),
+                float(spec.get("brace", brace_leg)),
             )
         )
 
@@ -463,9 +564,16 @@ def analyse(camp: dict, models: dict, width: float = corridor.DEFAULT_WIDTH_MM,
             round(max(xs) - min(xs) + 2 * reach, 1),
             round(max(ys) - min(ys) + 2 * reach, 1),
         ],
-        "corridor_rod_m": round(
-            sum(l["rod_mm"] for l in links) / 1000.0, 2
-        ),
+        # Kind-neutral: a hoop is metres of rod and a portal is metres of
+        # board, and a camp can hold one of each if a link asks for it.
+        "corridor_material_m": {
+            material: round(
+                sum(l["rib_material_mm"] for l in links
+                    if l["material"] == material) / 1000.0,
+                2,
+            )
+            for material in sorted({l["material"] for l in links})
+        },
         "problems": _problems(by_name, links),
     }
 
@@ -541,7 +649,10 @@ def format_analysis(name: str, camp: dict, models: dict, **kwargs) -> str:
         if one["meets_the_cover"]:
             out.append(
                 f"    corridor    {one['length_mm']:.0f} mm of free run, "
-                f"{one['hoops']} hoops, {one['rod_mm'] / 1000.0:.1f} m of rod"
+                f"{one['ribs']} "
+                + ("frames" if one["section"]["kind"] == "portal" else "hoops")
+                + f", {one['rib_material_mm'] / 1000.0:.1f} m of "
+                + one["material"]
             )
             out.append(
                 f"    joint       {one['joint_off_flat_mm'][0]:.0f} and "
@@ -563,6 +674,36 @@ def format_analysis(name: str, camp: dict, models: dict, **kwargs) -> str:
                     )
                 )
         out.append("")
+    joints = [(one, end) for one in a["links"] for end in one["through_the_bay"]]
+    bad = [(one, end) for one, end in joints if not end["passes"]]
+    if bad:
+        out.append(
+            f"  {len(bad)} of {len(joints)} junctions do NOT pass: the section "
+            "is bigger than the bay it lands"
+        )
+        out.append(
+            "  on, so its sides come down on the bows rather than inside the "
+            "opening. Each needs the"
+        )
+        out.append(
+            "  entrance/corridor interface (milestone 5), or a narrower "
+            "corridor. The door itself is"
+        )
+        out.append("  not the problem -- a person still walks through it:")
+        for one, end in bad:
+            admits = ", ".join(end["door_admits"]) or "nothing"
+            out.append(
+                f"    {' - '.join(one['between']):<26} at {end['end']:<12} "
+                f"(that door admits {admits})"
+            )
+        out.append("")
+    else:
+        out.append(
+            f"  all {len(joints)} junctions pass: the section goes through the "
+            "bay at every end"
+        )
+        out.append("")
+
     if a["problems"]:
         out.append("  will not build as drawn:")
         for problem in a["problems"]:
