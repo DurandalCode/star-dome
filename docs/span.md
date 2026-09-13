@@ -117,6 +117,26 @@ anything in this repository. It is set by one material number nobody has
 measured yet — [milestone 3](roadmap.md)'s one open item that depends on nothing
 else. The dome already proposed for building works its rod at 0.167%.
 
+### That number now has a value, from a standard rather than a test
+
+[`strength.md`](strength.md) supplies it. Composite rebar at the minimum
+GOST 31938 permits allows **0.224%** as a permanent outer-fibre strain — the
+creep-rupture limit, since a bow is bent for as long as the dome is up. Read
+into the table above, that puts the family's ceiling at about **8.1 m**: just
+past D8, and well short of D12.
+
+Two cautions, and they matter more than the number:
+
+- it is a **standard's minimum**, not a measurement. Milestone 3 is unchanged,
+  and a real coil is usually better;
+- the table above is a self-weight parity argument and takes no account of
+  buckling. `strength.md` finds that stability, not bending, is what actually
+  runs out first — so 8.1 m is a ceiling on one failure mode, not the ceiling.
+
+The reference dome's 0.167% against an allowable of 0.224% also says the thing
+this document could not: **M's margin on the bend alone is 1.34×**, and D3's
+is less than one.
+
 `k` is the span factor: the worst span as a fraction of the bare topology's.
 Because it enters squared, **halving the worst span multiplies the ceiling by
 four.** That is why every reinforcement candidate in milestone 7 is measured

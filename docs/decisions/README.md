@@ -78,6 +78,9 @@ writing the next.
 | [0018](0018-a-camp-is-a-plan-and-a-dome-is-turned-not-redrilled.md) | A camp is its own config, and a dome is turned to face a neighbour rather than re-drilled | refined by 0019 |
 | [0019](0019-a-camp-builds-its-own-domes.md) | A camp derives its doors and turns from its links; a door sits on a 72° grid | accepted |
 | [0020](0020-the-hinge-is-worth-more-than-the-lever.md) | The clamp gains a hinged closure: one bolt instead of two, and nothing loose when it is open | accepted |
+| [0021](0021-wind-is-the-only-load-case.md) | Wind is the only load case; the dome comes down before winter, so the answer is an operating limit | accepted |
+| [0022](0022-a-material-is-a-named-candidate-not-a-constant.md) | A material is a named candidate with its source attached, and the reference is a standard's minimum | accepted |
+| [0023](0023-the-strength-answer-is-a-band-until-the-frame-is-solved.md) | Strength reports two bounding readings, not one speed, until a frame solve closes the gap | accepted |
 
 ## Not here yet
 

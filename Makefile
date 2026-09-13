@@ -9,7 +9,7 @@ VPY      = $(VENV)/bin/python
 OUT     ?= exports/model
 OPENSCAD ?= /Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 
-.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans bom camp lineups covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
+.PHONY: help build report verify test snapshot config connectors weave assembly tolerance entrances doorways interior spans materials loads strength bom camp lineups covers attachment corridors clamps blender fitted site sizes camp venv clean check scad
 
 help:
 	@echo "make build      generate model.json + CSV for every variant into $(OUT)"
@@ -32,6 +32,9 @@ help:
 	@echo "make attachment what holds the cover on, and on what"
 	@echo "make corridors  a covered corridor on the doorway, and whether it fits"
 	@echo "make spans      the longest unsupported span, and the ceiling it sets"
+	@echo "make materials  what each candidate rod can take, and for how long"
+	@echo "make loads      what the wind does to the shell, and to the anchors"
+	@echo "make strength   the limiting wind speed, and which check sets it"
 	@echo "make bom        everything one dome is made of, counted in one place"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make blender    build the 1:1 Blender scene (V=D6) and render a preview"
@@ -128,6 +131,31 @@ HOLDS ?= lashed
 
 spans:
 	@$(PYTHON) -m stardome span --all --holds $(HOLDS) --clamps
+
+# Strength: the first thing in this project with a modulus, a load and a
+# verdict in it. MATERIAL is a candidate stock from configs/materials.toml --
+# every answer is an answer about one of them, so the name travels with the
+# number. WIND is the peak gust at the dome, in m/s. DOOR_STATE is 'shut' or
+# 'open' and facing the wind, which is the worst case for uplift and the one
+# mitigation in this whole calculation that is free.
+#
+# Not DOOR: that is already taken, five targets up, for the SIZE of opening
+# `make entrances` solves for. Two different meanings of the same word, and
+# Make's `?=` would have silently given this one the other's value.
+MATERIAL ?= gost31938
+WIND ?= 20
+DOOR_STATE ?= shut
+
+materials:
+	@$(PYTHON) -m stardome material
+
+loads:
+	@$(PYTHON) -m stardome loads --all --wind $(WIND) --door $(DOOR_STATE) \
+		--material $(MATERIAL)
+
+strength:
+	@$(PYTHON) -m stardome strength --all --material $(MATERIAL) \
+		--holds $(HOLDS) --door $(DOOR_STATE) --compare
 
 # Everything one dome is made of. PARTS is where the built connector meshes
 # are: their solid volume is read off them, so the plastic column is present
