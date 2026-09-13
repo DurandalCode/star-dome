@@ -184,6 +184,17 @@ note = "An XL hub, two L halls, and two M closed into a yard by three S"
 name = "hub"
 variant = "XL"
 at = [0, 0]
+# A way in from outside. The hub has two neighbours, so the links give it two
+# doors and both of them are a corridor -- there is nothing left to walk in
+# through. That is the one door a plan cannot derive, so it is written down.
+#
+# It cannot be any bearing. A door sits in a bay and there are five of them
+# 72 deg apart, so a third door has to be a multiple of 72 from the two the
+# corridors already want or the derived turn moves to accommodate it and the
+# corridors stop landing square -- asking for 216 swung the hub 18 deg and put
+# both its corridor doors 18 deg out. 252 is 144 from one and 216 from the
+# other, and it faces away from the camp, where the ground is open.
+doors = [252]
 
 [[camps.court.domes]]
 name = "hall_west"

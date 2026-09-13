@@ -34,6 +34,20 @@ reported and left out rather than quietly missing::
     make clamps V=S && make clamps V=M && make clamps V=L
     make camp
 
+``--walk`` turns the scene from something to look at into something to walk
+through, which needs three changes at once and is useless without all three:
+the covers go opaque, a lamp goes inside every dome and every corridor -- an
+opaque dome in sunlight is a black hole from within -- and the scene camera
+becomes an eye 1.7 m off the ground, standing outside the camp looking at it::
+
+    make camp CAMP=court CAMP_KIND=portal CAMP_FLAGS="--cover --figures one --walk"
+
+Blender does the walking: Numpad 0 for the camera view, then Shift+` for Walk
+Navigation. W A S D to move, mouse to look, Q and E down and up, Shift to run,
+Tab for gravity, left-click to keep where you got to and Esc to snap back.
+Gravity is a preference rather than a scene setting, so it cannot be shipped
+in the .blend: Preferences > Navigation > Walk > Gravity.
+
 """
 
 import argparse
@@ -43,6 +57,7 @@ import math
 import os
 import sys
 
+import bmesh
 import bpy
 from mathutils import Vector
 
@@ -115,6 +130,23 @@ def parse_args(argv):
         help="where the exported meshes are; defaults to exports/connectors",
     )
     p.add_argument("--no-labels", action="store_true")
+    p.add_argument(
+        "--walk",
+        action="store_true",
+        help="set the scene up to be walked through at eye height rather than "
+             "looked at: the covers go opaque, a lamp goes inside every dome "
+             "and every corridor, and the camera stands 1.7 m off the ground. "
+             "Blender's own Walk Navigation (Shift+`) does the walking",
+    )
+    p.add_argument(
+        "--lamp-gain",
+        dest="lamp_gain",
+        type=float,
+        default=1.0,
+        help="multiply the inside lighting by this. What a fabric dome at "
+             "dusk looks like is a taste, not a measurement, so it is a dial "
+             "rather than a constant; 1.0 is 3 W per square metre of floor",
+    )
     p.add_argument(
         "--figures",
         choices=("every", "one", "none"),
@@ -251,8 +283,14 @@ def add_skirt(skirt, radius_m, rod_radius_m, material_, collection, origin_x,
 
 
 def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
-                origin_y=0.0):
-    """The opening, outlined and filled, exactly as the model reports it."""
+                origin_y=0.0, fill=True):
+    """The opening, outlined and filled, exactly as the model reports it.
+
+    ``fill`` draws the translucent panel across the opening. It says "this is
+    the hole" in a picture and it is a wall in a walk-through, so the walker
+    does without it. Returns the outline's points as well, because cutting the
+    hole out of the cover wants exactly the curve that was just drawn.
+    """
     points = [
         (*_place(x, y, origin_x, spin_deg, origin_y), z * MM + lift)
         for x, y, z in door["outline"]["points"]
@@ -274,6 +312,9 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     obj.data.materials.append(material("Doorway_Outline", DOOR_COLOUR))
     collection.objects.link(obj)
 
+    if not fill:
+        return obj, None, points
+
     centre = tuple(sum(q[i] for q in points) / len(points) for i in range(3))
     mesh = bpy.data.meshes.new("DoorwayPanel")
     mesh.from_pydata(
@@ -288,7 +329,7 @@ def add_doorway(door, rod_radius_m, collection, origin_x, lift, spin_deg=0.0,
     if hasattr(panel, "visible_shadow"):
         panel.visible_shadow = False
     collection.objects.link(panel)
-    return obj, panel
+    return obj, panel, points
 
 
 COVER_COLOUR = (0.88, 0.86, 0.80, 1.0)
@@ -306,6 +347,22 @@ CORRIDOR_HOOP_RADIUS_M = 0.005
 # as solid meshes rather than centrelines, because a board has a thickness and
 # a bent rod does not.
 CORRIDOR_BOARD_COLOUR = (0.55, 0.38, 0.20, 1.0)
+
+# Walking through it rather than looking at it. The cover has to stop being a
+# window, the inside has to have light of its own -- an opaque dome in sunlight
+# is a black hole from inside -- and the eye has to be where an eye is.
+WALK_EYE_M = 1.70
+WALK_LENS_MM = 24.0
+# A lamp hangs at this fraction of the dome's clear height, and its power goes
+# with the floor it has to cover. Watts, as EEVEE counts them. The first pass
+# at this was 14 W/m2, which is a floodlit hangar: the fabric blew out white
+# and the frame stopped reading against it.
+WALK_LAMP_AT = 0.72
+WALK_LAMP_W_PER_M2 = 3.0
+WALK_CORRIDOR_LAMP_W = 18.0
+# A tunnel lamp hangs this far under the roof. At head height it sat exactly
+# where the walker's eyes go.
+WALK_CORRIDOR_LAMP_DROP_M = 0.30
 
 
 def load_plan(path):
@@ -353,12 +410,13 @@ def plan_layout(plan, models, plan_path):
                 "data": data,
                 "at": (dome["at"][0] * MM, dome["at"][1] * MM),
                 "turn": dome["turn_deg"],
+                "doors": list(dome.get("doors") or ()),
             }
         )
     return out
 
 
-def add_corridors(plan, collection, lift_is_ground=True):
+def add_corridors(plan, collection, lift_is_ground=True, alpha=None):
     """The corridors, from the mouths and rings the plan already solved.
 
     Nothing is computed here. Each link arrives with its two mouth loops and
@@ -366,7 +424,11 @@ def add_corridors(plan, collection, lift_is_ground=True):
     between matching points and a ring is a closed curve.
     """
     made = 0
-    skin_mat = make_transparent(material("Corridor", COVER_COLOUR), COVER_ALPHA)
+    # The corridor's skin keeps its single face, so it keeps its own alpha.
+    skin_mat = make_transparent(
+        material("Corridor", COVER_COLOUR),
+        COVER_ALPHA if alpha is None else alpha,
+    )
     hoop_mat = material("Corridor_Hoop", CORRIDOR_HOOP_COLOUR)
     board_mat = material("Corridor_Board", CORRIDOR_BOARD_COLOUR)
     for index, one in enumerate(plan.get("links") or ()):
@@ -450,7 +512,8 @@ def load_schedule(model_path, override=None):
     return schedule if schedule.get("placements") else None
 
 
-def add_cover(data, collection, origin_x, spin_deg, origin_y, lift):
+def add_cover(data, collection, origin_x, spin_deg, origin_y, lift,
+              alpha=None):
     """The fabric as one surface, and nothing else.
 
     The single-dome scene draws the seams and the hem as well, because there
@@ -471,10 +534,241 @@ def add_cover(data, collection, origin_x, spin_deg, origin_y, lift):
     mesh.update()
     obj = bpy.data.objects.new(f"Cover_{data['meta']['variant']}", mesh)
     bpy.context.scene.collection.objects.link(obj)
+    # The cover is given thickness so its openings can be cut, so a sight line
+    # through it now crosses TWO faces where it used to cross one. At face
+    # value 0.14 that reads as 0.26 and the camp turns milky. Thin each face
+    # until the pair comes to what the single one was: 1-(1-a)^2 == 0.14.
+    if alpha is None:
+        alpha = 1.0 - math.sqrt(1.0 - COVER_ALPHA)
     obj.data.materials.append(
-        make_transparent(material("Cover", COVER_COLOUR), COVER_ALPHA)
+        make_transparent(material("Cover", COVER_COLOUR), alpha)
     )
     return move_to(obj, collection)
+
+
+# How far a hole-cutter reaches either side of the surface it cuts. The mouth
+# lies ON the cover, so this only has to be more than the cover is thick --
+# which is nothing -- plus enough to survive the curvature it sits on.
+CUTTER_REACH_M = 1.0
+
+
+def solid_from(name, verts, faces, collection):
+    """A closed mesh with its normals facing out, fit to cut with."""
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return move_to(obj, collection)
+
+
+def mouth_cutter(loop, bearing_deg, name, collection, reach=CUTTER_REACH_M):
+    """The tunnel's mouth as a solid prism, for cutting the cover open.
+
+    The mouth is a closed curve lying on the cover. Swept along the corridor's
+    own axis it becomes a plug through the cover, and the cover minus that plug
+    is a cover with a doorway the shape of the tunnel in it.
+    """
+    a = math.radians(bearing_deg)
+    dx, dy = math.cos(a) * reach, math.sin(a) * reach
+    n = len(loop)
+    verts = []
+    for sign in (-1.0, 1.0):
+        for px, py, pz in loop:
+            verts.append((px * MM + dx * sign, py * MM + dy * sign, pz * MM))
+    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+    faces.append(list(range(n - 1, -1, -1)))
+    faces.append(list(range(n, 2 * n)))
+    return solid_from(name, verts, faces, collection)
+
+
+# The thickest the fabric is ever drawn, and the thinnest worth drawing.
+COVER_THICKNESS_MAX_M = 0.010
+COVER_THICKNESS_MIN_M = 0.002
+
+
+def fabric_thickness(data):
+    """How thick to draw this dome's cover, in metres.
+
+    It has to be thick enough to be a solid -- see ``give_it_thickness`` -- and
+    thinner than the room between the cover and the outside of the rod it is
+    draped over, or the inner face swallows the frame and the dome is a plain
+    shell from inside. That room is small and it is not the same at every size:
+    18 mm on XL, 15 on L, 12 on S. Half of it, capped.
+    """
+    from_the_rod = (
+        cover_radius_mm(data)
+        - data["meta"]["dome_radius"]
+        - data["meta"]["rod_diameter"] / 2.0
+    ) * MM
+    return max(
+        COVER_THICKNESS_MIN_M, min(COVER_THICKNESS_MAX_M, from_the_rod * 0.5)
+    )
+
+
+def cover_radius_mm(data):
+    """The radius the cover mesh was built on, read off the mesh itself.
+
+    The model ships the surface rather than the number, so this measures what
+    arrived instead of recomputing what `stardome` already decided.
+    """
+    verts = (data.get("cover") or {}).get("mesh", {}).get("vertices") or ()
+    return max(
+        (math.hypot(math.hypot(v[0], v[1]), v[2]) for v in verts),
+        default=data["meta"]["dome_radius"],
+    )
+
+
+def give_it_thickness(obj, thickness):
+    """Turn a surface into a shell with two sides.
+
+    Fabric is thin, not infinitely thin, and the difference decides whether a
+    hole can be cut in it. The exact boolean solver decides what is inside a
+    target by winding number, and an open sheet has none -- asked to take a
+    plug out of one it welds the plug's own end cap in instead, which is a
+    cover with a bump where a doorway should be. A ray out of the hub stopped
+    dead on it, one metre short of where the cover actually is.
+    """
+    mod = obj.modifiers.new("Thickness", "SOLIDIFY")
+    mod.thickness = thickness
+    mod.offset = -1.0                 # grow inward; the outside stays put
+    bpy.context.view_layer.objects.active = obj
+    try:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        return True
+    except RuntimeError:
+        obj.modifiers.remove(mod)
+        return False
+
+
+def door_cutter(points, at, name, collection, reach=CUTTER_REACH_M):
+    """The doorway as a solid plug, swept out of the dome along its own radius.
+
+    The opening spans about a third of a bay in azimuth, so it is not flat and
+    no single direction is normal to all of it. It does not have to be: the
+    cover is 30 mm thick and the sweep is a metre, so the mean outward radius
+    passes clean through every part of the curve.
+    """
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+    out = Vector((cx - at[0], cy - at[1], 0.0))
+    if out.length < 1e-6:
+        out = Vector((1.0, 0.0, 0.0))
+    out.normalize()
+
+    n = len(points)
+    verts = []
+    for sign in (-1.0, 1.0):
+        for px, py, pz in points:
+            verts.append((px + out.x * reach * sign,
+                          py + out.y * reach * sign,
+                          pz))
+    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+    faces.append(list(range(n - 1, -1, -1)))
+    faces.append(list(range(n, 2 * n)))
+    return solid_from(name, verts, faces, collection)
+
+
+def cut_out(target, cutters):
+    """Take the cutters out of the target, and throw them away.
+
+    One boolean per cutter rather than one over a joined cutter: a cover is an
+    open surface, and the exact solver copes with that far better one plug at
+    a time than with several at once.
+    """
+    done = 0
+    for cutter in cutters:
+        mod = target.modifiers.new(f"Hole_{done}", "BOOLEAN")
+        mod.operation = "DIFFERENCE"
+        mod.solver = "EXACT"
+        mod.object = cutter
+        # A cover is an open shell, and the exact solver decides inside-ness
+        # by winding number, which an open shell does not have. Without this
+        # it plugs the hole with the cutter's own end cap instead of opening
+        # one -- a ray out of the hub stopped on the cover a metre short of
+        # where the cover is.
+        if hasattr(mod, "use_hole_tolerant"):
+            mod.use_hole_tolerant = True
+        bpy.context.view_layer.objects.active = target
+        try:
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            done += 1
+        except RuntimeError as bad:
+            print(f"[site]   could not open {target.name}: {bad}")
+            target.modifiers.remove(mod)
+    for cutter in cutters:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+    return done
+
+
+def corridor_bearings(plan):
+    """``dome name -> the bearings it has a corridor on``."""
+    out = {}
+    for one in (plan or {}).get("links") or ():
+        a, b = one["between"]
+        out.setdefault(a, []).append(one["bearing_deg"] % 360.0)
+        out.setdefault(b, []).append((one["bearing_deg"] + 180.0) % 360.0)
+    return out
+
+
+def facing_a_corridor(door, turn_deg, bearings, within=36.0):
+    """Is this door the one a corridor lands on?
+
+    Within half a bay of a corridor's bearing and it is: a door is placed in
+    the nearest bay to the bearing that asked for it, so it is never further
+    off than that and nothing else can be nearer.
+    """
+    if not bearings:
+        return False
+    at = ((door.get("bay") or {}).get("centre_azimuth_deg", 0.0) + turn_deg) % 360.0
+    return any(
+        abs((at - b + 180.0) % 360.0 - 180.0) <= within for b in bearings
+    )
+
+
+def open_the_covers(plan, covers, doors, collection):
+    """Cut the cover open wherever something is supposed to go through it.
+
+    The cover is a closed shell of revolution: it has no doorway and no hole
+    where a corridor lands, so a camp that looks joined is a row of sealed
+    domes with tubes leaning on them and a door painted on. It does not show
+    while the fabric is see-through. It is the whole thing once you are inside
+    -- and in a walk-through it is a wall.
+
+    Two kinds of opening, one mechanism: a plug swept along the axis of
+    whatever is meant to pass through, taken out of the cover.
+    """
+    for cover in {id(c): c for c in covers.values() if c is not None}.values():
+        give_it_thickness(cover, cover.get("fabric_m", COVER_THICKNESS_MAX_M))
+
+    mouths = 0
+    for one in (plan or {}).get("links") or ():
+        drawing = one.get("drawing")
+        if not drawing:
+            continue
+        for name, loop in zip(one["between"], drawing["mouths"]):
+            cover = covers.get(name)
+            if cover is None:
+                continue
+            cutter = mouth_cutter(
+                loop, one["bearing_deg"], f"Mouth_{name}_{mouths}", collection
+            )
+            mouths += cut_out(cover, [cutter])
+
+    holes = 0
+    for name, points, at in doors:
+        cover = covers.get(name)
+        if cover is None:
+            continue
+        cutter = door_cutter(points, at, f"Door_{name}_{holes}", collection)
+        holes += cut_out(cover, [cutter])
+    return mouths, holes
 
 
 def add_connectors(schedule, directory, collection, staging, origin_x,
@@ -522,6 +816,128 @@ def add_connectors(schedule, directory, collection, staging, origin_x,
             )
         placed += 1
     return placed, missing
+
+
+def add_lamp(name, location, watts, collection, radius=0.35):
+    """One soft point light, for a space that has a roof on it."""
+    data = bpy.data.lights.new(name, type="POINT")
+    data.energy = watts
+    data.shadow_soft_size = radius
+    obj = bpy.data.objects.new(name, data)
+    obj.location = location
+    bpy.context.scene.collection.objects.link(obj)
+    return move_to(obj, collection)
+
+
+def add_inside_lights(spots, plan, collection, gain=1.0):
+    """A lamp inside every dome and every corridor.
+
+    Only needed once the cover is opaque, and then it is not optional: a closed
+    dome in sunlight is a black hole from the inside, and seeing the inside is
+    the whole point of walking through the camp.
+
+    Power goes with the floor a lamp has to cover, so the 12 m dome is not lit
+    to the same few watts as the 4 m one. ``spots`` comes from the dome loop,
+    because a row works out where its domes stand as it lays them and only the
+    loop knows.
+    """
+    made = 0
+    for spot in spots:
+        watts = gain * WALK_LAMP_W_PER_M2 * math.pi * spot["radius_m"] ** 2
+        add_lamp(
+            f"Lamp_{spot['name']}",
+            (spot["x"], spot["y"], spot["tall"] * WALK_LAMP_AT),
+            watts,
+            collection,
+        )
+        made += 1
+
+    for index, one in enumerate((plan or {}).get("links") or ()):
+        drawing = one.get("drawing")
+        if not drawing:
+            continue
+        # Midway along the run, at head height: the two mouth loops averaged.
+        points = drawing["mouths"][0] + drawing["mouths"][1]
+        cx = sum(p[0] for p in points) / len(points) * MM
+        cy = sum(p[1] for p in points) / len(points) * MM
+        roof = (one.get("section") or {}).get("height_mm", 0.0) * MM
+        lamp = add_lamp(
+            f"Lamp_Corridor_{index}",
+            (cx, cy, max(1.0, roof - WALK_CORRIDOR_LAMP_DROP_M)),
+            gain * WALK_CORRIDOR_LAMP_W,
+            collection,
+            radius=0.15,
+        )
+        # A tunnel lamp is fill, and a shadow map for each one overruns
+        # EEVEE's pool -- sixteen lights in this camp asked for 2400 of the
+        # 2048 it has. The domes keep theirs, where shadow is the whole
+        # character of the space.
+        lamp.data.use_shadow = False
+        made += 1
+    return made
+
+
+# How far clear of the outermost cover the walk starts.
+APPROACH_M = 5.0
+
+
+def approach(spots):
+    """Where to start a walk: outside the camp, looking at it.
+
+    Two rules were tried before this one and both put the eye somewhere
+    useless. "The point with the most room round it" is unbounded on open
+    ground -- the answer is always the far corner of whatever box you searched,
+    28 m away with its back to the camp. "Three metres out along the biggest
+    dome's door bearing" lands INSIDE the corridor hanging off that door,
+    because a corridor is what a door faces in a camp; the view is a portal
+    frame at arm's length.
+
+    So: out past everything, on the side the biggest dome is on, looking back
+    at the middle. You see the whole camp, and walking straight ahead takes you
+    to the door of the largest thing in it.
+    """
+    if not spots:
+        return (0.0, -APPROACH_M), Vector((0.0, 1.0, 0.0))
+    cx = sum(s["x"] for s in spots) / len(spots)
+    cy = sum(s["y"] for s in spots) / len(spots)
+
+    dome = max(spots, key=lambda s: s["radius_m"])
+    out = Vector((dome["x"] - cx, dome["y"] - cy, 0.0))
+    if out.length < 1e-6:
+        # The biggest dome IS the middle -- a row of one, or a hub camp
+        # weighted evenly. Back off the way a row's doors face.
+        out = Vector((0.0, -1.0, 0.0))
+    out.normalize()
+
+    reach = max(
+        math.hypot(s["x"] - cx, s["y"] - cy) + s["radius_m"] for s in spots
+    )
+    stand = (cx + out.x * (reach + APPROACH_M), cy + out.y * (reach + APPROACH_M))
+    return stand, Vector((cx - stand[0], cy - stand[1], 0.0))
+
+
+def add_eye_camera(scene, spots):
+    """A camera where an eye is, for Blender's own Walk Navigation to drive.
+
+    The overview camera is a portrait of the camp and is no use for walking: it
+    stands well back and well up. This one stands on the ground just outside
+    the camp -- see ``approach`` -- and is short-sighted enough at the near
+    end that putting your face through a doorway does not clip the world away.
+    """
+    data = bpy.data.cameras.new("Eye")
+    data.lens = WALK_LENS_MM
+    data.clip_start = 0.05
+    data.clip_end = 500.0
+    cam = bpy.data.objects.new("Eye", data)
+    scene.collection.objects.link(cam)
+
+    stand, look = approach(spots)
+    cam.location = (stand[0], stand[1], WALK_EYE_M)
+    if look.length < 1e-6:
+        look = Vector((0.0, 1.0, 0.0))
+    cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+    scene.camera = cam
+    return cam
 
 
 def add_humans(origin_x, offset_y, mats, collection, name, origin_y=0.0):
@@ -588,6 +1004,15 @@ def build(args, models):
 
     x = 0.0
     placed = []
+    # Where each dome ended up, for anything that has to be put INSIDE it. A
+    # row works its positions out as it lays them, so only the loop knows.
+    spots = []
+    # Each dome's cover object by the dome's own name, so a corridor can be
+    # cut out of the right one. Two domes of the same variant share a variant
+    # name and do not share a cover.
+    covers = {}
+    # Each dome's doorway outline, for cutting the opening out of its cover.
+    doors_to_cut = []
     max_radius = 0.0
     plan = load_plan(args.plan) if args.plan else None
     layout = (
@@ -595,6 +1020,7 @@ def build(args, models):
         if plan
         else [{"data": d} for d in models]
     )
+    corridors = corridor_bearings(plan)
     # One import per printed piece for the whole site, shared between domes:
     # three domes of a hundred connectors each is over a thousand pieces.
     connector_meshes = {}
@@ -647,14 +1073,19 @@ def build(args, models):
             coll_name = item["name"]
         coll = new_collection(coll_name, root)
 
-        door = data.get("doorway")
+        # A dome in a camp carries a door per neighbour and may carry one more
+        # to get in by, so this is a list. ``doorway`` is the first of them,
+        # kept for a dome that has only one.
+        all_doors = list(data.get("doorways") or ())
+        if not all_doors and data.get("doorway"):
+            all_doors = [data["doorway"]]
+        door = all_doors[0] if all_doors else None
         # A portal has no lancet, so no pair of jambs to pick out: the
         # traced outline and the ghosts of the cut pieces carry it instead.
-        jambs = (
-            set(door["frame"]["jamb_rods"])
-            if door and door.get("frame")
-            else set()
-        )
+        jambs = set()
+        for one_door in all_doors:
+            if one_door.get("frame"):
+                jambs |= set(one_door["frame"]["jamb_rods"])
 
         for rod in data["rods"]:
             mat = jamb_mat if rod["name"] in jambs else mats[rod["family"]]
@@ -686,7 +1117,13 @@ def build(args, models):
                 spin, origin_y=y0, brace_material=brace_mat,
             )
         if args.cover:
-            add_cover(data, coll, x, spin, y0, lift)
+            cover_obj = add_cover(
+                data, coll, x, spin, y0, lift,
+                alpha=1.0 if args.walk else None,
+            )
+            if cover_obj is not None:
+                cover_obj["fabric_m"] = fabric_thickness(data)
+            covers[coll_name] = cover_obj
         if args.connectors != "none":
             if meta["weave_mode"] != "woven":
                 raise SystemExit(
@@ -706,8 +1143,18 @@ def build(args, models):
                     connector_dir(data["_path"], args.connector_dir),
                     coll, staging, x, spin, y0, lift, connector_meshes,
                 )
-        if door:
-            add_doorway(door, rod_radius_m, coll, x, lift, spin, origin_y=y0)
+        for one_door in all_doors:
+            _outline, _panel, door_points = add_doorway(
+                one_door, rod_radius_m, coll, x, lift, spin, origin_y=y0,
+                fill=not args.walk,
+            )
+            # A door with a corridor on it is opened to the TUNNEL'S mouth and
+            # not to the whole bay. The bay is the wider of the two -- 3.0 m of
+            # clear opening against an 1.8 m portal on XL -- so cutting both
+            # leaves a slot of daylight all round the tunnel where the cover
+            # has been taken away and nothing has been put back.
+            if not facing_a_corridor(one_door, spin, corridors.get(coll_name)):
+                doors_to_cut.append((coll_name, door_points, (x, y0)))
         if index in figures_at:
             if door:
                 # In the doorway, not beside it: the row exists to be read at
@@ -735,6 +1182,16 @@ def build(args, models):
             )
 
         placed.append((coll_name, x, radius_m, meta))
+        spots.append({
+            "name": coll_name,
+            "x": x,
+            "y": y0,
+            "radius_m": radius_m,
+            "tall": meta.get("overall_height", meta["dome_height_measured"]) * MM,
+            # Which way this dome's first door points, in camp bearings. A row
+            # aims every door at the viewer, who stands at -Y.
+            "door_deg": (item.get("doors") or [270.0])[0],
+        })
         max_radius = max(max_radius, radius_m)
         if plan is None:
             x += radius_m
@@ -761,8 +1218,18 @@ def build(args, models):
     move_to(ground, root)
 
     if plan is not None:
-        links = add_corridors(plan, new_collection("Corridors", root))
+        links = add_corridors(
+            plan, new_collection("Corridors", root),
+            alpha=1.0 if args.walk else None,
+        )
         print(f"[site]   {links} corridors drawn")
+    if covers:
+        mouths, doors = open_the_covers(
+            plan, covers, doors_to_cut, new_collection("_Cutters", root)
+        )
+        print(
+            f"[site]   cover opened: {mouths} corridor mouths, {doors} doorways"
+        )
         for problem in plan.get("problems") or ():
             print(f"[site]   plan says: {problem}")
 
@@ -783,7 +1250,13 @@ def build(args, models):
             )
         )
 
-    return placed, span, max_radius, (centre_x, centre_y)
+    if args.walk:
+        lamps = add_inside_lights(
+            spots, plan, new_collection("Lights", root), gain=args.lamp_gain
+        )
+        print(f"[site]   {lamps} lamps inside, and the covers are opaque")
+
+    return placed, span, max_radius, (centre_x, centre_y), spots
 
 
 def add_camera_and_light(scene, span, max_radius, tallest, aspect=2000.0 / 900.0,
@@ -859,7 +1332,7 @@ def main():
             "run:  python3 -m stardome build --all --polylines --weave-mode layered"
         )
 
-    placed, span, max_radius, centre = build(args, models)
+    placed, span, max_radius, centre, spots = build(args, models)
     tallest = max(
         m.get("overall_height", m["dome_height_measured"]) * MM for _, _, _, m in placed
     )
@@ -867,6 +1340,25 @@ def main():
         bpy.context.scene, span, max_radius, tallest,
         centre=centre, overhead=bool(args.plan),
     )
+    overview = bpy.context.scene.camera
+    if args.walk:
+        add_eye_camera(bpy.context.scene, spots)
+        # A lamp in every dome is a shadow map in every dome, and EEVEE's pool
+        # is 512 MB by default. Eight domes overran it.
+        try:
+            bpy.context.scene.eevee.shadow_pool_size = "2048"
+        except (AttributeError, TypeError):
+            pass
+        print(
+            "[site] walk mode: the Eye camera is the scene camera, 1.7 m up.\n"
+            "[site]   in Blender: Numpad 0 for the camera view, then Shift+` "
+            "to walk it.\n"
+            "[site]   W A S D to move, mouse to look, Q/E down and up, Shift "
+            "to run, Tab for gravity,\n"
+            "[site]   left-click to keep where you walked to and Esc to snap "
+            "back. Turning gravity on\n"
+            "[site]   for good is Preferences > Navigation > Walk > Gravity."
+        )
 
     print(f"[site] {len(placed)} domes over {span:.1f} m, tallest {tallest:.2f} m")
     for name, x, radius_m, meta in placed:
@@ -884,7 +1376,16 @@ def main():
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.out))
         print(f"[site] saved {args.out}")
     if args.render:
-        print(f"[site] rendered {render(bpy.context.scene, args.render)}")
+        # The Eye is the scene camera so that Numpad 0 lands you on the ground
+        # ready to walk. A still taken from it is a picture of the inside of
+        # one dome, which is no use as a preview, so the overview takes the
+        # render and hands the camera straight back.
+        scene = bpy.context.scene
+        eye = scene.camera
+        if args.walk and overview is not None:
+            scene.camera = overview
+        print(f"[site] rendered {render(scene, args.render)}")
+        scene.camera = eye
 
 
 if __name__ == "__main__":
