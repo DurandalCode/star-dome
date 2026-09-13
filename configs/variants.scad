@@ -45,7 +45,7 @@ SD_VARIANTS = [
     ["D6",   6000, 10, "M -- reference prototype, bare. Portal door in a low bay: you walk in"],
     ["D8",   8000, 10, "L -- large dome, bare. Portal door, and the 2.2 m character gets in"],
     ["D10", 10000, 12, "XL -- walk-in door with no skirt at all; expect D8's reinforcement work"],
-    ["D12", 12000, 12, "research variant beyond XL; explicitly unvalidated, and 5.9 m tall to erect"]
+    ["D12", 12000, 12, "XXL -- the top of the range. Bare, portal door, admits everything. 5.9 m tall to erect, and the rod is not shown to carry it: see stardome span D12"]
 ];
 
 // Look a variant up by name. Fails loudly rather than silently falling back,

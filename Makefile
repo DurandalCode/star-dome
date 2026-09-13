@@ -23,7 +23,7 @@ help:
 	@echo "make assembly   the order the bows go up in, and what it costs"
 	@echo "make tolerance  how accurately the ground, rods and marks must be measured"
 	@echo "make doorways   the chosen door: which bay, framed by what"
-	@echo "make sizes      S, M, L and XL in one scene, every door facing front"
+	@echo "make sizes      S, M, L, XL and XXL in one scene, every door facing front"
 	@echo "make lineup     one of each size in a row, covered and fitted"
 	@echo "make camp       domes joined by corridors, from configs/camps.toml"
 	@echo "make entrances  where a doorway fits in each variant, and how big"
@@ -149,10 +149,10 @@ BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 # broken scene script leaves the previous render in place, looking current.
 BLENDER_RUN = $(BLENDER) --background --factory-startup --python-exit-code 1
 V ?= D6
-# S, M, L and XL are aliases; the geometry is filed under D4, D6, D8 and D10,
-# and so are every model.json and schedule. Ask the model rather than lowering
-# the case of whatever was typed, or `make fitted V=M` looks for d6 under the
-# name m and finds nothing.
+# S, M, L, XL and XXL are aliases; the geometry is filed under D4, D6, D8, D10
+# and D12, and so are every model.json and schedule. Ask the model rather than
+# lowering the case of whatever was typed, or `make fitted V=M` looks for d6
+# under the name m and finds nothing.
 v = $(shell $(PYTHON) -c "from stardome import config; print(config.resolve('$(V)').lower())")
 
 blender:
@@ -204,7 +204,7 @@ scad:
 # Every variant in one scene, small to large, each with a 1.75 m figure. The
 # comparison is the point: a dome twice as wide is nowhere near twice the
 # usable volume, and only standing them together shows it.
-# The four sizes anyone is asked to build, each turned so its doorway faces
+# The named sizes, each turned so its doorway faces
 # the camera, each with a figure standing in that doorway. The question the
 # scene answers is not "how big is it" but "does a person get in".
 sizes:

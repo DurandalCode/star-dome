@@ -59,10 +59,10 @@ Every bow is one continuous semicircle carrying load the whole way round.
 Shortening one to widen a hole does not trim a member — it deletes one, and it
 deletes it at the exact place the structure has just been opened.
 
-## The four sizes
+## The named sizes
 
-**M and L are bare by choice**, and that decides their doors. Only S carries a
-skirt, because a 4 m dome without one admits nothing at all.
+**Everything above S is bare by choice**, and that decides their doors. Only S
+carries a skirt, because a 4 m dome without one admits nothing at all.
 
 | | dome | skirt | opening | overall | you get in |
 |---|---|---|---|---|---|
@@ -70,6 +70,7 @@ skirt, because a 4 m dome without one admits nothing at all.
 | **M** | D6 | none | 1528 mm | 2.95 m | **on all fours** |
 | **L** | D8 | none | 2038 mm | 3.93 m | **ducking** |
 | **XL** | D10 | none | 2548 mm | 4.91 m | carrying something |
+| **XXL** | D12 | none | 3059 mm | 5.89 m | carrying something |
 
 That is the price of no skirt, and it is steep in the middle of the range.
 A bare D6 is 497 mm wide at 1200 mm and 209 mm at 1400 — not a door anyone
@@ -87,6 +88,7 @@ silhouette that gets through:
 | M | crawl |
 | L | crawl, stoop |
 | XL | crawl, stoop, walk, carry, walk_wide, **tall** |
+| XXL | crawl, stoop, walk, carry, walk_wide, **tall** |
 
 Where a skirt is present it is not a preference; it is the answer to the door.
 To re-solve one:
@@ -137,7 +139,7 @@ builders draw it rather than rediscovering it:
 
 ```bash
 make blender v=d6          # one dome, camera on the door
-make sizes                 # S, M, L and XL in a row, every door facing front
+make sizes                 # S, M, L, XL and XXL in a row, every door facing front
 ```
 
 Each dome is spun about its own axis so its door faces the camera. That changes

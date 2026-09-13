@@ -29,7 +29,7 @@ from stardome import bom, config, connectors, model, span, tolerance
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-NAMED = ["D4", "D6", "D8", "D10"]
+NAMED = ["D4", "D6", "D8", "D10", "D12"]
 
 
 @pytest.fixture(scope="module")
@@ -71,7 +71,7 @@ def _readme_size_rows() -> list:
 
 def test_readme_lists_every_named_size():
     rows = _readme_size_rows()
-    assert [r["alias"] for r in rows] == ["S", "M", "L", "XL"]
+    assert [r["alias"] for r in rows] == ["S", "M", "L", "XL", "XXL"]
     assert [r["variant"] for r in rows] == NAMED
 
 

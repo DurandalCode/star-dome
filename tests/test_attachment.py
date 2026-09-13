@@ -14,7 +14,7 @@ import pytest
 
 from stardome import attachment, config, cover, model
 
-NAMED = ("S", "M", "L", "XL")
+NAMED = ("S", "M", "L", "XL", "XXL")
 
 
 @pytest.fixture(params=NAMED)
