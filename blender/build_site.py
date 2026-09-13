@@ -410,6 +410,7 @@ def add_corridors(plan, collection, lift_is_ground=True, alpha=None):
     between matching points and a ring is a closed curve.
     """
     made = 0
+    # The corridor's skin keeps its single face, so it keeps its own alpha.
     skin_mat = make_transparent(
         material("Corridor", COVER_COLOUR),
         COVER_ALPHA if alpha is None else alpha,
@@ -519,11 +520,14 @@ def add_cover(data, collection, origin_x, spin_deg, origin_y, lift,
     mesh.update()
     obj = bpy.data.objects.new(f"Cover_{data['meta']['variant']}", mesh)
     bpy.context.scene.collection.objects.link(obj)
+    # The cover is given thickness so its openings can be cut, so a sight line
+    # through it now crosses TWO faces where it used to cross one. At face
+    # value 0.14 that reads as 0.26 and the camp turns milky. Thin each face
+    # until the pair comes to what the single one was: 1-(1-a)^2 == 0.14.
+    if alpha is None:
+        alpha = 1.0 - math.sqrt(1.0 - COVER_ALPHA)
     obj.data.materials.append(
-        make_transparent(
-            material("Cover", COVER_COLOUR),
-            COVER_ALPHA if alpha is None else alpha,
-        )
+        make_transparent(material("Cover", COVER_COLOUR), alpha)
     )
     return move_to(obj, collection)
 
@@ -570,10 +574,44 @@ def mouth_cutter(loop, bearing_deg, name, collection, reach=CUTTER_REACH_M):
     return solid_from(name, verts, faces, collection)
 
 
-COVER_THICKNESS_M = 0.03
+# The thickest the fabric is ever drawn, and the thinnest worth drawing.
+COVER_THICKNESS_MAX_M = 0.010
+COVER_THICKNESS_MIN_M = 0.002
 
 
-def give_it_thickness(obj, thickness=COVER_THICKNESS_M):
+def fabric_thickness(data):
+    """How thick to draw this dome's cover, in metres.
+
+    It has to be thick enough to be a solid -- see ``give_it_thickness`` -- and
+    thinner than the room between the cover and the outside of the rod it is
+    draped over, or the inner face swallows the frame and the dome is a plain
+    shell from inside. That room is small and it is not the same at every size:
+    18 mm on XL, 15 on L, 12 on S. Half of it, capped.
+    """
+    from_the_rod = (
+        cover_radius_mm(data)
+        - data["meta"]["dome_radius"]
+        - data["meta"]["rod_diameter"] / 2.0
+    ) * MM
+    return max(
+        COVER_THICKNESS_MIN_M, min(COVER_THICKNESS_MAX_M, from_the_rod * 0.5)
+    )
+
+
+def cover_radius_mm(data):
+    """The radius the cover mesh was built on, read off the mesh itself.
+
+    The model ships the surface rather than the number, so this measures what
+    arrived instead of recomputing what `stardome` already decided.
+    """
+    verts = (data.get("cover") or {}).get("mesh", {}).get("vertices") or ()
+    return max(
+        (math.hypot(math.hypot(v[0], v[1]), v[2]) for v in verts),
+        default=data["meta"]["dome_radius"],
+    )
+
+
+def give_it_thickness(obj, thickness):
     """Turn a surface into a shell with two sides.
 
     Fabric is thin, not infinitely thin, and the difference decides whether a
@@ -655,6 +693,31 @@ def cut_out(target, cutters):
     return done
 
 
+def corridor_bearings(plan):
+    """``dome name -> the bearings it has a corridor on``."""
+    out = {}
+    for one in (plan or {}).get("links") or ():
+        a, b = one["between"]
+        out.setdefault(a, []).append(one["bearing_deg"] % 360.0)
+        out.setdefault(b, []).append((one["bearing_deg"] + 180.0) % 360.0)
+    return out
+
+
+def facing_a_corridor(door, turn_deg, bearings, within=36.0):
+    """Is this door the one a corridor lands on?
+
+    Within half a bay of a corridor's bearing and it is: a door is placed in
+    the nearest bay to the bearing that asked for it, so it is never further
+    off than that and nothing else can be nearer.
+    """
+    if not bearings:
+        return False
+    at = ((door.get("bay") or {}).get("centre_azimuth_deg", 0.0) + turn_deg) % 360.0
+    return any(
+        abs((at - b + 180.0) % 360.0 - 180.0) <= within for b in bearings
+    )
+
+
 def open_the_covers(plan, covers, doors, collection):
     """Cut the cover open wherever something is supposed to go through it.
 
@@ -668,7 +731,7 @@ def open_the_covers(plan, covers, doors, collection):
     whatever is meant to pass through, taken out of the cover.
     """
     for cover in {id(c): c for c in covers.values() if c is not None}.values():
-        give_it_thickness(cover)
+        give_it_thickness(cover, cover.get("fabric_m", COVER_THICKNESS_MAX_M))
 
     mouths = 0
     for one in (plan or {}).get("links") or ():
@@ -942,6 +1005,7 @@ def build(args, models):
         if plan
         else [{"data": d} for d in models]
     )
+    corridors = corridor_bearings(plan)
     # One import per printed piece for the whole site, shared between domes:
     # three domes of a hundred connectors each is over a thousand pieces.
     connector_meshes = {}
@@ -1038,10 +1102,13 @@ def build(args, models):
                 spin, origin_y=y0, brace_material=brace_mat,
             )
         if args.cover:
-            covers[coll_name] = add_cover(
+            cover_obj = add_cover(
                 data, coll, x, spin, y0, lift,
                 alpha=1.0 if args.walk else None,
             )
+            if cover_obj is not None:
+                cover_obj["fabric_m"] = fabric_thickness(data)
+            covers[coll_name] = cover_obj
         if args.connectors != "none":
             if meta["weave_mode"] != "woven":
                 raise SystemExit(
@@ -1066,7 +1133,13 @@ def build(args, models):
                 one_door, rod_radius_m, coll, x, lift, spin, origin_y=y0,
                 fill=not args.walk,
             )
-            doors_to_cut.append((coll_name, door_points, (x, y0)))
+            # A door with a corridor on it is opened to the TUNNEL'S mouth and
+            # not to the whole bay. The bay is the wider of the two -- 3.0 m of
+            # clear opening against an 1.8 m portal on XL -- so cutting both
+            # leaves a slot of daylight all round the tunnel where the cover
+            # has been taken away and nothing has been put back.
+            if not facing_a_corridor(one_door, spin, corridors.get(coll_name)):
+                doors_to_cut.append((coll_name, door_points, (x, y0)))
         if index in figures_at:
             if door:
                 # In the doorway, not beside it: the row exists to be read at

@@ -189,11 +189,25 @@ mouths and 17 doorways on `court`. The check is a ray, not an eye: out of the
 hub along a corridor it now reaches the far dome's wall 15.7 m away, and in a
 direction with no opening it stops on the cover at 4.7 m.
 
-The cover gets 30 mm of thickness first, and that is not decoration. The exact
+**A door with a corridor on it is opened to the tunnel's mouth and not to the
+whole bay.** The bay is the wider of the two — 3.0 m of clear opening against
+an 1800 mm portal on XL — so cutting both leaves a slot of daylight all round
+the tunnel where the cover has been taken away and nothing put back. Only the
+one door that carries no corridor is cut to its own outline, which on `court`
+is the hub's way in: 16 mouths, one doorway.
+
+The cover is given thickness first, and that is not decoration — the exact
 boolean solver decides what is inside a target by winding number, and an open
-sheet has none: asked to take a plug out of one it welds the plug's own end
-cap in instead. The hole came out as a bump, and a ray stopped dead on it a
+sheet has none. Asked to take a plug out of one it welds the plug's own end
+cap in instead; the hole came out as a bump, and a ray stopped dead on it a
 metre short of where the cover actually is.
+
+**How thick is not a free number either.** The cover sits a little outside the
+rods it is draped over, and that gap is all the room there is: 18 mm on XL,
+15 on L, 12 on S. Thicker than the gap and the inner face swallows the frame,
+and the dome is a plain shell from inside. Half of it, capped at 10 mm. The
+fabric then crosses a sight line twice where it used to cross once, so each
+face is thinned until the pair comes to the alpha the single one had.
 
 Blender does the walking: `Numpad 0`, then `Shift+\`` for Walk Navigation.
 Gravity is a preference and not a scene setting, so it cannot be shipped in
