@@ -113,7 +113,7 @@ plates. 10 per dome.
 30 per dome, and whether they are needed at all is still open.
 
 **base hub** (`BASE3-d`) — the connector at a base point: the fan with one arm
-fewer, plus a slot for a driven steel angle.
+fewer, plus a pad that bolts to a driven steel angle.
 
 **stake** (`STAKE-BASE`) — the driven steel angle at each base point. This is
 what resists the dome spreading at its feet, through soil, the way a tent peg

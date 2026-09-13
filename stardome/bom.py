@@ -170,12 +170,13 @@ def materials(data: dict, schedule: dict | None = None) -> dict:
     section = meta.get("section_length") or 0.0
     bow = meta["rod_length_nominal"]
     joints = 0
+    kit = []
     if schedule:
-        joints = sum(
-            part["count"]
-            for part in schedule["parts"]
-            if part["kind"] == "rod_splice"
-        )
+        for part in schedule["parts"]:
+            if part["kind"] != "rod_splice":
+                continue
+            joints += part["count"]
+            kit = part.get("section_kit_mm") or []
     out = {
         "rod_m": round(meta["total_rod_length"] / 1000.0, 2),
         "bows": meta["rod_count"],
@@ -183,6 +184,10 @@ def materials(data: dict, schedule: dict | None = None) -> dict:
         "section_length_mm": round(section, 1),
         "splices": joints,
         "sections": joints + meta["rod_count"] if joints else 0,
+        # The cut list: the one or two lengths the whole dome is sawn into.
+        # `section_length_mm` above is the transport LIMIT, not a length
+        # anything is actually cut to. See connectors._section_kit.
+        "section_kit_mm": list(kit),
         "anchors": len(data["base_nodes"]),
         # Half the rod, snapped to a standard bolt -- connectors/kit.py.
         "fastener": _fastener_for(meta["rod_diameter"]),
@@ -274,8 +279,10 @@ def format_analysis(data: dict, schedule: dict,
         f"  rod         {m['rod_m']:>8.1f} m   {m['bows']} bows x "
         f"{m['bow_length_mm']:.0f} mm"
         + (
-            f", in {m['sections']} sections of <= {m['section_length_mm']:.0f} mm"
-            if m["sections"]
+            f", in {m['sections']} sections of "
+            + " / ".join(f"{x:.0f}" for x in m["section_kit_mm"])
+            + " mm"
+            if m["sections"] and m["section_kit_mm"]
             else ""
         ),
     ]

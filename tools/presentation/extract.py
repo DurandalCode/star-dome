@@ -83,6 +83,13 @@ def cut_list(name: str) -> dict:
     return {
         'alias': meta.get('alias'),
         'bow_mm': round(meta['rod_length_nominal'], 1),
+        # The one or two lengths the whole dome is sawn into, longest first.
+        # Decision 0024: a hard limit on the cut list, not an observation
+        # about how the division happened to come out.
+        'kit_mm': [
+            round(x, 1)
+            for x in connectors.section_kit(d, meta['section_length'], sleeve)
+        ],
         'section_limit_mm': meta['section_length'],
         'sleeve_mm': round(sleeve, 1),
         'joints': len(joints),
