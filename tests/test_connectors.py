@@ -129,7 +129,7 @@ def test_a_skirt_does_not_make_the_base_point_a_different_joint():
     The old reading put the post head, two ring chords and two brace heads on
     the hub, which made the busiest joint in the structure the one place no
     part existed for. None of them has to go there. The hub already carries a
-    pad and a U-bolt for a driven steel angle; a post is that same angle made
+    pad and a wrap for a driven steel angle; a post is that same angle made
     longer, so it is no more a member of this joint than a stake is, and the
     skirt's own members land on a collar clamped to the post below the hub.
 

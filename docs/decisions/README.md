@@ -83,7 +83,8 @@ writing the next.
 | [0023](0023-the-strength-answer-is-a-band-until-the-frame-is-solved.md) | Strength reports two bounding readings, not one speed, until a frame solve closes the gap | accepted |
 | [0024](0024-a-dome-is-cut-into-two-lengths.md) | A dome is cut into at most two section lengths, solved dome-wide rather than bow by bow | accepted |
 | [0025](0025-the-angle-is-met-on-a-pad.md) | The base hub meets its driven angle on a flat pad with one bolt, not in a slot through the plate | fastening replaced by 0026 |
-| [0026](0026-the-loop-is-bought-not-printed.md) | The angle is held by a bought U-bolt over the pad: any height, any leg up to the loop's span | accepted |
+| [0026](0026-the-loop-is-bought-not-printed.md) | The angle is held by a bought U-bolt over the pad: any height, any leg up to the loop's span | the alternative since 0027 |
+| [0027](0027-the-wrap-closes-the-fourth-side.md) | A fifth printed piece wraps the angle on three sides; the pad is the fourth, and the bolts are the same two | accepted |
 
 ## Not here yet
 
