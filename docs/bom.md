@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8      32     231.3     1850.5   37.2%
+  BASE3-10                   8      32     243.9     1951.4   38.3%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -59,16 +59,19 @@ by the 30 mm stake slot and the bolt spread around it rather than by the rod.
 What the list added was the price of it — and the price is what got the slot
 looked at again.
 
-**It is now 2134 cm³ of 4976 — 43%.** The slot is gone: the angle is met on a
-pad on the outside of the bottom plate with one bolt through it, so the 31 mm
-band the slot needed is no longer added to the whole plate. One `BASE3-10` is
-231 cm³, of which 73 is the bottom plate, and the dome's plastic is down 28%
-overall. See [decision 0025](decisions/0025-the-angle-is-met-on-a-pad.md).
+**It is 2259 cm³ of 5101 now — 44%.** The slot is gone: the angle is met on a
+pad on the outside of the bottom plate, with a U-bolt over it, so the 31 mm band
+the slot needed is no longer added to the whole plate. One `BASE3-10` is
+244 cm³, of which 86 is the bottom plate, against 430 and 258 before. See
+[decision 0025](decisions/0025-the-angle-is-met-on-a-pad.md) for the pad and
+[0026](decisions/0026-the-loop-is-bought-not-printed.md) for what holds it.
 
-`STAKE-BASE` is still the one position in the schedule with no answer at all,
-and it now carries a requirement as well: the angle has to be drilled with a row
-of holes for the hub to bolt to. Until it is chosen, the item the limiting wind
-speed hangs on is still sized by a guess.
+`STAKE-BASE` is still the one position in the schedule with no answer at all.
+It is now two bought things rather than one — the angle, and a U-bolt over it
+([decision 0026](decisions/0026-the-loop-is-bought-not-printed.md)) — and
+nothing about either is drilled, so whichever angle is finally chosen the hub
+does not move. Until it is chosen, the item the limiting wind speed hangs on is
+still sized by a guess.
 
 ## The fasteners are counted, and split
 
