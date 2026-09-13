@@ -171,9 +171,11 @@ useless without all of them:
   inside it is not a room at all.
 - **a lamp goes inside every dome and every corridor.** An opaque dome under
   sunlight is a black hole from within. Power follows the floor each lamp has
-  to cover, so the 12 m dome is not lit to the same few watts as the 4 m one.
-  The corridor lamps cast no shadow — sixteen shadow-casting lights asked
-  EEVEE for 2400 of the 2048 shadow maps it has, and a tunnel lamp is fill.
+  to cover, so the 12 m dome is not lit to the same few watts as the 4 m one,
+  at 3 W per square metre — `--lamp-gain` scales all of it, because what a
+  fabric dome at dusk looks like is a taste rather than a measurement. The
+  corridor lamps cast no shadow — sixteen shadow-casting lights asked EEVEE
+  for 2400 of the 2048 shadow maps it has, and a tunnel lamp is fill.
 - **the scene camera becomes an eye 1.7 m off the ground**, standing clear of
   the camp and looking back at it, with a 24 mm lens and a 50 mm near clip so
   putting your face through a doorway does not clip the world away.

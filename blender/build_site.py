@@ -139,6 +139,15 @@ def parse_args(argv):
              "Blender's own Walk Navigation (Shift+`) does the walking",
     )
     p.add_argument(
+        "--lamp-gain",
+        dest="lamp_gain",
+        type=float,
+        default=1.0,
+        help="multiply the inside lighting by this. What a fabric dome at "
+             "dusk looks like is a taste, not a measurement, so it is a dial "
+             "rather than a constant; 1.0 is 3 W per square metre of floor",
+    )
+    p.add_argument(
         "--figures",
         choices=("every", "one", "none"),
         default="every",
@@ -345,10 +354,15 @@ CORRIDOR_BOARD_COLOUR = (0.55, 0.38, 0.20, 1.0)
 WALK_EYE_M = 1.70
 WALK_LENS_MM = 24.0
 # A lamp hangs at this fraction of the dome's clear height, and its power goes
-# with the floor it has to cover. Watts, as EEVEE counts them.
+# with the floor it has to cover. Watts, as EEVEE counts them. The first pass
+# at this was 14 W/m2, which is a floodlit hangar: the fabric blew out white
+# and the frame stopped reading against it.
 WALK_LAMP_AT = 0.72
-WALK_LAMP_W_PER_M2 = 14.0
-WALK_CORRIDOR_LAMP_W = 60.0
+WALK_LAMP_W_PER_M2 = 3.0
+WALK_CORRIDOR_LAMP_W = 18.0
+# A tunnel lamp hangs this far under the roof. At head height it sat exactly
+# where the walker's eyes go.
+WALK_CORRIDOR_LAMP_DROP_M = 0.30
 
 
 def load_plan(path):
@@ -815,7 +829,7 @@ def add_lamp(name, location, watts, collection, radius=0.35):
     return move_to(obj, collection)
 
 
-def add_inside_lights(spots, plan, collection):
+def add_inside_lights(spots, plan, collection, gain=1.0):
     """A lamp inside every dome and every corridor.
 
     Only needed once the cover is opaque, and then it is not optional: a closed
@@ -829,7 +843,7 @@ def add_inside_lights(spots, plan, collection):
     """
     made = 0
     for spot in spots:
-        watts = WALK_LAMP_W_PER_M2 * math.pi * spot["radius_m"] ** 2
+        watts = gain * WALK_LAMP_W_PER_M2 * math.pi * spot["radius_m"] ** 2
         add_lamp(
             f"Lamp_{spot['name']}",
             (spot["x"], spot["y"], spot["tall"] * WALK_LAMP_AT),
@@ -846,10 +860,11 @@ def add_inside_lights(spots, plan, collection):
         points = drawing["mouths"][0] + drawing["mouths"][1]
         cx = sum(p[0] for p in points) / len(points) * MM
         cy = sum(p[1] for p in points) / len(points) * MM
+        roof = (one.get("section") or {}).get("height_mm", 0.0) * MM
         lamp = add_lamp(
             f"Lamp_Corridor_{index}",
-            (cx, cy, WALK_EYE_M),
-            WALK_CORRIDOR_LAMP_W,
+            (cx, cy, max(1.0, roof - WALK_CORRIDOR_LAMP_DROP_M)),
+            gain * WALK_CORRIDOR_LAMP_W,
             collection,
             radius=0.15,
         )
@@ -1236,7 +1251,9 @@ def build(args, models):
         )
 
     if args.walk:
-        lamps = add_inside_lights(spots, plan, new_collection("Lights", root))
+        lamps = add_inside_lights(
+            spots, plan, new_collection("Lights", root), gain=args.lamp_gain
+        )
         print(f"[site]   {lamps} lamps inside, and the covers are opaque")
 
     return placed, span, max_radius, (centre_x, centre_y), spots
