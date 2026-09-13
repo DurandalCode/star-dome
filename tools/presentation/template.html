@@ -951,10 +951,113 @@ pre{background:var(--panel-2);border:1px solid var(--hair);padding:14px 16px;
   <figure class="wide"><img src="{{img:site}}" alt="Площадка целиком"><figcaption>Площадка в реальном масштабе: компоновка, подходы и проверка габаритов собираются в Blender из того же <span class="mono">model.json</span>.</figcaption></figure>
 </section>
 
-<!-- =================== 11 =================== -->
-<section id="how">
+<!-- =================== 12 =================== -->
+<section id="buy">
   <div class="sheet">
     <span class="no">ЛИСТ 12</span>
+    <h2>Закупка: один купол S</h2>
+    <span class="tag">D4 · 4 м · пруток ⌀8</span>
+  </div>
+
+  <p class="intro">Всё, что нужно купить и напечатать на <strong>один купол S</strong>, в одном
+  месте — этот лист можно взять с собой. S единственный в ряду с юбкой, поэтому в его списке
+  есть то, чего нет у остальных: стойки, кольца, раскосы и хомуты юбки.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Купить</caption>
+    <thead><tr><th>Что</th><th class="n">Сколько</th><th>Подробности</th></tr></thead>
+    <tbody>
+      <tr><td class="name">Пруток стеклопластиковый ⌀8</td><td class="n">94,3 м</td><td>Бухтой — резка без отхода. Это 15 полных дуг по 6283 мм; в секции уйдёт <b>91,6 м</b>, а 2,6 м (2,8%) заберёт рез портала. <b>Радиус гиба 2000 мм</b> — проверить по реальному прутку</td></tr>
+      <tr><td class="name">Ткань, рулон 1500 мм</td><td class="n">36,4 м</td><td>Oxford 600D. Купол 23,7 м лепестковым раскроем + юбка 12,7 м. Клиньями было бы 41,2 м</td></tr>
+      <tr><td class="name">Стропа</td><td class="n">46,1 м</td><td>Включая 11,4 м верёвки в кулиску по низу и 33,0 м раскосов юбки</td></tr>
+      <tr><td class="name">Кольцо юбки</td><td class="n">22,2 м</td><td>Два кольца — по низу и по верху юбки</td></tr>
+      <tr><td class="name">Уголок стальной забивной</td><td class="n">10 шт</td><td>По 1350 мм стоящей части плюс то, что уходит в грунт: под юбкой уголок и есть стойка. <b>Сечение и длину выбрать</b> — проект их не задаёт</td></tr>
+      <tr><td class="name">Болты M4 с гайками</td><td class="n">224 шт</td><td>204 крутятся в поле, 20 — один раз в мастерской</td></tr>
+      <tr><td class="name">Штифты поперечные</td><td class="n">28 шт</td><td>В гильзы стыков</td></tr>
+      <tr><td class="name">Пластик для печати</td><td class="n">5 318 см³</td><td>Объём сплошных деталей; реального филамента при обычном заполнении примерно вдвое меньше</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="3">Резьба M4 — половина диаметра прутка, округлённая к ходовому размеру.
+    Если печатать хомуты с защёлкой вместо винтового зажима, полевых болтов станет
+    <b>172 вместо 204</b>. Ткани «купить» при рулоне 1500 мм — это 54,6 м² на 41,5 м² полезной
+    площади; разница ушла в отход раскроя.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Нарезать</h3>
+  <p class="intro">Девяносто четыре метра прутка превращаются в <strong>45 секций четырёх
+  длин</strong>. Пять дуг G делятся ровно, восемь — со сдвигом, и у них секции внутри одной дуги
+  разной длины; ещё две дуги-косяка короче, потому что портал забрал по концу.</p>
+
+  <figure>
+    <div class="plate">{{svg:cut_tally_s}}</div>
+    <figcaption>Что лежит на верстаке после нарезки. Штрихи справа — по одному на кусок.
+    <b>2094,4 мм — самая ходовая длина</b>: из неё целиком состоят все пять дуг G,
+    и она же есть в каждой из восьми сдвинутых. В сумме 91,6 м — это купленные 94,3 м
+    за вычетом того, что забрал рез портала.</figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <caption>Откуда какая длина — по типам дуг</caption>
+    <thead><tr>
+      <th>Дуги</th><th class="n">Сколько</th><th class="n">Длина дуги</th>
+      <th>Секции, мм</th><th>Деление</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">U1–U5, L2, L3, L5</td><td class="n">8</td><td class="n">6 283</td><td class="mono">2174,4 + 2094,4 + 2014,4</td><td>Со сдвигом: стыки ушли с ровного деления, чтобы разойтись с пересечениями</td></tr>
+      <tr><td class="code">G1–G5</td><td class="n">5</td><td class="n">6 283</td><td class="mono">2094,4 × 3</td><td>Ровное — пересечения не мешают</td></tr>
+      <tr><td class="code">L1, L4</td><td class="n">2</td><td class="n">4 965</td><td class="mono">1655,0 × 3</td><td>Косяки двери: рез портала забрал по концу</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="5">Итого 45 секций и 30 гильз. Ни одна секция не длиннее
+    транспортных 2400 мм, и ни один стык не ближе 80 мм к пересечению — это длина гильзы
+    <span class="mono">SPLICE-8</span>, то есть стыки встали ровно на границе разрешённого.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <h3 class="ui" style="font-size:18px;font-weight:600;margin:34px 0 6px">Напечатать</h3>
+
+  <div class="scroll">
+  <table>
+    <caption>114 деталей · 202 печати · 5 318 см³</caption>
+    <thead><tr>
+      <th>Деталь</th><th class="n">Штук</th><th class="n">Печатей</th>
+      <th class="n">см³ за штуку</th><th class="n">см³ всего</th><th class="n">Доля</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="code">BASE3-8</td><td class="n">8</td><td class="n">32</td><td class="n">337,6</td><td class="n">2 700,6</td><td class="n">50,8%</td></tr>
+      <tr><td class="code">CL2-8-70.5288</td><td class="n">30</td><td class="n">60</td><td class="n">25,4</td><td class="n">763,1</td><td class="n">14,3%</td></tr>
+      <tr><td class="code">FAN4-8-37.3774</td><td class="n">10</td><td class="n">50</td><td class="n">55,4</td><td class="n">553,7</td><td class="n">10,4%</td></tr>
+      <tr><td class="code">COLLAR-8</td><td class="n">20</td><td class="n">20</td><td class="n">26,7</td><td class="n">534,7</td><td class="n">10,1%</td></tr>
+      <tr><td class="code">BASE2-8</td><td class="n">2</td><td class="n">6</td><td class="n">230,7</td><td class="n">461,4</td><td class="n">8,7%</td></tr>
+      <tr><td class="code">SPLICE-8</td><td class="n">30</td><td class="n">30</td><td class="n">8,4</td><td class="n">253,0</td><td class="n">4,8%</td></tr>
+      <tr><td class="code">TERM-8-70.5288</td><td class="n">2</td><td class="n">4</td><td class="n">25,7</td><td class="n">51,4</td><td class="n">1,0%</td></tr>
+      <tr class="muted"><td class="code">STAKE-BASE</td><td class="n">10</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">крепёж</td></tr>
+      <tr class="muted"><td class="code">HDR-8</td><td class="n">2</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">не спроектирована</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6">Как и на M, <b>пяты — почти шестьдесят процентов пластика</b>:
+    <span class="mono">BASE3</span> и <span class="mono">BASE2</span> вместе дают 3 162 см³
+    из 5 318. Размер пяты задан прорезью под уголок и разлётом болтов, а не прутком, поэтому
+    на маленьком куполе она забирает даже большую долю, чем на большом.
+    «Печатей» больше, чем «штук»: веер — пять пластин, пята — четыре, хомут — две.</td></tr></tfoot>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Чего в этом списке нет — и почему.</b>
+    <span class="mono">HDR-8</span> ×2 — перемычка над дверью — <b>ещё не спроектирована</b>,
+    так что две позиции из 114 пока не по чему ни купить, ни напечатать.
+    <b>Масса и деньги не считаются вовсе</b>: и то и другое требует поставщика и марки материала,
+    а их у проекта пока нет — поэтому и катушки из кубических сантиметров здесь не выведены.
+    И <b>прочность не проверена</b>: 8 мм остаются предположением, пока не сверены с реальным
+    стеклопластиком на радиус гиба 2000 мм.
+  </div>
+</section>
+
+<!-- =================== 13 =================== -->
+<section id="how">
+  <div class="sheet">
+    <span class="no">ЛИСТ 13</span>
     <h2>Откуда взяты цифры</h2>
     <span class="tag">всё воспроизводится одной командой</span>
   </div>

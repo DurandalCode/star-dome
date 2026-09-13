@@ -814,6 +814,64 @@ def cut_svg():
     return svg(int(W), int(H), ''.join(p))
 
 
+
+
+# ---------------------------------------------------------------------------
+# 9. The cut list as a picture: how many sticks of each length
+# ---------------------------------------------------------------------------
+def cut_tally_svg(size='D4'):
+    """Every section the dome needs, gathered by length.
+
+    The cut sheet shows where one bow is sawn; this shows what comes off the
+    bench at the end of it -- which is the thing you count before starting.
+    """
+    cut = DATA['cuts'][size]
+    tally = {}
+    for pat in cut['patterns']:
+        for length in pat['sections_mm']:
+            tally[length] = tally.get(length, 0) + pat['bows']
+    rows = sorted(tally.items(), reverse=True)
+    longest = max(tally)
+    total = sum(tally.values())
+
+    W, pad_l, pad_r, pad_t = 1180, 150, 210, 38
+    row_h, bar_h = 62, 30
+    H = pad_t + row_h * len(rows) + 26
+    scale = (W - pad_l - pad_r) / longest
+    p = []
+
+    for i, (length, count) in enumerate(rows):
+        y = pad_t + i * row_h
+        col = LEAF_COLS[i % len(LEAF_COLS)]
+        p.append(f'<rect x="{pad_l:.1f}" y="{y:.1f}" width="{length*scale:.1f}" '
+                 f'height="{bar_h}" rx="3" fill="{col}" fill-opacity="0.20" '
+                 f'stroke="{col}" stroke-width="1.5"/>')
+        p.append(f'<text x="{pad_l-14:.1f}" y="{y+20:.1f}" text-anchor="end" '
+                 f'class="lbl-big">{count} шт</text>')
+        # Comma on the number only -- replacing in the whole tag would eat
+        # the decimal points in the coordinates too.
+        mm = f'{length:.1f}'.replace('.', ',')
+        p.append(f'<text x="{pad_l+12:.1f}" y="{y+20:.1f}" class="mono-sm">'
+                 f'{mm} мм</text>')
+        # a run of ticks, one per piece, so the count reads as a quantity
+        tx = pad_l + length * scale + 16
+        for k in range(count):
+            p.append(f'<line x1="{tx+k*6.5:.1f}" y1="{y+7:.1f}" '
+                     f'x2="{tx+k*6.5:.1f}" y2="{y+bar_h-7:.1f}" '
+                     f'stroke="{col}" stroke-width="2.4" stroke-linecap="round"/>')
+        run = (f'{count} × {length/1000:.3f} м = '
+               f'{count*length/1000:.1f} м').replace('.', ',')
+        p.append(f'<text x="{pad_l+length*scale+16:.1f}" y="{y+bar_h+15:.1f}" '
+                 f'class="dim">{run}</text>')
+
+    label = f'{cut["alias"]} · {size}' if cut['alias'] else size
+    in_sections = sum(l * c for l, c in tally.items()) / 1000.0
+    summary = (f'{esc(label)} — {total} секций, {in_sections:.1f} м прутка в них; '
+               f'дуга целиком {cut["bow_mm"]/1000:.2f} м').replace('.', ',')
+    p.append(f'<text x="{pad_l:.1f}" y="{H-8:.1f}" class="lbl-sm">{summary}</text>')
+    return svg(int(W), int(H), ''.join(p))
+
+
 figs = {
     'sizes': sizes_svg(),
     'elevation': dome_view('elevation', 'family'),
@@ -826,6 +884,7 @@ figs = {
     'leaf': leaf_svg(),
     'leaf_roll': leaf_roll_svg(),
     'cuts': cut_svg(),
+    'cut_tally_s': cut_tally_svg('D4'),
 }
 for k, v in figs.items():
     open(OUT + k + '.svg', 'w').write(v)
