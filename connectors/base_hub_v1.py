@@ -39,7 +39,7 @@ azimuth 90, the U arm sits at 79.19, and a rod is 5.7 mm across with a wall
 round it -- so the vertical line is inside that arm for its first 67 mm. Above
 a foot there is nothing but bows. Below it there is nothing at all.
 
-THE ANGLE IS MET ON A FLAT PAD AND A BOUGHT LOOP
+THE ANGLE IS MET ON A FLAT PAD AND CLOSED IN BY A WRAP
 
 V1 ran the angle through an L-section slot cut clean across the base plate.
 It held, and it charged for it three times:
@@ -58,29 +58,57 @@ down on the angle, let it find its own height whatever depth the ground gave,
 and let the angle stand proud above the foot for the cover's loops to drop
 over (decision 0014).
 
-What does all three, and one more, is a **flat pad and a U-bolt over it**:
+What does all three is a **flat pad, a wrap, and two bolts**:
 
-    down          the loop clamps. Per foot at 20 m/s the ground takes 154 N
-                  of uplift and 188 N of shear (`make loads`), and two nuts
-                  on an M8 loop hold that with the preload to spare -- see
-                  what it costs, below, because this is friction and friction
-                  in plastic creeps
+    down          the wrap clamps. Per foot at 20 m/s the ground takes 154 N
+                  of uplift and 188 N of shear (`make loads`), and two M8
+                  bolts hold that with the preload to spare -- see what it
+                  costs, below, because this is friction and friction in
+                  plastic creeps
     height        ANY. Nothing is drilled, nothing is indexed, nothing has to
                   line up: hard ground that stops the angle 40 mm short is a
-                  loop done up 40 mm further down it
-    twist         the pad is flat and the loop is round, so an angle a few
-                  degrees out of square beds down instead of jamming
-    size          the loop takes any leg up to what `stakeUBoltFits` reports
-                  -- 35.1 mm on the 50 mm loop this is drawn with. The part is
-                  drawn round L30 and holds L25 or L35 exactly as well,
-                  because the section it grips is not a dimension of the
-                  printed part at all
+                  wrap done up 40 mm further down it
+    twist         the pad is flat and the wrap's pocket is 0.4 mm over the
+                  leg, so an angle a couple of degrees out of square beds into
+                  it instead of jamming on the way in
 
-That last one is the reason it is a bought loop rather than a printed socket
-or a printed vee. A 90 deg vee looks like the obvious way to cradle an angle
-and is not size-agnostic at all: a 90 deg corner and a 90 deg vee have
-PARALLEL faces, so they touch only when the corner reaches the apex. One vee
-holds exactly one leg width, and anything smaller rattles in it.
+WHY THE WRAP IS A SEPARATE PIECE AND NOT PART OF THE PLATE
+
+Everything the bottom plate can offer the angle is a flat face and a hole.
+The angle lies against the face the plate is PRINTED on, so any material
+reaching round it would have to hang below that face, and below that face is
+the bed. That is not a preference and no amount of drawing gets round it.
+
+A second piece is printed in its own orientation, so it is allowed to be the
+shape the joint wants: a shallow box that takes the leg's inner face, both its
+edges, and -- through a relief at each end -- the root of the leg that stands
+out of the section. Three sides from the wrap, the fourth from the pad, and
+the steel is touched on all four.
+
+    the pad          the standing leg's outer face
+    the wrap's floor the same leg's inner face; this is the clamped pair
+    two side walls   its two edges, so it cannot walk sideways
+    two reliefs      the other leg passes through one of them, whichever way
+                     the angle was driven and whichever way the hub is up
+
+The rim of the wrap stops `stakeWrapGap` short of the pad, so the bolts pull
+it onto the ANGLE and never bottom it out on the plate. Without that the two
+bolts clamp plastic to plastic with the angle loose between them, which looks
+identical in a render and holds nothing.
+
+WHAT THE WRAP COSTS, AND WHAT IT DOES NOT
+
+It is the fifth print of the hub -- 18 cm3 against the hub's 243 -- and it is
+the ONE piece drawn round a bought section. So it is the one piece to reprint
+if a different angle is bought, and the hub does not move. The same two holes
+in the pad also take an M8 U-bolt of `stakeBoltSpan`, which is the
+size-indifferent alternative and is written up in decision 0026.
+
+A 90 deg vee, which is what suggests itself for cradling an angle, is in
+decision 0026 as rejected and is worth repeating here because it looks right
+until it is drawn: a 90 deg vee and a 90 deg corner have PARALLEL faces, so
+they touch only when the corner reaches the apex. One vee fits one leg width
+and lets anything smaller rattle.
 
 The angle passes the hub as it always did -- it just passes BESIDE it now,
 inboard of the bottom plate's outer face, where the whole half-space is empty,
@@ -99,19 +127,22 @@ THE PARTS
     plate 1   middle   arm 1 down, arm 2 up      41.8103 deg between grooves
     plate 2   middle   arm 2 down, arm 3 up      37.3774 deg
     plate 3   cap      groove down for arm 3
+    wrap      closes round the angle under the bottom plate's pad
 
-Four prints per hub, ten hubs per dome. The ten base points are two mirror
+Five prints per hub, ten hubs per dome. The ten base points are two mirror
 sets of five, differing only in which side the G bow leaves on -- a planar
-part turned over serves the other five, so it is still one geometry.
+part turned over serves the other five, so it is still one geometry, and the
+wrap is drawn with a relief at both ends so that turning the hub over does not
+turn it into a second part.
 
 FIELD SEQUENCE
 
     at home   bolt the four plates up: two bolts, nut captive in the bottom
               plate, head and washer down a counterbore in the cap. One tool,
               one end, and nothing to hold on the other side
-    at the    drive the angle -> lay the hub's pad against it -> drop the
-    dome      U-bolt over the angle and through the pad, two nuts -> push
-              each bow end into its channel -> pin it
+    at the    drive the angle -> lay the hub's pad against it -> close the
+    dome      wrap round it and do up its two bolts -> push each bow end into
+              its channel -> pin it
 
 Note the order. The four-rod node has to be opened, a rod laid, a plate
 closed, the next rod laid, and so on, because it CLAMPS its rods. This one
@@ -122,7 +153,7 @@ thing to be doing in a field with cold hands.
 The price of a slide fit is that the channel locates the rod and holds it
 against nothing, so each arm carries a cross pin through arm and rod together.
 
-THE STACK'S NUTS ARE CAPTIVE; THE LOOP'S TWO ARE NOT
+EVERY NUT IN THIS PART IS CAPTIVE
 
 V1 drilled the two stack bolts straight through all four plates and left it
 there: no counterbore, no nut pocket, a bolt standing proud at one end and a
@@ -137,9 +168,10 @@ them. They are cut now, the same way ``fan_node_v2`` cuts them:
                    is the cap's bed, because the cap prints flipped -- with a
                    cone down to the shank for the same reason
 
-The U-bolt is the exception and cannot be anything else: it is threaded at
-both ends and has no head to hold, so its two nuts are turned, with a washer
-each, on the pad's far face. They are the only loose fasteners at a foot.
+The wrap's two bolts are the same: their nuts sit captive in the pad's far
+face -- a face that points UP while the bottom plate prints, so the pockets
+need no cone and no support -- and the heads go under the wrap where a spanner
+reaches them from the side you are already kneeling on.
 
 Helpers come from connectors/kit.py, shared with the other live generators.
 
@@ -209,10 +241,13 @@ INPUTS = [
     ("stakeThickness",         3.0,  "mm",  "the angle's material thickness"),
     ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
     ("stakeStandProud",      120.0,  "mm",  "how much of the angle is left above the foot once it is driven. Drawing only, but it is the field rule the reference solid checks: the angle has to clear the hub over all of it, and what stands above is what the cover's loop drops over -- decision 0014"),
-    ("stakeUBoltDiameter",     8.5,  "mm",  "clearance hole for each leg of the U-bolt. 8.5 is M8"),
-    ("stakeUBoltSpan",        50.0,  "mm",  "centre to centre of the U-bolt's two legs -- which is what decides the biggest angle it will go round, and the only number that has to be looked up when a different one is bought"),
-    ("stakeUBoltAt",           0.0,  "mm",  "how far below the hub centre the U-bolt sits. 0 puts it as close in as its own nuts allow past the stack bolts, which is the shortest pad that works"),
-    ("stakeUBoltClear",        3.0,  "mm",  "slack between the angle's section and the inside of the loop; what stops a 30 mm angle needing a 30 mm loop"),
+    ("stakeBoltDiameter",      8.5,  "mm",  "clearance hole for each of the two bolts that pull the wrap onto the pad. 8.5 is M8"),
+    ("stakeBoltSpan",         50.0,  "mm",  "centre to centre of those two bolts, one either side of the angle. It is also the span of the U-bolt this same hole pair takes instead, if a loop is preferred to a printed wrap -- see decision 0026"),
+    ("stakeBoltAt",            0.0,  "mm",  "how far below the hub centre the pair sits. 0 puts it as close in as their own nuts allow past the stack bolts, which is the shortest pad that works"),
+    ("stakeWrapFit",           0.4,  "mm",  "clearance between the wrap and the angle, per side. Small: this is a part that is meant to touch"),
+    ("stakeWrapGap",           0.6,  "mm",  "how far the wrap's rim stops short of the pad, so the bolts pull it onto the ANGLE and never bottom it out on the plate"),
+    ("stakeWrapGrip",          8.0,  "mm",  "how far the wrap reaches down the standing leg, either side, to brace it against turning"),
+    ("stakeWrapLength",       32.0,  "mm",  "how much of the angle the wrap holds, along the angle"),
     ("stakeLugWidth",          0.0,  "mm",  "across the pad. 0 takes it from the U-bolt: its span plus a hole and a wall either side"),
     ("stakeLugThickness",      0.0,  "mm",  "through the pad, and it is what the U-bolt's legs bear on. 0 takes the plate's own floor, which is already more than the load needs"),
     ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
@@ -302,6 +337,75 @@ def arc_height(radius, offset):
     """How far a circle of this radius has risen from its lowest point, `offset`
     to the side. Zero if the offset is outside the circle."""
     return math.sqrt(max(radius ** 2 - offset ** 2, 0.0))
+
+
+def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
+               seat_z, at_y):
+    """The wrap: a separate piece that closes round the angle the pad cannot.
+
+    WHY IT IS A SEPARATE PIECE. Everything the bottom plate could offer the
+    angle is a flat face and a hole, because the angle lies against the face
+    that plate is PRINTED on and anything reaching round it would have to hang
+    below the bed. A second piece has its own orientation, so it can be the
+    shape the joint wants -- and that shape is a shallow box:
+
+        the pad          the standing leg's outer face
+        the wrap's floor the same leg's inner face -- this is the clamped pair
+        two side walls   the leg's two edges, so it cannot walk sideways
+        two prongs       `grip` deep, one either side, flanking the root of
+                         the leg that stands out, so it cannot turn
+
+    Three sides from the wrap and the fourth from the pad, which is what was
+    asked for, and it touches the steel on every one of them.
+
+    TWO PRONGS, NOT ONE. The angle's second leg stands out from one edge of
+    the first, so a wrap that braced only that edge would be handed -- and
+    half the feet take the hub turned over. Cutting the relief at both edges
+    costs a few grams and makes the piece indifferent to which way the angle
+    was driven and which way the hub is up.
+
+    THE RIM STOPS SHORT. `gap` holds the wrap's rim clear of the pad, so the
+    bolts pull it onto the ANGLE rather than bottoming it on the plate. Without
+    that the joint is two bolts holding two pieces of plastic together with a
+    loose angle between them.
+
+    Printed floor-down: every pocket opens upwards, there is no roof anywhere
+    in it, and the face it sits on is flat.
+    """
+    half_out = span / 2.0 + bolt_r + wall
+    z_rim = seat_z - gap
+    z_floor = seat_z - thickness
+    z_prong = seat_z - grip
+    z_base = z_prong - wall
+    y0 = at_y - length / 2.0
+
+    body = Part.makeBox(
+        2.0 * half_out, length, z_rim - z_base,
+        App.Vector(-half_out, y0, z_base),
+    )
+    # The leg lies in here, and the floor of it is what does the clamping.
+    body = body.cut(
+        Part.makeBox(
+            leg + 2.0 * fit, length + 2.0, z_rim - z_floor,
+            App.Vector(-(leg / 2.0 + fit), y0 - 1.0, z_floor),
+        )
+    )
+    # A relief at each edge for the leg that stands out of the section. It runs
+    # right through the wrap: that leg is as long as the section is deep and
+    # the wrap is a fraction of it, so a slot that stopped inside would stop
+    # the angle from ever seating.
+    for sign in (-1.0, 1.0):
+        x0 = (
+            -(leg / 2.0 + fit) if sign < 0
+            else leg / 2.0 - fit - thickness
+        )
+        body = body.cut(
+            Part.makeBox(
+                thickness + 2.0 * fit, length + 2.0, z_rim - z_base + 2.0,
+                App.Vector(x0, y0 - 1.0, z_base - 1.0),
+            )
+        )
+    return body.removeSplitter()
 
 
 def u_bolt(rod_radius, span, at_y, z_top_of_legs, z_bend):
@@ -490,37 +594,42 @@ def build(values, fan_gaps=None):
     # The face is the one the plate is printed on, and that is not a detail --
     # it is the whole reason the pad is on this side and this way up. Material
     # on the far side of the angle would have to hang below that face, and on
-    # an FDM bed that is below the bed. So the part offers a flat face and two
-    # holes, and everything that goes round the other three sides is a piece of
-    # bent steel rod that costs nothing to print and does not care how big the
-    # angle is.
+    # an FDM bed that is below the bed. So the plate offers a flat face and two
+    # holes, and everything that goes round the other three sides is a SEPARATE
+    # piece -- which is printed in its own orientation and is therefore allowed
+    # to be the shape the joint actually wants.
     stake_size, stake_bolt = kit.fastener_for_clearance(
-        values["stakeUBoltDiameter"]
+        values["stakeBoltDiameter"]
     )
-    u_span = values["stakeUBoltSpan"]
-    u_r = (values["stakeUBoltDiameter"] + values["boltHoleClearance"]) / 2.0
+    stake_span = values["stakeBoltSpan"]
+    stake_r = (values["stakeBoltDiameter"] + values["boltHoleClearance"]) / 2.0
     washer_r = stake_bolt["washer"] / 2.0
     lug_w = values["stakeLugWidth"] or (
-        u_span + 2.0 * (values["stakeUBoltDiameter"] + wall)
+        stake_span + 2.0 * (values["stakeBoltDiameter"] + wall)
     )
-    lug_thick = max(values["stakeLugThickness"] or 0.0, levels[0] - z_bottom)
+    lug_thick = max(
+        values["stakeLugThickness"] or (stake_bolt["nut_depth"] + wall),
+        levels[0] - z_bottom,
+    )
 
-    # How far down the pad the loop sits. Its nuts stand on the pad's far face,
-    # in the same band as the next plate up, so they have to miss that plate's
-    # bolt bosses -- which is what sets this, not the hub's own radius.
-    u_at = hub_r + washer_r + wall
+    # How far down the pad the pair sits. Their nuts are captive in the pad's
+    # far face, in the same band as the next plate up, so the pockets have to
+    # miss that plate's bolt bosses -- which is what sets this, not the hub's
+    # own radius.
+    stake_at = values["stakeBoltAt"] or (hub_r + washer_r + wall)
     keep_off = boss_r + washer_r + 1.0
     for point in bolt_points:
-        sideways = abs(abs(point.x) - u_span / 2.0)
+        sideways = abs(abs(point.x) - stake_span / 2.0)
         if sideways < keep_off:
-            u_at = max(
-                u_at,
+            stake_at = max(
+                stake_at,
                 abs(point.y) + math.sqrt(keep_off ** 2 - sideways ** 2),
             )
-    stake_reach = u_at + washer_r + wall
+    stake_reach = stake_at + washer_r + wall
     pad_top = z_bottom + lug_thick
-    u_points = [
-        App.Vector(sign * u_span / 2.0, -u_at, 0.0) for sign in (-1.0, 1.0)
+    stake_points = [
+        App.Vector(sign * stake_span / 2.0, -stake_at, 0.0)
+        for sign in (-1.0, 1.0)
     ]
 
     shank_r = (values["fastenerDiameter"] + values["boltHoleClearance"]) / 2.0
@@ -588,16 +697,24 @@ def build(values, fan_gaps=None):
         )
     pad = pad.removeSplitter()
 
-    # The two holes the U-bolt's legs come up through. Nothing else: the loop
-    # is bought bent, the nuts land on the pad's far face, and the part has no
-    # opinion about how big the angle inside the loop is.
-    stake_holes = [
-        Part.makeCylinder(
-            u_r, lug_thick + 4.0,
-            App.Vector(p.x, p.y, z_bottom - 2.0), App.Vector(0, 0, 1),
+    # The two bolts that pull the wrap on, and the nuts they land in. The
+    # pockets open on the pad's far face -- which is the face pointing UP while
+    # the bottom plate is printed, so they need no cone and no support, and the
+    # nut is dropped in from outside once and turned never.
+    stake_holes = []
+    for p in stake_points:
+        stake_holes.append(
+            Part.makeCylinder(
+                stake_r, lug_thick + 4.0,
+                App.Vector(p.x, p.y, z_bottom - 2.0), App.Vector(0, 0, 1),
+            )
         )
-        for p in u_points
-    ]
+        stake_holes.append(
+            kit.hex_prism(
+                stake_bolt["nut_af"], stake_bolt["nut_depth"] + 1.0,
+                App.Vector(p.x, p.y, pad_top - stake_bolt["nut_depth"]),
+            )
+        )
 
     # The nut pocket and the head counterbore for the two stack bolts. Both
     # open onto the face their plate is printed on -- the bottom plate's outer
@@ -693,31 +810,33 @@ def build(values, fan_gaps=None):
         proud,
     )
 
-    # The loop, drawn where it goes: round the angle's whole section, up
-    # through the pad, with a nut and a washer standing on the far face.
-    #
-    # Its depth is set by the section it has to clear, not by the angle it was
-    # bought for -- which is the point of it. `stakeUBoltClear` is the slack
-    # inside the loop, and `verify` reports the biggest angle that still fits
-    # so that a leg somebody scales up cannot quietly foul the bend.
-    # Where the bend has to sit is decided at the angle's TIP, not on the
-    # loop's centreline: the arc has risen by then. Clear the corner furthest
-    # from the middle and everything nearer clears itself.
-    u_bend_z = (
-        z_bottom
-        - values["stakeLegWidth"]
-        - values["stakeUBoltClear"]
-        - u_r
-        + arc_height(u_span / 2.0, values["stakeLegWidth"] / 2.0)
+    # The wrap, and the two holes through it. It is the fifth print of the hub
+    # and the only piece of it that is drawn round a bought section, so it is
+    # also the only piece that has to be reprinted if a different angle is
+    # bought -- 20 grams, against a hub that stays as it is.
+    wrap = stake_wrap(
+        values["stakeLegWidth"], values["stakeThickness"], stake_span,
+        stake_r, wall, values["stakeWrapFit"], values["stakeWrapGap"],
+        values["stakeWrapGrip"], values["stakeWrapLength"],
+        z_bottom, -stake_at,
     )
-    u_leg_top = pad_top + stake_bolt["nut_depth"] + 2.0
-    loop = u_bolt(u_r, u_span, -u_at, u_leg_top, u_bend_z)
-    u_clear_depth = z_bottom - (u_bend_z - u_span / 2.0 + u_r)
-    u_clear_width = u_span - 2.0 * u_r
-    # How deep the loop hangs is a placement and follows whatever angle it is
-    # drawn round, so it is never what binds. How WIDE it is, is bought: the
-    # span between its legs is the one number that says what will go inside.
-    u_fits = u_clear_width - 2.0 * values["stakeUBoltClear"]
+    for p in stake_points:
+        wrap = wrap.cut(
+            Part.makeCylinder(
+                stake_r, values["stakeWrapGrip"] + wall + 4.0,
+                App.Vector(p.x, p.y, z_bottom - values["stakeWrapGrip"]
+                           - wall - 2.0),
+                App.Vector(0, 0, 1),
+            )
+        )
+    wrap = wrap.removeSplitter()
+    wrap_depth = values["stakeWrapGrip"] + wall - values["stakeWrapGap"]
+    if not kit.has_volume(wrap):
+        raise RuntimeError("the stake wrap came out invalid")
+    # It is a print of this hub like any other, so it travels with them: five
+    # pieces per hub now, four plates and the wrap.
+    names = names + ["Wrap"]
+    plates = plates + [wrap]
 
     # A keep-out around each rod: the channel plus a wall, over the length the
     # part actually holds it. Nothing may be cut out of this.
@@ -750,33 +869,33 @@ def build(values, fan_gaps=None):
             )
             for p in bolt_points
         ],
-        # The same probe for each of the U-bolt's legs: a ring of pad that has
-        # to be there round the hole, or the leg comes up through air.
+        # The same probe for each stake bolt: a ring of pad that has to be
+        # there round the hole, or the bolt comes up through air.
         "stake_probes": [
             Part.makeCylinder(
                 washer_r + wall, lug_thick,
                 App.Vector(p.x, p.y, z_bottom), App.Vector(0, 0, 1),
             ).cut(
                 Part.makeCylinder(
-                    u_r + 0.01, lug_thick + 2.0,
+                    stake_r + 0.01, lug_thick + 2.0,
                     App.Vector(p.x, p.y, z_bottom - 1.0), App.Vector(0, 0, 1),
                 )
             )
-            for p in u_points
+            for p in stake_points
         ],
         "stake_cuts": list(stake_holes),
-        # A nut and a washer stand on the pad's far face at each leg, in the
-        # band the next plate up lives in. What must be empty is that column.
+        # Each nut is dropped into its pocket from outside, and a bolt has to
+        # be started into it. What must be empty is the column above it.
         "nut_access": [
             Part.makeCylinder(
-                washer_r, stake_bolt["nut_depth"] + 2.0,
+                washer_r, z_top - pad_top,
                 App.Vector(p.x, p.y, pad_top), App.Vector(0, 0, 1),
             )
-            for p in u_points
+            for p in stake_points
         ],
         "pad": pad,
         "stake": stake,
-        "loop": loop,
+        "wrap": wrap,
     }
     dims = {
         "chosen_from_rod": chosen,
@@ -797,16 +916,20 @@ def build(values, fan_gaps=None):
         "first_arm_rise_deg": values["firstArmRise"],
         "stake_leg_mm": values["stakeLegWidth"],
         "stake_thickness_mm": values["stakeThickness"],
-        "stake_bolt_at_mm": u_at,
+        "stake_bolt_at_mm": stake_at,
         "stake_bolt_size": stake_size,
-        "stake_bolt_mm": values["stakeUBoltDiameter"],
-        "stake_bolt_bearing_mm": lug_thick,
-        "u_bolt_span_mm": u_span,
-        "u_bolt_clear_depth_mm": u_clear_depth,
-        "u_bolt_clear_width_mm": u_clear_width,
-        # What the loop will go round, whatever was driven: its span, less
-        # its own rod at both legs, less the slack.
-        "u_bolt_fits_leg_mm": u_fits,
+        "stake_bolt_mm": values["stakeBoltDiameter"],
+        "stake_bolt_span_mm": stake_span,
+        "stake_bolt_length_mm": (
+            wrap_depth + values["stakeWrapGap"] + lug_thick
+        ),
+        "stake_bolt_bearing_mm": lug_thick - stake_bolt["nut_depth"],
+        "wrap_width_mm": stake_span + 2.0 * (values["stakeBoltDiameter"] + wall),
+        "wrap_length_mm": values["stakeWrapLength"],
+        "wrap_depth_mm": wrap_depth,
+        "wrap_grip_mm": values["stakeWrapGrip"],
+        "wrap_fit_mm": values["stakeWrapFit"],
+        "wrap_gap_mm": values["stakeWrapGap"],
         "stake_nut_af_mm": stake_bolt["nut_af"],
         "stake_offset_mm": abs(z_bottom) + values["stakeLegWidth"] / 2.0,
         "stake_stand_proud_mm": proud,
@@ -879,6 +1002,8 @@ def verify(geo, dims, values):
     # to face contact on the pad is not a touch -- it has no volume.
     if geo.get("stake") is not None:
         for name, plate in zip(geo["names"], plates):
+            if name == "Wrap":
+                continue      # the one piece that is meant to be against it
             v = kit.vol(plate.common(geo["stake"]))
             if v > 0.5:
                 problems.append(
@@ -886,10 +1011,13 @@ def verify(geo, dims, values):
                     f"{dims['stake_stand_proud_mm']:.0f} mm to stand proud in"
                 )
 
-    # Every bolt has to pass through material, in every plate. Cutting a hole
+    # Every bolt has to pass through material, in every plate of the STACK --
+    # the wrap is not one of them and has its own two bolts. Cutting a hole
     # through open air leaves the stack with nothing holding it together, and
     # it looks exactly the same in a render.
     for name, plate in zip(geo["names"], plates):
+        if name == "Wrap":
+            continue
         for i, probe in enumerate(geo.get("bolt_probes", [])):
             v = kit.vol(plate.common(probe))
             if v < 1.0:
@@ -918,35 +1046,47 @@ def verify(geo, dims, values):
                     f"{v:.1f} mm3: there is nowhere to put a spanner"
                 )
 
-    # The loop goes round the angle, and round is the whole claim: it must
-    # clear the section it is drawn round, and it must clear the part.
-    loop = geo.get("loop")
-    if loop is not None:
+    # The wrap closes round the angle, and that is the whole claim. Two things
+    # have to be true of it and they pull opposite ways: it must not cut into
+    # the steel, and it must not miss it either. The pocket is drawn
+    # `wrap_fit` clear on each side, so what verify can say is the first -- and
+    # that the rim really does stop short of the pad, because if it lands there
+    # the bolts clamp plastic to plastic and the angle is loose inside.
+    wrap = None
+    for name, plate in zip(geo["names"], plates):
+        if name == "Wrap":
+            wrap = plate
+    if wrap is not None:
         if geo.get("stake") is not None:
-            v = kit.vol(loop.common(geo["stake"]))
+            v = kit.vol(wrap.common(geo["stake"]))
             if v > 0.5:
                 problems.append(
-                    f"the U-bolt fouls the angle by {v:.1f} mm3: its "
-                    f"{dims['u_bolt_span_mm']:.0f} mm span takes a leg up to "
-                    f"{dims['u_bolt_fits_leg_mm']:.1f} mm"
+                    f"the wrap cuts into the angle by {v:.1f} mm3: it is drawn "
+                    f"for an L{dims['stake_leg_mm']:g} with "
+                    f"{dims['wrap_fit_mm']:.1f} mm of fit"
                 )
         for name, plate in zip(geo["names"], plates):
-            v = kit.vol(plate.common(loop))
+            if name == "Wrap":
+                continue
+            v = kit.vol(plate.common(wrap))
             if v > 0.5:
-                problems.append(f"the U-bolt runs into {name} by {v:.1f} mm3")
+                problems.append(f"the wrap runs into {name} by {v:.1f} mm3")
         for i, rod in enumerate(geo["rods"]):
-            v = kit.vol(loop.common(rod))
+            v = kit.vol(wrap.common(rod))
             if v > 0.5:
-                problems.append(
-                    f"the U-bolt runs into rod {i + 1} by {v:.1f} mm3"
-                )
-
-    # And it has to be a loop this angle actually fits inside.
-    if dims["u_bolt_fits_leg_mm"] < dims["stake_leg_mm"] - 1e-6:
-        problems.append(
-            f"the U-bolt takes a leg of {dims['u_bolt_fits_leg_mm']:.1f} mm "
-            f"and the angle's is {dims['stake_leg_mm']:.1f}"
-        )
+                problems.append(f"the wrap runs into rod {i + 1} by {v:.1f} mm3")
+        # The gap is what makes it a clamp rather than a sandwich of air.
+        if dims["wrap_gap_mm"] <= 0.0:
+            problems.append(
+                "the wrap's rim would land on the pad: with no gap the bolts "
+                "clamp the plate, not the angle"
+            )
+        # And it has to brace a leg that is there to brace.
+        if dims["wrap_grip_mm"] >= dims["stake_leg_mm"]:
+            problems.append(
+                f"the wrap reaches {dims['wrap_grip_mm']:.1f} mm down a leg "
+                f"that is only {dims['stake_leg_mm']:.1f} mm long"
+            )
 
     # Nothing cut for the stake may take the wall out from under a rod.
     for cut in geo.get("stake_cuts", []):
@@ -979,12 +1119,13 @@ def verify(geo, dims, values):
         if v > 0.5:
             problems.append(f"{name_a} and {name_b} overlap by {v:.1f} mm3")
 
-    # The legs have to bear on something. The pad is the plate's own floor, so
-    # this only bites if somebody thins the floor under the rod.
-    if dims["stake_bolt_bearing_mm"] < dims["stake_bolt_mm"] - 1e-6:
+    # The bolts pull rather than bear, so what the pad owes them is a floor
+    # under each captive nut -- and that floor is what the whole clamp reacts
+    # against.
+    if dims["stake_bolt_bearing_mm"] < values["minimumWall"] - 1e-6:
         problems.append(
-            f"the U-bolt's legs bear on {dims['stake_bolt_bearing_mm']:.1f} mm "
-            f"of pad, under their own {dims['stake_bolt_mm']:.1f} mm diameter"
+            f"only {dims['stake_bolt_bearing_mm']:.1f} mm of pad is left under "
+            f"the stake nuts, wanted {values['minimumWall']:.1f}"
         )
 
     # The cap prints flipped so its channel faces up; every other plate prints
@@ -1042,24 +1183,34 @@ def derived_rows(dims, values):
          "hub centre to the end of the pad, straight down"),
         ("padSize", f"{dims['lug_width_mm']:g} x {dims['lug_thickness_mm']:g}",
          "mm", "across the pad and through it"),
-        ("stakeUBoltAt", round(dims["stake_bolt_at_mm"], 2), "mm",
-         "how far down the pad the loop sits"),
-        ("stakeUBolt",
-         f"M{dims['stake_bolt_size']:g} U-bolt, "
-         f"{dims['u_bolt_span_mm']:g} mm span", "-",
-         "the loop to buy: two nuts and two washers with it, and nothing "
-         "drilled in the angle at all"),
-        ("stakeUBoltFits", round(dims["u_bolt_fits_leg_mm"], 1), "mm",
-         "the biggest angle leg this loop goes round. Anything smaller is "
-         "held the same way, which is the point: the driven member's size "
-         "stops being a dimension of the printed part"),
+        ("stakeBoltAt", round(dims["stake_bolt_at_mm"], 2), "mm",
+         "how far down the pad the two bolts sit"),
+        ("stakeBolt",
+         f"M{dims['stake_bolt_size']:g} x "
+         f"{5 * math.ceil(dims['stake_bolt_length_mm'] / 5.0):g}, two of", "-",
+         "head and washer under the wrap, nut captive in the pad. The same "
+         f"pair of holes takes an M{dims['stake_bolt_size']:g} U-bolt of "
+         f"{dims['stake_bolt_span_mm']:g} mm span instead, if a bought loop "
+         "is preferred to a printed wrap -- decision 0026"),
+        ("wrapSize",
+         f"{dims['wrap_width_mm']:g} x {dims['wrap_length_mm']:g} x "
+         f"{dims['wrap_depth_mm']:.1f}", "mm",
+         "the fifth print of the hub: across, along the angle, and deep"),
+        ("wrapHolds", f"L{dims['stake_leg_mm']:g} + "
+         f"{dims['wrap_fit_mm']:.1f} fit", "-",
+         "the wrap is the one piece drawn round a BOUGHT section, so it is "
+         "the one piece to reprint if a different angle is bought. The hub "
+         "does not move"),
+        ("wrapGrip", round(dims["wrap_grip_mm"], 1), "mm",
+         "how far it reaches down the standing leg either side, which is what "
+         "stops the angle turning in it"),
         ("stakeGrip", "friction", "-",
-         "the loop clamps rather than bears, so the hub sits at whatever "
-         "height the ground gave the angle -- and the two nuts want checking "
+         "the wrap clamps rather than bears, so the hub sits at whatever "
+         "height the ground gave the angle -- and the two bolts want checking "
          "after the first night, because plastic under a preload creeps"),
         ("stakeBoltBearing", round(dims["stake_bolt_bearing_mm"], 2), "mm",
-         "pad each leg bears on. At 20 m/s the ground takes 154 N of uplift "
-         "per foot, which is under 1 MPa on this"),
+         "pad left under each nut pocket. At 20 m/s the ground takes 154 N of "
+         "uplift per foot, and this joint is in clamp, not in bearing"),
         ("stakeStandProud", round(dims["stake_stand_proud_mm"], 1), "mm",
          "leave this much of the angle above the foot: it clears the hub over "
          "all of it, and the cover's loop drops over what is left"),
@@ -1072,10 +1223,11 @@ def derived_rows(dims, values):
          f"{math.ceil(dims['stack_bolt_length_mm'] / 5.0) * 5:g}", "-",
          "the two that hold the plates together: head and washer down the "
          "cap's counterbore, nut captive in the bottom plate"),
-        ("padSizeNote", f"loop {dims['u_bolt_clear_width_mm']:.0f} wide x "
-         f"{dims['u_bolt_clear_depth_mm']:.0f} deep inside", "mm",
-         "what the U-bolt leaves for the angle to sit in"),
-        ("plateCount", dims["plate_count"], "-", "prints per hub"),
+        ("wrapGap", round(dims["wrap_gap_mm"], 2), "mm",
+         "how far the wrap's rim stops short of the pad. It is small and it "
+         "is the difference between clamping the angle and clamping the plate"),
+        ("plateCount", dims["plate_count"], "-",
+         "prints per hub: the plates of the stack, plus the wrap"),
         ("rodFit", f"slide, {values['rodClearance']:g} mm", "-",
          "bolt the stack up first, then push the bow ends in and pin them"),
     ]
@@ -1106,6 +1258,10 @@ ROD_FAMILIES = ["L", "U", "G"]
 # Steel, and not one of the rod families: it is the one member here that is
 # bought rather than made.
 STAKE_COLOUR = (0.45, 0.45, 0.48)
+# The wrap is printed like the plates and belongs to the same family, but it
+# is not in the stack, so it is the ramp's colour warmed up rather than the
+# next step of it.
+WRAP_COLOUR = (0.90, 0.78, 0.45)
 
 
 def populate(doc, geo):
@@ -1124,9 +1280,6 @@ def populate(doc, geo):
     if geo.get("stake") is not None:
         obj = doc.addObject("Part::Feature", "Ref_Stake")
         obj.Shape = geo["stake"]
-    if geo.get("loop") is not None:
-        obj = doc.addObject("Part::Feature", "Ref_UBolt")
-        obj.Shape = geo["loop"]
     doc.recompute()
 
 
@@ -1150,11 +1303,14 @@ def apply_view(doc):
         view = getattr(obj, "ViewObject", None)
         if view is None:
             continue
-        if obj.Name.startswith("Plate_"):
+        if obj.Name == "Plate_Wrap":
+            view.ShapeColor = WRAP_COLOUR
+            view.Transparency = 0
+        elif obj.Name.startswith("Plate_"):
             idx = PLATE_NAMES.index(obj.Name.split("_", 1)[1])
             view.ShapeColor = PLATE_COLOURS[idx % len(PLATE_COLOURS)]
             view.Transparency = PLATE_TRANSPARENCY
-        elif obj.Name in ("Ref_Stake", "Ref_UBolt"):
+        elif obj.Name == "Ref_Stake":
             view.ShapeColor = STAKE_COLOUR
             view.Transparency = 0
         elif obj.Name.startswith("Ref_Rod"):
