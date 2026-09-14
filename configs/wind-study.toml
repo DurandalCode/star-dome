@@ -1,0 +1,36 @@
+# Research inputs, NOT a construction specification. N, mm, MPa unless noted.
+# Each range is a sensitivity grid, not a statistical confidence interval.
+# See docs/wind-study.md for source scope and omitted physical mechanisms.
+[rod]
+material = "gost31938_2022"
+modulus_mpa = [50000, 60000, 70000] # 50 GPa standard minimum; 60/70 assumptions
+area_factors_d8 = [0.94, 1.0, 1.06] # table 1
+area_factors_d10 = [0.95, 1.0, 1.05] # table 1
+
+[tube]
+# Conditional BOUGHT alternative to printed rod_splice_v2, not an automatic
+# CAD/BOM change. Cold-deformed AV alloy, quenched and artificially aged.
+source = "ГОСТ 18475-82, табл. 5, АВ, закаленное и искусственно состаренное"
+outside_mm = 16.0
+wall_mm = 2.0
+length_mm = 100.0
+yield_mpa = 225.0
+tensile_mpa = 305.0
+modulus_mpa = 70000.0 # engineering assumption, not specified by table 5
+density_kg_m3 = 2700.0 # assumption
+# Series rotational compliance k = eta * E_tube I_tube / length.
+# These are assumptions, NOT values a tube standard certifies for a splice.
+joint_efficiency = [0.01, 0.1, 1.0]
+
+[fabric]
+# Isotropic spherical membrane tension T; p=2T/R is applied INWARD.
+# This adds preload but gives no unmeasured fabric stiffening credit.
+# 50 N/m means 5 N per 100 mm strip, not a measured average.
+tension_n_m = [0.0, 50.0, 150.0]
+
+[study]
+mesh_step_deg = 10.0
+refined_step_deg = 5.0
+wind_ms = [0.0, 2.0, 5.0, 10.0, 15.0, 20.0]
+# Wind blows TOWARDS these angles; run all internal pressure signs separately.
+azimuth_deg = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]

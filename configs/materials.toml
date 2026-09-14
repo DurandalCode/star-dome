@@ -19,8 +19,8 @@
 # pessimistic direction for prescribed bending: sigma = E*d/(2R) rises with E.
 # Measure the batch and assess its property range; passing one configured set
 # does not imply passing on every conforming bar. See docs/strength.md and
-# decision 0028. GOST 31938-2012 has been replaced by the 2022 edition; these
-# legacy values have not been requalified against that edition.
+# decision 0028. GOST 31938-2012 has been replaced by the 2022 edition;
+# gost31938_2022 is a separate candidate, not a relabelling of legacy inputs.
 #
 # `source` is required on every material. A number without one is a guess
 # wearing a standard's clothes.
@@ -108,6 +108,20 @@ density_kg_m3 = 2000
 # the difference; see configs/variants.toml and docs/roadmap.md milestone 3.
 named_by = "equivalent"
 source = "ГОСТ 31938-2012 табл. 1 (АКС); плотность -- типовая, не нормируется"
+
+[materials.gost31938_2022]
+label = "арматура АСК: условный минимум ГОСТ 31938-2022"
+# Table 5: characteristic minima, NOT a batch certificate or an upper E.
+modulus_mpa = 50000
+tensile_strength_mpa = 1000
+compressive_strength_mpa = 300
+shear_strength_mpa = 150
+# Table 1 note: minimum density, not a conservative upper mass.
+density_kg_m3 = 2050
+# Not specified by this standard; retained engineering assumption.
+shear_modulus_mpa = 4000
+named_by = "equivalent"
+source = "ГОСТ 31938-2022, табл. 5 (АСК), табл. 1 примечание; G и коэффициенты снижения — допущения; docs/wind-study.md"
 
 [materials.pultruded_rod]
 label = "пултрузионный стеклопластиковый пруток"
