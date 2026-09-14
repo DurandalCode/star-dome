@@ -34,7 +34,7 @@ help:
 	@echo "make spans      the longest unsupported span, and the ceiling it sets"
 	@echo "make materials  what each candidate rod can take, and for how long"
 	@echo "make loads      what the wind does to the shell, and to the anchors"
-	@echo "make strength   the limiting wind speed, and which check sets it"
+	@echo "make strength   diagnostic utilisations, with explicit model limitations"
 	@echo "make bom        everything one dome is made of, counted in one place"
 	@echo "make clamps     build every connector into exports/connectors (needs FreeCAD)"
 	@echo "make prints     the same pieces laid out for the bed, into exports/print"
@@ -156,7 +156,7 @@ loads:
 
 strength:
 	@$(PYTHON) -m stardome strength --all --material $(MATERIAL) \
-		--holds $(HOLDS) --door $(DOOR_STATE) --compare
+		--holds $(HOLDS) --door $(DOOR_STATE) --wind $(WIND) --compare
 
 # Everything one dome is made of. PARTS is where the built connector meshes
 # are: their solid volume is read off them, so the plastic column is present

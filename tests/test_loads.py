@@ -18,7 +18,8 @@ import math
 
 import pytest
 
-from stardome import config, cover, loads, material, model
+from stardome import config, cover, geometry, loads, material, model, span
+from dataclasses import replace
 
 VARIANTS = ["D3", "D4", "D6", "D8", "D10", "D12"]
 BARE = ["D6", "D8", "D10", "D12"]
@@ -196,7 +197,7 @@ def test_the_rod_mass_is_its_length_times_its_linear_mass(built, cfg, name):
     data = built[name]
     m = material.load()
     w = loads.self_weight(data, m, cfg)
-    expected = (data["meta"]["total_rod_length"] / 1000.0) \
+    expected = sum(loads.live_lengths(data).values()) / 1000.0 \
         * m.linear_mass(data["meta"]["rod_diameter"])
     assert w["rod_kg"] == pytest.approx(expected, abs=1e-3), name
 
@@ -209,3 +210,68 @@ def test_the_wind_lifts_far_more_than_the_dome_weighs(built, cfg):
     w = loads.self_weight(data, material.load(), cfg)
     r = loads.resultants(data, 20.0, cfg)
     assert r["lift_n"] > 5.0 * w["total_n"]
+
+
+def test_internal_pressure_uses_both_closed_signs_and_large_dominant_opening(cfg):
+    assert loads.pressure_cases("shut", cfg) == (-.3, .2)
+    assert loads.pressure_cases("open", cfg) == pytest.approx((.9*cfg.cp_windward,))
+    assert loads.internal_coefficient("shut", cfg) == .2
+    with pytest.raises(ValueError):
+        loads.pressure_cases("unknown", cfg)
+
+
+def test_positive_internal_pressure_adds_projected_area_lift(built, cfg):
+    data = built["D6"]
+    low = loads.resultants(data, 20, cfg, cp_internal=-.3)
+    high = loads.resultants(data, 20, cfg, cp_internal=.2)
+    facets = loads.facet_loads(data, 0, cfg)
+    projected = sum(f["normal"][2]*f["area_mm2"] for f in facets)*1e-6
+    assert high["lift_n"]-low["lift_n"] == pytest.approx(.5*loads.velocity_pressure(20,cfg)*projected, abs=.002)
+    assert high["drag_n"] == pytest.approx(low["drag_n"], abs=.002)
+
+
+def test_removed_middle_samples_cannot_carry_fabric():
+    data = model.build(replace(config.load("D6"), door_cut="head", doors=()),
+                       weave_mode="woven", include_polylines=True)
+    rods = {r["name"]: r for r in data["rods"]}
+    samples = loads._bow_points(data)
+    assert len(samples) < sum(len(r["points"]) for r in data["rods"])
+    for name, _, point in samples:
+        rod = rods[name]
+        bow = geometry.Bow(**{k:rod[k] for k in ("name","family","number","azimuth_deg","tilt_deg","foot_a","foot_b","layer")})
+        t = bow.t_of(point)
+        if t > 360-1e-6:
+            t = 0
+        assert any(lo-1e-6 <= t <= hi+1e-6 for lo,hi in span.live_intervals(rod))
+
+
+def test_live_mass_removes_cuts_and_counts_closed_flaps_and_attachments(built, cfg):
+    data = built["D6"]
+    missing = sum(hi-lo for r in data["rods"] for lo,hi in r.get("cut_spans_deg", []))
+    full = sum(r["length_nominal"] for r in data["rods"])
+    actual = sum(loads.live_lengths(data).values())
+    assert full-actual == pytest.approx(data["meta"]["dome_radius"]*math.radians(missing), abs=.01)
+    w = loads.self_weight(data, material.load(), cfg)
+    assert w["fabric_kg"] == pytest.approx(cover.areas(data)["gross_m2"]*cfg.fabric_g_m2/1000, abs=.001)
+    assert w["rope_kg"] > 0 and w["webbing_kg"] > 0
+    assert "steel hardware" in w["basis"]
+
+
+@pytest.mark.parametrize("speed", [-1, math.inf, math.nan])
+def test_invalid_wind_rejected(cfg, speed):
+    with pytest.raises(ValueError):
+        loads.velocity_pressure(speed, cfg)
+
+
+@pytest.mark.parametrize("field,value", [("air_density_kg_m3",0), ("fabric_g_m2",-1),
+    ("anchor_count",2.5), ("anchor_capacity_n",0), ("infill_fraction",1.1), ("cp_crown",math.nan)])
+def test_invalid_load_parameters_rejected(cfg, field, value):
+    with pytest.raises(ValueError):
+        replace(cfg, **{field:value})
+
+
+def test_loader_does_not_truncate_fractional_anchor_count(tmp_path):
+    path = tmp_path / "loads.toml"
+    path.write_text(loads.DEFAULT_CONFIG.read_text().replace("count = 10", "count = 2.5"))
+    with pytest.raises(ValueError, match="integer"):
+        loads.load(path)

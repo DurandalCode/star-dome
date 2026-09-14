@@ -7,34 +7,16 @@
 # linear mass in g/m, force in N.
 #
 # ---------------------------------------------------------------------------
-# WIND ONLY, AND THAT IS A DECISION
+# WIND AND GRAVITY SCREENING
 #
-# There is no snow in this file. A Star Dome here is a temporary event
-# structure: it goes up for a weekend and comes down again, and it is not
-# standing in February. Leaving snow out is what makes the answer a wind
-# speed rather than a map of Russia -- see docs/strength.md.
+# Snow, ponding and occupancy loads are not modelled. The intended temporary
+# use does not establish a universal absence of these actions. Add explicit
+# cases if the operating scope includes them; no wind result covers them.
 #
-# If that ever stops being true -- a dome left up over a winter, a dome in a
-# ski camp -- this file is where snow goes, and every number downstream moves.
-# Do not quietly assume the wind answer covers it. It does not: 1.8 kPa of
-# snow on a 6 m dome is 51 kN of vertical load, and the wind case that governs
-# here is 300 Pa acting mostly sideways.
-#
-# ---------------------------------------------------------------------------
-# THE SPEED IS A GUST AT THE DOME, NOT A MAP REFERENCE
-#
-# `stardome strength --wind V` takes V as the PEAK GUST speed at the top of
-# the dome, and turns it into pressure with q = 0.5 * rho * V^2. There is no
-# terrain category, no height profile and no gust factor in this project,
-# because those describe a site and this repository describes a dome.
-#
-# To go from a code's reference wind to a number to type here: take the site's
-# basic wind velocity, apply its own terrain and height rules at 3-6 m, and
-# use the resulting PEAK velocity. For central Russia, SP 20.13330.2016 wind
-# district I is w0 = 0.23 kPa, which is a 10-minute mean of about 19 m/s at
-# 10 m in open terrain; at 3 m with a gust factor that lands near 22-25 m/s.
-# That is the range to sanity-check results against, not a value this file
-# asserts.
+# `stardome strength --wind V` uses an assumed local peak gust, q=rho*V^2/2.
+# Site exposure, terrain, height conversion, reliability factors and design
+# load combinations are not supplied. Do not use these diagnostic crossings
+# as operational limits. See docs/strength.md and decision 0028.
 #
 # ---------------------------------------------------------------------------
 # THE PRESSURE COEFFICIENTS ARE FOR A SMOOTH HEMISPHERE
@@ -50,7 +32,8 @@
 air_density_kg_m3 = 1.25
 
 # EN 1991-1-4 figure 7.12, cpe,10 for a dome with a circular base sitting on
-# the ground: h/d = 0, f/d = 0.5, which is exactly a hemisphere. Three points
+# the ground: h/d = 0, f/d = 0.5. Reusing these on a raised skirt is an
+# unvalidated approximation. Three points
 # around the windward-to-leeward arc, interpolated between.
 #   A -- windward springing, at ground level facing the wind
 #   B -- the crown
@@ -62,14 +45,16 @@ cp_lee = -0.4
 # Internal pressure. A dome has one dominant opening -- its door -- so which
 # way the door faces changes the answer, and the two readings are both here.
 #
-# `open` is the door facing the wind: EN 1991-1-4 section 7.2.9(3) gives
-# cpi = 0.75 * cpe at the dominant face, so 0.75 * 0.8 = 0.6. This is the
-# worst case for uplift, because internal pressure pushes out everywhere the
-# outside is already sucking.
+# Open is a windward dominant-opening scenario. EN 1991-1-4 7.2.9(5)
+# uses 0.75 at an opening-area ratio of 2 and 0.90 at 3 or more.
+# Use the latter here: 0.90 * 0.8 = 0.72. Actual opening geometry,
+# permeability and connected corridors remain unvalidated.
 #
-# `closed` is the door leeward or shut: the code's other value, -0.3.
-cp_internal_open = 0.6
+# Shut means permeability is unknown, not that pressure is negative.
+# Both signs are required by 7.2.9(6), Note 2; evaluate each separately.
+cp_internal_open = 0.72
 cp_internal_closed = -0.3
+cp_internal_closed_positive = 0.2
 
 [weights]
 gravity_m_s2 = 9.80665
@@ -98,10 +83,8 @@ webbing_g_m = 30
 # is here so that the anchor check has something to report rather than
 # because anybody measured it.
 #
-# STAKE-BASE has not even been chosen yet -- it is the one item in the
-# connector schedule with no answer (docs/roadmap.md milestone 5), and the
-# base hub that holds it is 59% of the dome's plastic. Sizing it is
-# downstream of this number.
+# The printed stake wrap geometry does not establish the soil capacity.
+# Measure pull-out, shear and bearing for the selected stake and ground.
 capacity_n = 500
 # And against being dragged sideways. A bare dome has no tension ring -- its
 # ten feet are ten free rod ends with nothing tying them to each other, as

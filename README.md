@@ -46,7 +46,7 @@ python3 -m stardome tolerance --all   # what the tape measure has to achieve
 python3 -m stardome span --all        # the longest unsupported span, and the ceiling
 python3 -m stardome material          # what each candidate rod can take, and for how long
 python3 -m stardome loads --all       # what the wind does to the shell, and to the anchors
-python3 -m stardome strength --all    # the limiting wind speed, and which check sets it
+python3 -m stardome strength --all    # diagnostic utilisations; operating wind limit remains unknown
 python3 -m stardome bom --all         # everything one dome is made of
 python3 -m stardome camp yard         # domes joined by corridors, from a plan
 make venv && make check               # invariants + test suite
@@ -114,15 +114,14 @@ it is not standing height, and [decision 0009](docs/decisions/0009-d3-on-a-skirt
 records why a skirt does not rescue it. See
 [`docs/doorway.md`](docs/doorway.md) for where each skirt height comes from.
 
-**D3 as configured is not buildable, and that is now a calculation rather than
-an opinion.** Its 8 mm rod bent to a 1500 mm radius carries 0.267% permanent
-strain against the 0.224% composite rebar allows under sustained load — it is
-over its creep-rupture limit standing in a dead calm. It wants 6.7 mm rod, or
-a bigger dome. Nobody was being asked to build it; what is new is the reason.
-And the direction is the opposite of what this project assumed: **the rod is
-worked hardest on the smallest dome**, not the largest, because diameter is
-quantised at 8/10/12 mm while the radius halves. See
-[`docs/strength.md`](docs/strength.md).
+**The initial-bend screening is most demanding at the small end.** D3's
+8 mm rod at R = 1500 mm has 0.267% nominal strain, above the configured
+0.224% sustained-tension criterion at E = 50 GPa. These candidate properties
+are not measured stock, and a higher E raises bend stress. A thinner rod
+changes both stiffness and strength; it is not an established fix. The
+[calculation methods](docs/strength.md) now include fabric gravity, both
+closed-door pressure signs and anchor moments, and report diagnostic
+scenarios. **No operating wind limit is established for any size.**
 
 The full geometric family is D3, D4, D6, D8, D10 and D12 — one entry per
 diameter, nothing else fixed. D12 in particular is explicitly experimental:

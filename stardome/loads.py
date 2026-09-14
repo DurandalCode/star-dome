@@ -1,65 +1,9 @@
-"""What the dome is asked to carry.
+"""Wind-resultant and mass screening for the configured cover geometry.
 
-`material.py` says what the rod can take. This says what is asked of it, and
-between them they are the two halves `docs/span.md` is missing when it says
-"there is no modulus, no strength and no load anywhere in it".
-
-## Wind only, and that is a decision
-
-There is no snow here. A Star Dome is a temporary event structure: it goes up
-for a weekend and comes down again, and it is not standing in February.
-Leaving snow out is what turns the answer into a **wind speed** rather than a
-map of Russia. See `configs/loads.toml`, which is where snow would go if that
-operating rule ever stopped being true, and decision 0021.
-
-## The wind on this dome is mostly lift, not push
-
-Worth saying before any of the machinery, because it decides what the answer
-will be about. The pressure coefficient on a hemisphere is positive only near
-the windward springing and negative over most of the rest -- `+0.8` at the
-windward base, `-1.2` over the crown, `-0.4` in the wake. Integrate that over
-a dome and the resultant is dominated by **suction lifting the whole thing off
-its ten anchors**, not by drag pushing it sideways.
-
-Which means the limiting wind speed is quite likely to be set by the anchors
-rather than by the rod, and that the field rule this work produces is about
-pegs and about shutting the door.
-
-## The door is a hole in a sealed shell, and it matters
-
-A dome has exactly one dominant opening. Facing the wind it lets internal
-pressure in, which pushes outward everywhere the outside is already sucking --
-the worst case for uplift by a wide margin. Shut, or turned away, the internal
-coefficient goes slightly negative and helps. Both readings are computed and
-the gap between them is the price of leaving the door open, in m/s.
-
-## The tributary strip is not estimated, it is partitioned
-
-A bow carries the wind over a strip of cover as wide as its share of the
-shell. Guessing that width as "cover area over rod length" is within a few per
-cent on average and wrong everywhere in particular -- the strips are wider
-near the crown, where five bows converge, than near the feet.
-
-So it is not guessed. `cover.mesh` already builds the fabric surface at the
-radius it actually rests on; every facet of it is assigned to the nearest bow
-centreline, and the assignment is a **partition**: each square millimetre goes
-to exactly one bow. Two identities follow and both are tests:
-
-- the tributary areas sum to `cover.areas`' own total, exactly;
-- the scattered forces sum to the resultant computed independently.
-
-That is the same class of check `cover.py` keeps on its gore widths.
-
-```bash
-python3 -m stardome loads M --wind 20
-python3 -m stardome loads --all --wind 25 --door open
-```
-
-Nothing here is a strength check; that is `strength.py`. And the pressure
-coefficients are for a smooth sealed hemisphere in a wind tunnel, which a
-lattice of round rods under a flogging membrane with a hole in it is not --
-the largest single uncertainty in this work, named as such in
-docs/strength.md.
+Internal pressure is evaluated as independent signed cases. The closed smooth
+shell pressure approximation is not a validated aerodynamic model of fabric,
+doors or a connected camp. Tributary areas are a nearest-sample partition,
+not a solved load path. See docs/strength.md for scope and equations.
 """
 
 from __future__ import annotations
@@ -104,14 +48,34 @@ class Loads:
     anchor_capacity_n: float
     anchor_shear_capacity_n: float
     anchor_count: int
+    cp_internal_closed_positive: float = 0.2
+
+    def __post_init__(self):
+        for name, value in vars(self).items():
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+        for name in ("air_density_kg_m3", "gravity_m_s2", "anchor_capacity_n",
+                     "anchor_shear_capacity_n", "anchor_count"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
+        for name in ("fabric_g_m2", "plastic_density_kg_m3", "hem_rope_g_m", "webbing_g_m"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} cannot be negative")
+        if not 0 <= self.infill_fraction <= 1:
+            raise ValueError("infill_fraction must be between zero and one")
+        if int(self.anchor_count) != self.anchor_count:
+            raise ValueError("anchor_count must be an integer")
 
 
 def load(path=None) -> Loads:
-    """Read the load configuration. No defaults in code -- it is all in TOML."""
+    """Read loads; older configurations receive the missing +0.2 shut case."""
     path = Path(path) if path is not None else DEFAULT_CONFIG
     with open(path, "rb") as handle:
         raw = tomllib.load(handle)
     wind, weights, anchors = raw["wind"], raw["weights"], raw["anchors"]
+    count = float(anchors["count"])
+    if not math.isfinite(count) or not count.is_integer():
+        raise ValueError("anchor_count must be a finite integer")
     return Loads(
         air_density_kg_m3=float(wind["air_density_kg_m3"]),
         cp_windward=float(wind["cp_windward"]),
@@ -119,6 +83,7 @@ def load(path=None) -> Loads:
         cp_lee=float(wind["cp_lee"]),
         cp_internal_open=float(wind["cp_internal_open"]),
         cp_internal_closed=float(wind["cp_internal_closed"]),
+        cp_internal_closed_positive=float(wind.get("cp_internal_closed_positive", 0.2)),
         gravity_m_s2=float(weights["gravity_m_s2"]),
         fabric_g_m2=float(weights["fabric_g_m2"]),
         plastic_density_kg_m3=float(weights["plastic_density_kg_m3"]),
@@ -127,7 +92,7 @@ def load(path=None) -> Loads:
         webbing_g_m=float(weights["webbing_g_m"]),
         anchor_capacity_n=float(anchors["capacity_n"]),
         anchor_shear_capacity_n=float(anchors["shear_capacity_n"]),
-        anchor_count=int(anchors["count"]),
+        anchor_count=int(count),
     )
 
 
@@ -142,6 +107,8 @@ def velocity_pressure(speed_ms: float, loads: Loads) -> float:
     in this project, because those describe a site and this repository
     describes a dome -- see configs/loads.toml.
     """
+    if not math.isfinite(speed_ms) or speed_ms < 0:
+        raise ValueError("wind speed must be finite and non-negative")
     return 0.5 * loads.air_density_kg_m3 * speed_ms * speed_ms
 
 
@@ -153,11 +120,9 @@ def shape_coefficient(polar_deg: float, loads: Loads) -> float:
     crown and at the two sides, 180 in the wake. Linear between the three
     tabulated points, which is how EN 1991-1-4 figure 7.12 is read.
 
-    On the windward-leeward meridian this is exactly the figure. Off it, the
-    great-circle angle is the natural generalisation and is what makes one
-    table cover a whole dome -- and one table covers the whole *family*, too,
-    because the rise-to-span ratio is a constant of the topology, the same at
-    D3 and at D12.
+    The great-circle angle extends the tabulated meridian over the cover.
+    Applying ground-level hemisphere coefficients to a raised skirt or a
+    flexible, open fabric cover remains an unvalidated approximation.
     """
     t = max(0.0, min(180.0, polar_deg))
     if t <= 90.0:
@@ -168,12 +133,24 @@ def shape_coefficient(polar_deg: float, loads: Loads) -> float:
 
 
 def internal_coefficient(door: str, loads: Loads) -> float:
-    """Internal pressure coefficient, by what the door is doing."""
+    """Positive internal pressure case used by the single-field API.
+
+    This is the uplift case, not an envelope of every limit state. Use
+    `pressure_cases` and pass each `cp_internal` for a complete screening.
+    """
     if door == "open":
         return loads.cp_internal_open
     if door == "shut":
-        return loads.cp_internal_closed
+        return max(loads.cp_internal_closed, loads.cp_internal_closed_positive)
     raise ValueError(f"unknown door state {door!r} -- use one of {DOOR_STATES}")
+
+
+def pressure_cases(door: str, loads: Loads) -> tuple:
+    """Independent internal-pressure cases; never blend their force fields."""
+    internal_coefficient(door, loads)  # validate even for an empty geometry
+    if door == "open":
+        return (loads.cp_internal_open,)
+    return tuple(sorted({loads.cp_internal_closed, loads.cp_internal_closed_positive}))
 
 
 # --- the cover, diced and pushed on -----------------------------------------
@@ -218,7 +195,7 @@ def _facets(data: dict, meridians: int, parallels: int) -> list:
 def facet_loads(data: dict, speed_ms: float, loads: Loads,
                 azimuth_deg: float = 0.0, door: str = "shut",
                 meridians: int = LOAD_MERIDIANS,
-                parallels: int = LOAD_PARALLELS) -> list:
+                parallels: int = LOAD_PARALLELS, *, cp_internal=None) -> list:
     """Every cover facet with the wind force on it, in newtons.
 
     ``azimuth_deg`` is the direction the wind blows TOWARDS, in the same
@@ -226,7 +203,10 @@ def facet_loads(data: dict, speed_ms: float, loads: Loads,
     when the net coefficient is suction, which is most of the shell.
     """
     q = velocity_pressure(speed_ms, loads)
-    cpi = internal_coefficient(door, loads)
+    default_cpi = internal_coefficient(door, loads)
+    cpi = default_cpi if cp_internal is None else cp_internal
+    if not math.isfinite(cpi) or not math.isfinite(azimuth_deg):
+        raise ValueError("pressure coefficient and wind direction must be finite")
     a = math.radians(azimuth_deg)
     downwind = [math.cos(a), math.sin(a), 0.0]
     ground = data["meta"].get("ground_z", 0.0)
@@ -269,6 +249,8 @@ def _bow_points(data: dict) -> list:
     to be near, and guessing one from the tie marks would be the kind of
     recomputation `AGENTS.md` calls an architecture bug.
     """
+    from . import geometry, span
+
     out = []
     for rod in data["rods"]:
         points = rod.get("points")
@@ -278,8 +260,19 @@ def _bow_points(data: dict) -> list:
                 "include_polylines=True -- the tributary partition needs a "
                 "centreline to measure distance to."
             )
+        bow = geometry.Bow(**{k: rod[k] for k in (
+            "name", "family", "number", "azimuth_deg", "tilt_deg", "foot_a", "foot_b", "layer"
+        )})
+        live = span.live_intervals(rod)
         for i, point in enumerate(points):
+            t = bow.t_of(point)
+            if t > 360 - 1e-6:
+                t = 0.0
+            if not any(lo - 1e-6 <= t <= hi + 1e-6 for lo, hi in live):
+                continue
             out.append((rod["name"], i, point))
+    if not out:
+        raise ValueError("no live bow samples to carry the cover")
     return out
 
 
@@ -336,13 +329,13 @@ def tributary(data: dict, meridians: int = LOAD_MERIDIANS,
         for c, a, n, s in _facets(data, meridians, parallels)
     ]
     spread = scatter(data, facets)
-    lengths = {rod["name"]: rod["length_drawn"] for rod in data["rods"]}
+    lengths = live_lengths(data)
     per_rod = {}
     for name, items in spread["by_rod"].items():
         area = sum(f["area_mm2"] for _, f in items)
         per_rod[name] = {
             "area_mm2": round(area, 3),
-            "width_mm": round(area / lengths[name], 3),
+            "width_mm": round(area / lengths[name], 3) if lengths[name] else 0.0,
             "facets": len(items),
         }
     return {
@@ -358,29 +351,15 @@ def tributary(data: dict, meridians: int = LOAD_MERIDIANS,
 def resultants(data: dict, speed_ms: float, loads: Loads,
                azimuth_deg: float = 0.0, door: str = "shut",
                meridians: int = LOAD_MERIDIANS,
-               parallels: int = LOAD_PARALLELS) -> dict:
-    """Net force and overturning moment on the whole dome, from the wind.
+               parallels: int = LOAD_PARALLELS, *, cp_internal=None) -> dict:
+    """Force and signed moment about (0, 0, ground_z), from one pressure field.
 
-    Rigid-body statics over the cover: no structural model needed, and
-    therefore the one part of this that a frame solver cannot improve on.
-
-    **The overturning moment comes out at zero, and that is a result rather
-    than a bug.** Pressure acts normal to the shell; every normal of a sphere
-    is radial; so every facet force passes through the sphere's centre -- and
-    for a bare dome that centre sits in the ground plane. The resultant is
-    therefore a pure force through the base centre, with no couple: lift
-    straight up and drag straight sideways.
-
-    So **a bare Star Dome does not blow over, it takes off.** `interior.md`
-    compares variants on a `tip_index` and says of it, correctly, that "it is
-    a shape comparison and it proves nothing about safety". This is the answer
-    it declined to give: the rigid-body failure mode is uplift on the ten
-    anchors, and tipping is not in the running. A skirt puts the sphere's
-    centre above the ground and a real couple appears, which is why D3 and D4
-    report a moment and the bare sizes do not.
+    The ideal bare sphere has almost no resultant moment about its centre.
+    That geometric fact does not establish the real structure's failure mode.
+    Legacy per-anchor fields are arithmetic averages, not support demands.
     """
     facets = facet_loads(data, speed_ms, loads, azimuth_deg, door,
-                         meridians, parallels)
+                         meridians, parallels, cp_internal=cp_internal)
     ground = data["meta"].get("ground_z", 0.0)
     total = [0.0, 0.0, 0.0]
     moment = [0.0, 0.0, 0.0]
@@ -398,9 +377,10 @@ def resultants(data: dict, speed_ms: float, loads: Loads,
         "door": door,
         "azimuth_deg": azimuth_deg,
         "velocity_pressure_pa": round(velocity_pressure(speed_ms, loads), 3),
-        "cp_internal": internal_coefficient(door, loads),
+        "cp_internal": internal_coefficient(door, loads) if cp_internal is None else cp_internal,
         "area_mm2": round(area, 3),
         "force_n": [round(v, 3) for v in total],
+        "moment_nmm": [round(v, 3) for v in moment],
         "lift_n": round(total[2], 3),
         "drag_n": round(drag, 3),
         # About the horizontal axis across the wind, at ground level. Zero for
@@ -422,34 +402,50 @@ def resultants(data: dict, speed_ms: float, loads: Loads,
     }
 
 
+def live_lengths(data: dict) -> dict:
+    """Nominal surviving rod lengths, matching the cut schedule, in mm.
+
+    Radial weave corrections and finite ferrule stiffness are not resolved.
+    Removed material must not retain self-weight or tributary length.
+    """
+    from . import span
+    radius = data["meta"]["dome_radius"]
+    return {r["name"]: radius * math.radians(sum(hi-lo for lo, hi in span.live_intervals(r)))
+            for r in data["rods"]}
+
+
 def self_weight(data: dict, material, loads: Loads,
                 plastic_cm3: float = 0.0) -> dict:
-    """What the dome weighs, in newtons. The first density in this project.
+    """Partial mass inventory in kg and N, with explicit exclusions.
 
-    `docs/bom.md` closes with "Money, and mass. Both want a supplier and a
-    material, and this project has neither yet." It has a material now, so the
-    mass half is answered here and the money half is still open.
-
-    `plastic_cm3` comes from `bom.measured`, which reads it off the exported
-    connector meshes -- so it is honestly zero until `make clamps` has run,
-    the same way the BOM's own plastic column is.
+    Optional plastic volume is supplied by the caller; this function does
+    not read CAD meshes automatically. Zero is unmeasured, not weightless.
     """
+    if not math.isfinite(plastic_cm3) or plastic_cm3 < 0:
+        raise ValueError("plastic volume must be finite and non-negative")
     meta = data["meta"]
     g = loads.gravity_m_s2
-    rod_m = meta["total_rod_length"] / 1000.0
+    rod_m = sum(live_lengths(data).values()) / 1000.0
     rod_kg = rod_m * material.linear_mass(meta["rod_diameter"])
 
-    fabric_m2 = cover.areas(data)["total_m2"]
+    # Include the door panels in the inventory. The same closed shell is used
+    # for the wind and member screening; opening geometry is not solved yet.
+    fabric_m2 = cover.areas(data)["gross_m2"]
     fabric_kg = fabric_m2 * loads.fabric_g_m2 / 1000.0
 
     plastic_kg = plastic_cm3 * loads.infill_fraction \
         * loads.plastic_density_kg_m3 / 1e6
 
-    total_kg = rod_kg + fabric_kg + plastic_kg
+    attachment = data.get("attachment", {})
+    rope_kg = attachment.get("hem", {}).get("rope_length_mm", 0.0) * loads.hem_rope_g_m / 1e6
+    webbing_kg = attachment.get("webbing_total_m", 0.0) * loads.webbing_g_m / 1000.0
+    total_kg = rod_kg + fabric_kg + plastic_kg + rope_kg + webbing_kg
     return {
         "rod_kg": round(rod_kg, 3),
         "fabric_kg": round(fabric_kg, 3),
         "plastic_kg": round(plastic_kg, 3),
+        "rope_kg": round(rope_kg, 3),
+        "webbing_kg": round(webbing_kg, 3),
         "total_kg": round(total_kg, 3),
         "total_n": round(total_kg * g, 3),
         # What a bow carries of itself, per unit length. The load case that
@@ -458,70 +454,45 @@ def self_weight(data: dict, material, loads: Loads,
             material.linear_mass(meta["rod_diameter"]) * g / 1000.0, 9
         ),
         "plastic_measured": plastic_cm3 > 0.0,
+        "basis": "nominal live rods, closed cover including doors, rope and webbing; "
+                 "steel hardware, skirt stock and unbuilt plastic are not included",
     }
 
 
 def analyse(data: dict, material, loads: Loads, speed_ms: float = 20.0,
             door: str = "shut") -> dict:
-    """Wind and weight on one dome at one speed."""
+    """Independent wind cases and a partial weight inventory."""
+    from . import reactions
+    cases = []
+    for cpi in pressure_cases(door, loads):
+        wind = resultants(data, speed_ms, loads, door=door, cp_internal=cpi)
+        cases.append({**wind, "anchor_screening": reactions.distribute(
+            data["base_nodes"], wind["force_n"], wind["moment_nmm"])})
     return {
-        "variant": data["meta"]["variant"],
-        "speed_ms": speed_ms,
-        "door": door,
-        "wind": resultants(data, speed_ms, loads, door=door),
-        "tributary": tributary(data),
-        "weight": self_weight(data, material, loads),
+        "schema": "star_dome_loads/2", "variant": data["meta"]["variant"],
+        "speed_ms": speed_ms, "door": door, "status": "screening_only",
+        "wind": max(cases, key=lambda c: c["lift_n"]),
+        "wind_cases": cases, "azimuth_deg": 0.0,
+        "tributary": tributary(data), "weight": self_weight(data, material, loads),
     }
 
 
 def format_analysis(data: dict, material, loads: Loads,
                     speed_ms: float = 20.0, door: str = "shut") -> str:
     a = analyse(data, material, loads, speed_ms, door)
-    w, t, m = a["wind"], a["tributary"], a["weight"]
-    widths = sorted(t["per_rod"].items(), key=lambda kv: kv[1]["width_mm"])
-    spread = widths[-1][1]["width_mm"] / widths[0][1]["width_mm"]
-    # Against drag times the radius, which is the scale a real couple would be
-    # on. A bare dome comes out four orders of magnitude below that -- the
-    # residue of a faceted mesh, not a moment.
-    scale = max(1.0, w["drag_n"] * data["meta"]["dome_radius"])
-    flat = (
-        "  -- zero, and that is a result: pressure normal to a sphere has no "
-        "couple about its own centre, and a bare dome's centre sits on the "
-        "ground. It lifts; it does not tip."
-    ) if w["overturning_nmm"] / scale < 0.01 else (
-        "  -- the skirt puts the sphere's centre above the ground, so here "
-        "there is a real couple."
-    )
-    measured = "" if m["plastic_measured"] else "  (no meshes built yet)"
-    out = [
-        f"--- {a['variant']} wind at {speed_ms:.0f} m/s, door {door}",
-        f"  velocity pressure  {w['velocity_pressure_pa']:.0f} Pa "
-        f"(internal coefficient {w['cp_internal']:+.2f})",
-        f"  lift               {w['lift_n']:.0f} N up",
-        f"  drag               {w['drag_n']:.0f} N sideways",
-        f"  overturning        {w['overturning_nmm'] / 1e6:.1f} N*m" + flat,
-        "",
-        f"  per anchor, if the {loads.anchor_count} share equally (they do not):",
-        f"    uplift           {w['uplift_per_anchor_n']:.0f} N against "
-        f"{loads.anchor_capacity_n:.0f} N  "
-        f"({w['uplift_per_anchor_n'] / loads.anchor_capacity_n:.2f})",
-        f"    shear            {w['shear_per_anchor_n']:.0f} N against "
-        f"{loads.anchor_shear_capacity_n:.0f} N  "
-        f"({w['shear_per_anchor_n'] / loads.anchor_shear_capacity_n:.2f})",
-        "",
-        "  what each bow carries of the cover:",
-        f"    strips           {widths[0][1]['width_mm']:.0f} mm on "
-        f"{widths[0][0]} to {widths[-1][1]['width_mm']:.0f} mm on "
-        f"{widths[-1][0]}, a {spread:.2f}x spread -- an average width is "
-        "wrong everywhere in particular",
-        f"    partition        {t['dome_area_mm2'] / 1e6:.2f} m2 over 15 bows, "
-        f"against {cover.areas(data)['dome_m2']:.2f} m2 of shell",
-        "",
-        "  and what it weighs:",
-        f"    rod              {m['rod_kg']:.1f} kg",
-        f"    cover            {m['fabric_kg']:.1f} kg",
-        f"    printed          {m['plastic_kg']:.1f} kg" + measured,
-        f"    total            {m['total_kg']:.1f} kg = {m['total_n']:.0f} N, "
-        f"against {w['lift_n']:.0f} N of lift",
-    ]
+    t, m = a["tributary"], a["weight"]
+    out = [f"--- {a['variant']} wind screening at {speed_ms:g} m/s, door {door}",
+           "  Direction: 0 degrees; use strength for the full-circle sample."]
+    for w in a["wind_cases"]:
+        r = w["anchor_screening"]
+        out += [f"  cpi {w['cp_internal']:+.2f}: lift {w['lift_n']:.0f} N, drag {w['drag_n']:.0f} N",
+                f"    overturning {w['overturning_nmm']/1000:.1f} N*m",
+                f"    rigid-base anchor maximum: uplift {r['max_uplift_n']:.0f} N, shear {r['max_shear_n']:.0f} N",
+                f"    {r['note']}"]
+    out += [f"  Cover partition: {t['dome_area_mm2']/1e6:.2f} m2 onto live bows",
+            f"  Partial mass: rods {m['rod_kg']:.2f}, fabric {m['fabric_kg']:.2f}, plastic {m['plastic_kg']:.2f}, "
+            f"rope {m['rope_kg']:.2f}, webbing {m['webbing_kg']:.2f} kg",
+            f"  Total of included items: {m['total_kg']:.2f} kg = {m['total_n']:.0f} N",
+            f"  Basis: {m['basis']}",
+            "  No operational wind limit or complete structural validation is established."]
     return "\n".join(out)

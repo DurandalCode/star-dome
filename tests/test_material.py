@@ -105,13 +105,24 @@ def test_an_allowable_strain_is_just_an_allowable_stress_over_the_modulus(
             )
 
 
-def test_the_reference_material_is_the_pessimistic_one(materials):
-    """The stock every quoted number belongs to is composite rebar at the
-    minimum its standard permits -- so a variant that passes passes on any
-    conforming bar. If the reference ever moves to a datasheet figure, that
-    direction of the argument is lost and the documents have to say so."""
+def test_legacy_reference_is_named_but_minimum_modulus_is_not_conservative(materials):
+    from dataclasses import replace
+    m = materials["gost31938"]
     assert material.REFERENCE_MATERIAL == "gost31938"
-    assert materials[material.REFERENCE_MATERIAL].source.startswith("ГОСТ")
+    stiffer = replace(m, modulus_mpa=60000)
+    # D4 at R=2 m, d=8 mm: both E values satisfy the old 50 GPa minimum.
+    assert m.bend_stress(8, 2000) == pytest.approx(100)
+    assert stiffer.bend_stress(8, 2000) == pytest.approx(120)
+    assert m.bend_utilisation(8,2000) < 1 < stiffer.bend_utilisation(8,2000)
+
+
+@pytest.mark.parametrize("field,value", [("modulus_mpa",0), ("modulus_mpa",math.nan),
+    ("density_kg_m3",-1), ("wall_ratio",.5), ("environmental_factor",1.1),
+    ("sustained_stress_ratio",0), ("shear_modulus_mpa",math.inf)])
+def test_invalid_material_parameters_rejected(field, value):
+    from dataclasses import replace
+    with pytest.raises(ValueError):
+        replace(material.load(), **{field:value})
 
 
 # --- a rod of it ------------------------------------------------------------

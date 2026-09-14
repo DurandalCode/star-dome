@@ -398,6 +398,9 @@ def cmd_loads(args) -> int:
 
 def cmd_strength(args) -> int:
     material = material_mod.load(args.material, args.materials)
+    if args.modulus is not None:
+        from dataclasses import replace
+        material = replace(material, modulus_mpa=args.modulus)
     loads = loads_mod.load(args.loads)
     for name in _variant_names(args):
         variant = config.load(name, args.config)
@@ -406,15 +409,15 @@ def cmd_strength(args) -> int:
         # on the nominal sphere and quietly change which bow carries what.
         data = model.build(variant, weave_mode="woven", include_polylines=True)
         if args.json:
-            out = strength.analyse(data, material, loads, args.holds, args.door)
+            out = strength.analyse(data, material, loads, args.holds, args.door, args.wind)
             path = Path(args.out) / name / "strength.json"
             export.write_json(out, path)
             print(f"{name}: {path}")
             continue
         print(strength.format_analysis(data, material, loads,
-                                       args.holds, args.door))
+                                       args.holds, args.door, args.wind))
         if args.compare:
-            print(strength.format_comparison(data, material, loads, args.holds))
+            print(strength.format_comparison(data, material, loads, args.holds, args.wind))
     return 0
 
 
@@ -500,7 +503,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("span", cmd_span, "the longest unsupported span, and the ceiling it sets"),
         ("material", cmd_material, "what each candidate rod can take, and for how long"),
         ("loads", cmd_loads, "what the wind does to the shell, and to the anchors"),
-        ("strength", cmd_strength, "the limiting wind speed, and which check sets it"),
+        ("strength", cmd_strength, "diagnostic strength screening; no operational wind limit"),
         ("bom", cmd_bom, "everything one dome is made of, counted in one place"),
         ("camp", cmd_camp, "several domes joined by corridors, laid out from a plan"),
     ):
@@ -649,7 +652,7 @@ def build_parser() -> argparse.ArgumentParser:
                 default="lashed",
                 choices=span.HOLDS,
                 help="what holds a bow: lashed (feet and tie marks, the "
-                     "conservative reading) or contact (every crossing clamped)",
+                     "assumed supports) or contact (every crossing clamped)",
             )
             p.add_argument(
                 "--reference",
@@ -680,27 +683,28 @@ def build_parser() -> argparse.ArgumentParser:
                 "--door",
                 default="shut",
                 choices=loads_mod.DOOR_STATES,
-                help="shut, or open and facing the wind -- the worst case for "
-                     "uplift, and the reason there is a field rule",
+                help="shut: both internal pressure signs; open: windward dominant-opening scenario",
             )
         if name == "material":
             p.add_argument("--rod", type=float, default=10.0,
                            help="rod diameter to report section properties at")
-        if name == "loads":
+        if name in ("loads", "strength"):
             p.add_argument("--wind", type=float, default=20.0,
                            help="peak gust speed at the dome, m/s")
         if name == "strength":
+            p.add_argument("--modulus", type=float, default=None,
+                           help="override longitudinal E in MPa for a sensitivity calculation")
             p.add_argument(
                 "--holds",
                 default="lashed",
                 choices=span.HOLDS,
                 help="what holds a bow: lashed (feet and tie marks, the "
-                     "conservative reading) or contact (every crossing clamped)",
+                     "assumed supports) or contact (every crossing clamped)",
             )
             p.add_argument(
                 "--compare",
                 action="store_true",
-                help="also price the choices: every candidate stock, both "
+                help="compare utilisations at the same wind speed: every candidate stock, both "
                      "readings of held, and the door open against shut",
             )
             p.add_argument("--json", action="store_true",

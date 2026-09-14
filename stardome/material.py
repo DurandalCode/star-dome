@@ -1,65 +1,11 @@
-"""What the rod can take.
+"""Candidate material properties and circular-section calculations.
 
-Every other module in this package measures the dome. This one measures the
-**stock**, and it is the number this project has been missing since the day it
-started. `configs/variants.toml` says so in its own header -- its rod
-diameters are "engineering *assumptions*, not results" -- and `docs/span.md`
-says it again at the end: "There is no modulus, no strength and no load
-anywhere in it."
-
-There is now. `configs/materials.toml` carries three candidate stocks and this
-module turns each of them into the numbers a check actually needs.
-
-## The bow is bent for as long as the dome is up
-
-This is the fact that shapes the whole module. A bow is manufactured straight
-and bent to the dome radius; it stays bent from the moment it goes up until
-the moment it comes down, and its outer fibre carries `E * d / (2R)` the whole
-time. That is a **permanent** stress in a material that fails under permanent
-stress at a fraction of its short-term strength -- creep rupture, which is the
-governing limit state for glass composite and has no equivalent in steel.
-
-So there are two allowables, not one:
-
-    sustained   = sustained_stress_ratio * environmental_factor * strength
-    short_term  = environmental_factor * strength / safety_factor
-
-The bend alone is checked against the first. Bend plus wind is checked against
-the second. For composite rebar at the minimum its standard permits, the first
-is **112 MPa** and the second **373 MPa** -- a factor of 3.3 between them, so
-which one bites is not a detail.
-
-## And it is not symmetric
-
-A bent rod puts one outer fibre in tension and the opposite one in compression
-at the same magnitude. Glass composite is far weaker in compression than in
-tension -- GOST 31938 asks 800 MPa one way and 300 the other -- so the two
-sides are checked separately against their own strengths. A check that looked
-only at tension would be reading the wrong fibre.
-
-## What this gives docs/span.md
-
-`span.py` computes a ceiling for the whole family as a function of one unknown:
-the allowable outer-fibre strain `e`. It prints a row of four guesses at it
-(0.2, 0.4, 0.6, 0.8%) and says plainly that nobody has measured one. An
-allowable strain is just an allowable stress over a modulus, so this module
-supplies it:
-
-    e_sustained = allowable_sustained / E
-
-which for composite rebar is **0.224%** -- inside the range span.md argues
-about, and near the low end of it.
-
-```bash
-python3 -m stardome material --all
-python3 -m stardome material gost31938 --rod 10
-```
-
-What this is not: a measurement. Every value in `materials.toml` is a
-standard's minimum or a typical datasheet figure, and a real coil is usually
-better. A variant that passes on these numbers passes on any conforming stock;
-a variant that fails might still be fine, and the answer to that is to measure
-a bar rather than to argue -- milestone 3. See docs/strength.md.
+The defaults are legacy reference and typical values, not measured batch
+properties. Under prescribed curvature stress is E*d/(2R): a higher modulus
+raises bend stress while improving Euler stiffness. A minimum E therefore
+cannot establish a worst-case material envelope. Reduction factors borrowed
+from concrete-reinforcement guidance are screening assumptions for this dome.
+See docs/strength.md and ADR 0028.
 """
 
 from __future__ import annotations
@@ -115,6 +61,19 @@ class Material:
     # is why variants.toml splits rod_diameter from rod_outer_diameter.
     named_by: str = "outside"
 
+    def __post_init__(self):
+        for name in ("modulus_mpa", "tensile_strength_mpa", "compressive_strength_mpa",
+                     "shear_strength_mpa", "density_kg_m3", "shear_modulus_mpa", "safety_factor"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+        for name in ("environmental_factor", "sustained_stress_ratio"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or not 0 < value <= 1:
+                raise ValueError(f"{name} must be in (0, 1]")
+        if not math.isfinite(self.wall_ratio) or not 0 <= self.wall_ratio < 0.5:
+            raise ValueError("wall_ratio must be in [0, 0.5)")
+
     # --- the material itself ------------------------------------------------
 
     @property
@@ -133,7 +92,7 @@ class Material:
         return self.wall_ratio > 0.0
 
     def strength(self, fibre: str = "tension") -> float:
-        """Guaranteed strength on one side of the neutral axis."""
+        """Configured strength on one side of the neutral axis."""
         if fibre == "tension":
             return self.tensile_strength_mpa
         if fibre == "compression":
@@ -234,8 +193,8 @@ class Material:
                          fibre: str = "tension") -> float:
         """Bend stress over what a permanent stress is allowed to be.
 
-        Above 1.0 the rod is over its creep-rupture limit before any load at
-        all is applied to the dome.
+        Above 1.0 initial bending exceeds the configured criterion, without
+        gravity or wind. This is not a measured creep-rupture limit.
         """
         return self.bend_stress(diameter_mm, radius_mm) / self.allowable(
             "sustained", fibre
@@ -244,7 +203,7 @@ class Material:
     def bendable_diameter(self, radius_mm: float, fibre: str = "tension") -> float:
         """Thickest rod of this stock that may be bent to a radius.
 
-        The `d <= 2 R e` constraint `span.ceiling` is built on, with a real
+        The `d <= 2 R e` constraint `span.ceiling` is built on, with a configured
         allowable strain in it instead of a sample.
         """
         return 2.0 * radius_mm * self.allowable_strain("sustained", fibre)
@@ -325,7 +284,7 @@ def format_material(m: Material, rod_diameter_mm: float = 10.0) -> str:
         f"  density       {m.density_kg_m3:.0f} kg/m3"
         + (f", tube with a {m.wall_ratio:.0%} wall" if m.is_hollow else ", solid"),
         "",
-        "  what it may carry, after weather and by how long the load is on:",
+        "  assumed stress criteria after environment and duration reductions:",
         "    term          tension            compression",
     ]
     for term in TERMS:
@@ -336,7 +295,7 @@ def format_material(m: Material, rod_diameter_mm: float = 10.0) -> str:
             f"({m.allowable_strain(term, 'compression') * 100:.3f}%)"
         )
     out += [
-        "    sustained is the creep-rupture limit and applies to the bend, "
+        "    sustained uses an assumed creep reduction and applies to the bend, "
         "which never comes off.",
         "    there is no published sustained figure in compression, so that "
         "column repeats the short-term one.",
@@ -348,13 +307,13 @@ def format_material(m: Material, rod_diameter_mm: float = 10.0) -> str:
         f"r {m.radius_of_gyration(rod_diameter_mm):.2f} mm",
         f"    mass          {m.linear_mass(rod_diameter_mm):.4f} kg/m",
         "",
-        "  the tightest radius it may be bent to and left bent:",
+        "  radii at the initial-bend criterion for this E (not operating approval):",
         "    " + "  ".join(
             f"{d:.0f} mm rod -> {d / (2.0 * m.allowable_strain('sustained')) / 1000.0:.2f} m"
             for d in (8.0, 10.0, 12.0)
         ),
         "",
-        "  Minima and datasheet figures, not a measurement of stock anyone "
-        "owns -- milestone 3.",
+        "  Candidate values, not measured stock. A higher E raises bend stress; "
+        "test the batch and sustained behaviour -- milestone 3.",
     ]
     return "\n".join(out)

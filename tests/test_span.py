@@ -220,3 +220,18 @@ def test_an_unknown_holds_or_case_says_so():
         span.spans({"rods": [], "crossings": [], "meta": {}}, "welded")
     with pytest.raises(ValueError, match="unknown load case"):
         span.parity_rod("snow", 3000.0, 1000.0, {})
+
+
+@pytest.mark.parametrize("holds", span.HOLDS)
+def test_no_span_crosses_a_removed_middle_interval(holds):
+    from dataclasses import replace
+    data = model.build(replace(config.load("D6"), door_cut="head", doors=()))
+    actual = span.spans(data, holds)["per_rod"]
+    split_rods = 0
+    for rod in data["rods"]:
+        live = span.live_intervals(rod)
+        split_rods += len(live) > 1
+        for s in actual[rod["name"]]:
+            assert any(lo-1e-6 <= s["t_lo_deg"] and s["t_hi_deg"] <= hi+1e-6 for lo, hi in live)
+        assert sum(s["arc_deg"] for s in actual[rod["name"]]) == pytest.approx(sum(hi-lo for lo,hi in live), abs=1e-6)
+    assert split_rods > 0
