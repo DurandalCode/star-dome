@@ -12,19 +12,15 @@
 # newtons per square millimetre, so the two systems already agree.
 #
 # ---------------------------------------------------------------------------
-# EVERY NUMBER CARRIES ITS SOURCE, AND MOST OF THEM ARE MINIMA
+# CANDIDATE PROPERTIES, NOT A GUARANTEED CAPACITY ENVELOPE
 #
-# A standard states what a bar may not be worse than. A real bar is usually
-# better, sometimes much better, and nobody in this project has measured one
-# -- milestone 3. So a verdict computed from these values is a verdict about
-# the worst bar the standard permits, not about the bar in the coil.
-#
-# That cuts both ways and it is worth saying out loud:
-#
-#   - a variant that PASSES on these numbers passes on any conforming stock,
-#     which is the useful direction;
-#   - a variant that FAILS may still be fine on measured stock, and the thing
-#     to do about it is measure, not argue.
+# Legacy standard minima and typical datasheet values are retained as explicit
+# reference inputs, not measured batch properties. A minimum E is NOT the
+# pessimistic direction for prescribed bending: sigma = E*d/(2R) rises with E.
+# Measure the batch and assess its property range; passing one configured set
+# does not imply passing on every conforming bar. See docs/strength.md and
+# decision 0028. GOST 31938-2012 has been replaced by the 2022 edition; these
+# legacy values have not been requalified against that edition.
 #
 # `source` is required on every material. A number without one is a guess
 # wearing a standard's clothes.
@@ -59,18 +55,16 @@
 
 [defaults]
 # Fraction of the guaranteed strength left after weather. ACI 440.1R-15 table
-# 6.2 gives 0.7 for GFRP exposed to earth and weather, which is what a dome
-# standing in a field is. A dome that lives in a bag eleven months a year is
-# arguably better off than a bar cast into a bridge deck, but nobody has
-# measured that either.
+# 6.2 gives 0.7 for exposed GFRP concrete reinforcement. Applying it to this
+# freestanding bent-rod dome is an unvalidated screening assumption.
 environmental_factor = 0.7
 # Partial factor on the short-term case. A JUDGEMENT, not a code number: there
 # is no design code for a temporary bent-rod lattice, and this is the margin
-# this project is choosing to carry. Change it and the wind limits move.
+# this project is choosing to carry. Change it and the diagnostic criterion crossings move.
 safety_factor = 1.5
 # Fraction of the guaranteed strength allowed as a permanent stress. ACI
 # 440.1R-15 section 7.4.1 gives 0.20 for GFRP; it is the creep-rupture limit,
-# and it is the harshest number in this file by a wide margin.
+# adopted here only as a screening assumption for a different structure.
 sustained_stress_ratio = 0.20
 # Solid round bar unless a material says otherwise. A tube sets wall_ratio to
 # wall thickness over outside diameter, so the section scales with the rod the
@@ -97,7 +91,7 @@ shear_modulus_mpa = 4000
 label = "композитная арматура АКС (ГОСТ 31938)"
 # The rod this is most likely to be built from in Russia: sold in 50 m coils
 # at about 42 RUB/m -- see docs/roadmap.md milestone 3. Every value below is
-# the MINIMUM the standard permits, so this is the pessimistic column.
+# a legacy reference input; it is not a pessimistic property envelope.
 modulus_mpa = 50000
 tensile_strength_mpa = 800
 compressive_strength_mpa = 300

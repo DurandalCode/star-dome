@@ -177,37 +177,15 @@ def test_every_named_size_walks_in(built):
 
 
 def _strength_claims(verdict) -> list:
-    """Claims about the first numbers in this project with a load in them.
-
-    Registered narrowly and on purpose. A limiting wind speed is exactly the
-    kind of figure a reader lifts out of a table without the qualifiers that
-    surround it, so what is pinned here is the number **and the material it
-    belongs to** -- decision 0022 -- plus the verdict on D3, which is the one
-    result that changes what gets built.
-    """
-    stock = material.load()
-    membrane = verdict["paths"]["membrane"]["limit_ms"]
+    """Pin auditable assumptions, never an unvalidated operating speed."""
     return [
-        (
-            "docs/strength.md",
-            f"{verdict['residual']['stress_mpa']:.0f} MPa",
-            "M's permanent stress from being bent to shape",
-        ),
-        (
-            "docs/strength.md",
-            f"{stock.allowable('sustained', 'tension'):.0f} MPa allowed permanently",
-            "the creep-rupture allowance everything above is judged against",
-        ),
-        (
-            "docs/strength.md",
-            f"**{membrane:.1f}**",
-            "M's limiting wind speed on the membrane reading",
-        ),
-        (
-            "docs/strength.md",
-            f"**{stock.bendable_diameter(1500.0):.1f} mm rod, or a bigger dome.**",
-            "the fix for D3, which fails bent before any wind blows",
-        ),
+        ("docs/strength.md", f"{verdict['residual']['stress_mpa']:.0f} MPa",
+         "D6 initial-bend stress for the configured E"),
+        ("docs/strength.md", f"{verdict['residual']['allowable_mpa']:.0f} MPa",
+         "configured sustained-tension criterion"),
+        ("docs/strength.md", f"{verdict['residual']['critical_modulus_mpa']/1000:.1f} GPa",
+         "D6 modulus threshold for initial bend only"),
+        ("docs/strength.md", "operational_limit_ms: null", "no operating limit is established"),
     ]
 
 
@@ -262,7 +240,7 @@ def test_the_strength_document_names_the_material_it_belongs_to():
     the wrong number, so the document has to carry the name next to it."""
     text = read("docs/strength.md")
     assert "GOST 31938" in text
-    assert "band" in text
+    assert "not capacity bounds" in text
 
 
 def test_registered_claims_still_hold(built):

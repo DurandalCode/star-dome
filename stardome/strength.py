@@ -1,594 +1,361 @@
-"""Whether it stands, and up to what wind.
+"""Traceable strength screening, not a prediction of operational wind capacity.
 
-`material.py` says what the rod can take; `loads.py` says what is asked of it.
-This is where the two meet and a number becomes a verdict -- the thing
-`configs/variants.toml` has been asking for in its own header since the file
-was written, and the thing `docs/span.md` stops one step short of.
-
-## What this reports, and what it refuses to report
-
-It reports a **band**, not a number, and the band is the finding.
-
-A bow in this dome is a curved member restrained at intervals by ninety
-rod-on-rod contacts. How much of the wind it carries by bending and how much
-it carries by arch action is not knowable in closed form -- `span.py` says
-exactly this about the constant in front of `w a^4/EI` -- so two bounding
-readings are computed and reported side by side:
-
-**`beam`** -- the bow spans between its supports and carries the load in pure
-bending. `M = w a^2 / 8`, `N = 0`. An upper bound on bending and a lower bound
-on strength.
-
-**`membrane`** -- the lattice is a discretised shell. A spherical shell under
-normal pressure `p` carries `n = pR/2` per unit width, so a bow carries
-`N = pRb/2` over its tributary strip and bends not at all. An upper bound on
-axial force and a lower bound on bending.
-
-**`envelope`** -- both at once, which is conservative and deliberately so.
-
-On D6's worst span at 20 m/s those two differ by a factor of **670** in stress
--- 1122 MPa of bending against 1.7 MPa of axial -- and that gap is the honest
-state of knowledge. Closing it is what a frame solve is for; quoting a single
-limiting speed before it is closed would be inventing confidence. See
-docs/strength.md.
-
-## The rod is already loaded before the wind blows
-
-Every bow is bent to the dome radius and stays bent, so it carries
-`E d / 2R` permanently -- 83 MPa on D6, 133 on D3 -- against a creep-rupture
-allowance of 112 MPa. **That check does not involve the wind at all**, and it
-is the first one this module runs, because a variant that fails it fails
-standing still in a calm.
-
-## Which check binds is the answer, not the speed
-
-The wind on a hemisphere is mostly suction, so the load arrives at ten driven
-angles as uplift rather than at the rods as bending. The useful output is
-therefore *which* check runs out first and at what speed, per variant -- and
-what shutting the door is worth in m/s.
-
-```bash
-python3 -m stardome strength M
-python3 -m stardome strength --all --material pultruded_rod
-python3 -m stardome strength M --door open --holds contact
-```
+Wind is tried as beam bending, ideal shell axial action, and their algebraic
+combination. Gravity is a separate beam-bending action in all three scenarios.
+Neither scenario bounds a flexible, jointed dome. See docs/strength.md and
+ADR 0028 for equations, assumptions and the checks still missing.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from functools import lru_cache
+from dataclasses import asdict
 
-from . import loads as loads_mod
-from . import material as material_mod
-from . import span
+from . import geometry, loads as loads_mod, material as material_mod, reactions, span, vec
 
-# Every check this module runs, in the order a reader should meet them: the
-# ones that do not involve the wind first.
-CHECKS = (
-    "bend_creep",
-    "combined_tension",
-    "combined_compression",
-    "buckling",
-    "anchor_uplift",
-    "anchor_shear",
-)
-
-# Checks that set a limiting speed. `bend_creep` is not among them because it
-# has no wind in it: a bow either survives being bent or it does not, and the
-# wind cannot make that better.
-MEMBER_CHECKS = ("combined_tension", "combined_compression", "buckling")
-
-# How the bow is assumed to carry the load. See the module docstring.
+CHECKS = ("bend_creep", "sustained_tension", "combined_tension",
+          "combined_compression", "buckling", "anchor_uplift", "anchor_shear")
+MEMBER_CHECKS = CHECKS[:-2]
 LOAD_PATHS = ("beam", "membrane", "envelope")
-
-# Deflection between supports, as a fraction of the span, at which
-# small-deflection theory has stopped describing this structure. Past it the
-# answer is VOID rather than merely large: the geometry has moved far enough
-# that the stiffness used to compute it is the wrong stiffness.
-#
-# Deflection is deliberately NOT a strength check here, and finding out why
-# was the first useful thing this module did. Under the `beam` reading a D6
-# bow sags 80 mm between supports **under its own weight, in a dead calm** --
-# 2.5% of the span. Scored as a serviceability failure that makes the beam
-# reading fail at zero wind, which tells a reader nothing. Read instead as
-# what it is, it says something much more useful: a Star Dome plainly does not
-# sag 80 mm when you stand it up, so the beam reading is not conservative, it
-# is **wrong**, and the truth lies towards the membrane end of the band.
-#
-# So the number below is a validity gate, and the sag itself is reported as a
-# figure for a person to look at.
-DEFLECTION_VOID = 0.10
-
-# Wind directions tried, in degrees. The dome has five-fold symmetry, so
-# sweeping 0 to 72 covers every distinct direction, and the doorway is the
-# only thing that breaks it.
-DIRECTION_SAMPLES = (0.0, 18.0, 36.0, 54.0, 72.0)
-
-# Speed the unit load field is built at. Pressure goes as the square of the
-# speed, so the whole field scales from one evaluation -- which is what makes
-# solving for a limiting speed closed-form instead of forty re-integrations.
-REFERENCE_SPEED_MS = 1.0
-
-
-# --- what one bow is asked to carry -----------------------------------------
-
-
-# The scatter is pure geometry -- which bow is nearest which patch of cover --
-# so it does not move with the wind, the material, the holds reading or the
-# door. It is also the expensive part: a nearest-neighbour pass over some
-# fourteen thousand facets against eight hundred centreline samples. Computing
-# it once per dome turns a bisection over wind speeds from minutes into
-# milliseconds, so it is memoised on the only things it actually depends on.
+DEFLECTION_VOID = 0.10  # diagnostic threshold, not a serviceability allowance
+# Cuts destroy five-fold symmetry. A sampled full circle is still not a
+# certified continuous directional maximum; the resolution is reported.
+DIRECTION_SAMPLES = tuple(float(a) for a in range(0, 360, 18))
+REFERENCE_SPEED_MS = 20.0  # avoid amplifying milli-newton output rounding at 1 m/s
 _STRIP_CACHE: dict = {}
 
 
-def _strips(data: dict) -> dict:
-    """Per bow: its share of the cover, as radial directions and areas.
+def _strips(data: dict, holds: str = "lashed") -> dict:
+    """Partition cover onto live spans, cached by the complete JSON geometry.
 
-    The direction is what a pressure coefficient is a function of, so keeping
-    directions rather than points is enough to re-evaluate any wind from any
-    azimuth without touching the geometry again.
+    Boundary samples divide area equally between the adjacent live spans.
+    The nearest-point discretisation is approximate; total area is conserved.
+    No pressure or material property is stored in this geometry-only cache.
     """
-    from . import vec
-
-    meta = data["meta"]
-    key = (meta["variant"], meta["weave_mode"], meta.get("door_cut", ""),
+    encoded = json.dumps(data, sort_keys=True, allow_nan=False,
+                         separators=(",", ":")).encode()
+    key = (hashlib.sha256(encoded).hexdigest(), holds,
            loads_mod.LOAD_MERIDIANS, loads_mod.LOAD_PARALLELS)
     if key in _STRIP_CACHE:
         return _STRIP_CACHE[key]
-
     facets = [
-        {"centroid": c, "area_mm2": a, "normal": n, "force_n": [0.0, 0.0, 0.0],
-         "skirt": sk}
+        {"centroid": c, "area_mm2": a, "normal": n,
+         "force_n": [0.0, 0.0, 0.0], "skirt": sk}
         for c, a, n, sk in loads_mod._facets(
-            data, loads_mod.LOAD_MERIDIANS, loads_mod.LOAD_PARALLELS
-        )
+            data, loads_mod.LOAD_MERIDIANS, loads_mod.LOAD_PARALLELS)
     ]
     spread = loads_mod.scatter(data, facets)
-    ground = meta.get("ground_z", 0.0)
-    skirt = meta.get("skirt_height", 0.0) or 0.0
-    centre = [0.0, 0.0, ground + skirt]
-
+    spans = span.spans(data, holds)["per_rod"]
     out = {}
-    for name, items in spread["by_rod"].items():
-        out[name] = {
-            "area_mm2": sum(f["area_mm2"] for _, f in items),
-            "radials": [
-                vec.unit(vec.sub(f["centroid"], centre)) for _, f in items
-            ],
-        }
+    for rod in data["rods"]:
+        name = rod["name"]
+        bow = geometry.Bow(**{k: rod[k] for k in (
+            "name", "family", "number", "azimuth_deg", "tilt_deg", "foot_a", "foot_b", "layer")})
+        local = []
+        for i, s in enumerate(spans[name]):
+            item = {"rod": name, "family": rod["family"], **s,
+                    "area_mm2": 0.0, "radials": []}
+            out[f"{name}:{i}"] = item
+            local.append(item)
+        for index, facet in spread["by_rod"][name]:
+            t = bow.t_of(rod["points"][index])
+            if t > 360.0 - 1e-6:
+                t = 0.0
+            candidates = [s for s in local
+                          if s["t_lo_deg"] - 1e-5 <= t <= s["t_hi_deg"] + 1e-5]
+            if not candidates:
+                raise ValueError(f"cover assigned outside a live span on {name} at {t}")
+            radial = vec.unit(facet["centroid"])
+            for s in candidates:
+                s["area_mm2"] += facet["area_mm2"] / len(candidates)
+                s["radials"].append(radial)
+    if len(_STRIP_CACHE) >= 8:
+        del _STRIP_CACHE[next(iter(_STRIP_CACHE))]
     _STRIP_CACHE[key] = out
     return out
 
 
-def _peak_coefficients(data, loads, azimuths, door) -> dict:
-    """Worst net pressure coefficient over each bow's tributary strip.
-
-    The worst over the whole strip is then applied over the whole span, which
-    is conservative: no bow sees its peak suction everywhere at once.
-    """
-    strips = _strips(data)
-    cpi = loads_mod.internal_coefficient(door, loads)
-    directions = [
-        (math.cos(math.radians(a)), math.sin(math.radians(a)))
-        for a in azimuths
-    ]
-
-    out = {}
-    for name, strip in strips.items():
-        worst = 0.0
-        for dx, dy in directions:
-            for rx, ry, rz in strip["radials"]:
-                cos_t = max(-1.0, min(1.0, -(rx * dx + ry * dy)))
-                polar = math.degrees(math.acos(cos_t))
-                net = loads_mod.shape_coefficient(polar, loads) - cpi
-                if abs(net) > worst:
-                    worst = abs(net)
-        out[name] = {"cp_net": worst, "area_mm2": strip["area_mm2"]}
-    return out
+def _coefficients(radials, loads, door):
+    """Keep pressure and suction separate; suction does not buckle a strut."""
+    inward = outward = 0.0
+    for a in DIRECTION_SAMPLES:
+        dx, dy = math.cos(math.radians(a)), math.sin(math.radians(a))
+        for rx, ry, _rz in radials:
+            t = math.degrees(math.acos(max(-1.0, min(1.0, -(rx*dx + ry*dy)))))
+            external = loads_mod.shape_coefficient(t, loads)
+            for cpi in loads_mod.pressure_cases(door, loads):
+                net = external - cpi
+                inward = max(inward, net)
+                outward = max(outward, -net)
+    return inward, outward
 
 
 def unit_demands(data: dict, material, loads, holds: str = "lashed",
                  door: str = "shut") -> dict:
-    """Per bow: its span, its strip, its permanent load and its wind per pascal.
-
-    Everything that does not depend on the wind speed, computed once. A speed
-    then enters only through the velocity pressure, and every check below is
-    a quadratic in it.
-    """
     meta = data["meta"]
-    radius = meta["dome_radius"]
-    diameter = meta["rod_diameter"]
-    spans = span.spans(data, holds)
-    peaks = _peak_coefficients(data, loads, DIRECTION_SAMPLES, door)
-
-    area = material.area(diameter)
-    second = material.second_moment(diameter)
-    modulus = material.section_modulus(diameter)
-    ei = material.modulus_mpa * second
-    self_n_per_mm = material.linear_mass(diameter) * loads.gravity_m_s2 / 1000.0
-
+    diameter, radius = meta["rod_diameter"], meta["dome_radius"]
+    if not all(math.isfinite(v) and v > 0 for v in (diameter, radius)):
+        raise ValueError("rod diameter and dome radius must be positive")
+    ei = material.modulus_mpa * material.second_moment(diameter)
+    rod_weight = material.linear_mass(diameter) * loads.gravity_m_s2 / 1000.0
     out = {}
-    for rod in data["rods"]:
-        name = rod["name"]
-        items = spans["per_rod"][name]
-        if not items:
-            continue
-        worst = max(items, key=lambda s: s["arc_deg"])
-        length = worst["length_mm"]
-        strip = peaks[name]["area_mm2"] / rod["length_drawn"]
-        out[name] = {
-            "family": rod["family"],
-            "span_mm": length,
-            "strip_mm": strip,
-            "cp_net": peaks[name]["cp_net"],
-            # Line load per pascal of velocity pressure, N/mm.
-            # p [Pa] = q * cp_net; p [N/mm^2] = p [Pa] * 1e-6; times strip [mm].
-            "wind_n_per_mm_per_pa": peaks[name]["cp_net"] * strip * 1e-6,
-            "self_n_per_mm": self_n_per_mm,
-            # Euler on the unsupported span, pinned-pinned. `holds` moves the
-            # span, and that is the whole price of the thirty clamps.
-            "euler_n": math.pi ** 2 * ei / (length * length),
-            "area_mm2": area,
-            "second_moment_mm4": second,
-            "section_modulus_mm3": modulus,
+    for key, strip in _strips(data, holds).items():
+        length = strip["length_mm"]
+        width = strip["area_mm2"] / length
+        inward, outward = _coefficients(strip["radials"], loads, door)
+        # g/m2 -> kg/mm2, multiplied by tributary width -> kg/mm.
+        fabric_weight = loads.fabric_g_m2 * 1e-9 * width * loads.gravity_m_s2
+        out[key] = {
+            "rod": strip["rod"], "family": strip["family"],
+            "t_lo_deg": strip["t_lo_deg"], "t_hi_deg": strip["t_hi_deg"],
+            "span_mm": length, "strip_mm": width,
+            "area_mm2": material.area(diameter),
+            "tributary_area_mm2": strip["area_mm2"],
+            "cp_inward": inward, "cp_outward": outward,
+            "gravity_n_per_mm": rod_weight + fabric_weight,
+            "rod_weight_n_per_mm": rod_weight, "fabric_weight_n_per_mm": fabric_weight,
+            "euler_n": math.pi**2 * ei / length**2,
+            "second_moment_mm4": material.second_moment(diameter),
+            "section_modulus_mm3": material.section_modulus(diameter),
         }
     return {
-        "holds": holds,
-        "door": door,
-        "radius_mm": radius,
+        "holds": holds, "door": door, "radius_mm": radius,
         "rod_diameter_mm": diameter,
         "residual_stress_mpa": material.bend_stress(diameter, radius),
-        "per_rod": out,
+        "per_span": out,
     }
-
-
-# --- what that does to it, at a speed ---------------------------------------
 
 
 def member_state(demand: dict, unit: dict, material, loads,
                  speed_ms: float, path: str = "envelope") -> dict:
-    """Stress, force and deflection in one bow at one wind speed."""
     if path not in LOAD_PATHS:
-        raise ValueError(f"unknown load path {path!r} -- use one of {LOAD_PATHS}")
+        raise ValueError(f"unknown load path {path!r}")
     q = loads_mod.velocity_pressure(speed_ms, loads)
-    a = demand["span_mm"]
-    w = demand["wind_n_per_mm_per_pa"] * q + demand["self_n_per_mm"]
-
+    a, width = demand["span_mm"], demand["strip_mm"]
+    gravity = demand["gravity_n_per_mm"]
+    wind = q * max(demand["cp_inward"], demand["cp_outward"]) * 1e-6 * width
     bends = path in ("beam", "envelope")
     thrusts = path in ("membrane", "envelope")
-
-    moment = w * a * a / 8.0 if bends else 0.0
-    # Membrane force in a spherical shell under normal pressure: n = pR/2 per
-    # unit width, carried over the bow's own strip.
-    pressure = q * demand["cp_net"] * 1e-6            # N/mm^2
-    axial = (pressure * unit["radius_mm"] * demand["strip_mm"] / 2.0
-             if thrusts else 0.0)
-
-    sigma_m = moment / demand["section_modulus_mm3"]
-    sigma_n = axial / demand["area_mm2"]
+    mg = gravity * a*a / 8.0
+    mw = wind * a*a / 8.0 if bends else 0.0
+    axial_per_cp = q * 1e-6 * unit["radius_mm"] * width / 2.0 if thrusts else 0.0
+    nc = axial_per_cp * demand["cp_inward"]
+    nt = axial_per_cp * demand["cp_outward"]
+    section = demand["section_modulus_mm3"]
     residual = unit["residual_stress_mpa"]
-
-    deflection = (5.0 * w * a ** 4
-                  / (384.0 * material.modulus_mpa * demand["second_moment_mm4"])
-                  if bends else 0.0)
-
+    sustained = residual + mg / section
+    # Each sign is a separate envelope. Opposite axial forces are not added
+    # together. No stabilising relief from the opposite fibre is credited.
     return {
-        "line_load_n_per_mm": w,
-        "moment_nmm": moment,
-        "axial_n": axial,
-        "residual_mpa": residual,
-        # The axial force is compression, so it relieves the tension fibre.
-        # That relief is deliberately NOT taken: it reverses if the wind lifts
-        # rather than presses, and a bound that depends on the sign of the
-        # load is not a bound.
-        "tension_mpa": residual + sigma_m,
-        "compression_mpa": residual + sigma_m + sigma_n,
-        "deflection_mm": deflection,
+        "gravity_n_per_mm": gravity, "wind_n_per_mm": wind,
+        "gravity_moment_nmm": mg, "wind_moment_nmm": mw,
+        "axial_compression_n": nc, "axial_tension_n": nt,
+        "residual_mpa": residual, "sustained_tension_mpa": sustained,
+        "tension_mpa": sustained + mw / section + nt / demand["area_mm2"],
+        "compression_mpa": sustained + mw / section + nc / demand["area_mm2"],
+        "deflection_mm": 5*(gravity + (wind if bends else 0))*a**4 /
+                         (384*material.modulus_mpa*demand["second_moment_mm4"]),
     }
 
 
 def utilisations(demand: dict, unit: dict, material, loads,
                  speed_ms: float, path: str = "envelope") -> dict:
-    """Every member check on one bow, as a fraction of what is allowed."""
-    state = member_state(demand, unit, material, loads, speed_ms, path)
+    s = member_state(demand, unit, material, loads, speed_ms, path)
     return {
-        # No wind in this one at all. A bow fails it standing in a calm.
-        "bend_creep": state["residual_mpa"]
-        / material.allowable("sustained", "tension"),
-        "combined_tension": state["tension_mpa"]
-        / material.allowable("short_term", "tension"),
-        "combined_compression": state["compression_mpa"]
-        / material.allowable("short_term", "compression"),
-        "buckling": state["axial_n"] / demand["euler_n"],
+        "bend_creep": s["residual_mpa"] / material.allowable("sustained", "tension"),
+        "sustained_tension": s["sustained_tension_mpa"] / material.allowable("sustained", "tension"),
+        "combined_tension": s["tension_mpa"] / material.allowable("short_term", "tension"),
+        "combined_compression": s["compression_mpa"] / material.allowable("short_term", "compression"),
+        "buckling": s["axial_compression_n"] / demand["euler_n"],
     }
+
+
+@lru_cache(maxsize=32)
+def _anchor_cases(anchors_json, data_json, loads, door):
+    data, anchors = json.loads(data_json), json.loads(anchors_json)
+    if loads.anchor_count != len(anchors):
+        raise ValueError("configured anchor count differs from the model's base points")
+    cases = []
+    q = loads_mod.velocity_pressure(REFERENCE_SPEED_MS, loads)
+    # Integrate each actual direction. This remains correct if the cover
+    # later becomes asymmetric; F and M must come from the same pressure case.
+    for cpi in loads_mod.pressure_cases(door, loads):
+        for azimuth in DIRECTION_SAMPLES:
+            wind = loads_mod.resultants(data, REFERENCE_SPEED_MS, loads,
+                azimuth_deg=azimuth, door=door, cp_internal=cpi)
+            r = reactions.distribute(anchors, [v/q for v in wind["force_n"]],
+                                     [v/q for v in wind["moment_nmm"]])
+            cases.append({"azimuth_deg": azimuth, "cp_internal": cpi, **r})
+    return tuple(cases)
 
 
 def anchor_demand(data: dict, loads, door: str = "shut") -> dict:
-    """Uplift and shear on one anchor, per unit of velocity pressure.
-
-    Computed once at a reference speed and scaled, for the same reason the
-    member side is: pressure goes as the square of the speed, so the shape of
-    the field never changes and re-integrating the cover at every step of a
-    bisection would be forty identical integrals.
-    """
-    reference = loads_mod.resultants(data, REFERENCE_SPEED_MS, loads, door=door)
-    q = loads_mod.velocity_pressure(REFERENCE_SPEED_MS, loads)
+    cases = _anchor_cases(json.dumps(data["base_nodes"], sort_keys=True),
+                          json.dumps(data, sort_keys=True, allow_nan=False), loads, door)
+    up = max(cases, key=lambda c: c["max_uplift_n"])
+    shear = max(cases, key=lambda c: c["max_shear_n"])
     return {
-        "uplift_n_per_pa": reference["uplift_per_anchor_n"] / q,
-        "shear_n_per_pa": reference["shear_per_anchor_n"] / q,
+        "model": "rigid_base_equal_bilateral_springs", "status": "screening_only",
+        "uplift_n_per_pa": up["max_uplift_n"],
+        "shear_n_per_pa": shear["max_shear_n"],
+        "uplift_case": {k: up[k] for k in ("azimuth_deg", "cp_internal")},
+        "shear_case": {k: shear[k] for k in ("azimuth_deg", "cp_internal")},
+        "cases_per_pa": cases,
+        "note": "Wind only, no weight credited against uplift. Base rigidity, equal soil "
+                "stiffness, pull-out, bearing and combined shear/uplift remain unverified.",
     }
 
 
-def anchor_utilisations(data: dict, loads, speed_ms: float,
-                        door: str = "shut", demand: dict | None = None) -> dict:
-    """What the ten driven angles are asked to hold, over what they hold.
-
-    Uplift shared equally between the ten, which they are not -- see
-    `loads.resultants`. The number is an average and the worst foot is worse.
-    """
-    demand = demand or anchor_demand(data, loads, door)
+def anchor_utilisations(data, loads, speed_ms, door="shut", demand=None):
+    demand = demand if demand is not None else anchor_demand(data, loads, door)
     q = loads_mod.velocity_pressure(speed_ms, loads)
     return {
-        "anchor_uplift": max(0.0, demand["uplift_n_per_pa"] * q)
-        / loads.anchor_capacity_n,
-        "anchor_shear": demand["shear_n_per_pa"] * q
-        / loads.anchor_shear_capacity_n,
+        "anchor_uplift": demand["uplift_n_per_pa"]*q / loads.anchor_capacity_n,
+        "anchor_shear": demand["shear_n_per_pa"]*q / loads.anchor_shear_capacity_n,
     }
 
 
-# --- solving for the speed that uses it all up ------------------------------
+def limiting_speed(evaluate, lo=0.0, hi=120.0, tol=1e-6):
+    """First threshold crossing for these monotone algebraic scenarios.
 
-
-def limiting_speed(evaluate, lo: float = 0.0, hi: float = 120.0,
-                   tol: float = 1e-6) -> float:
-    """Speed at which ``evaluate(v)`` first reaches 1.0.
-
-    Bisection rather than the closed form, even though every check here
-    happens to be a quadratic in the speed. Two reasons: it does not care
-    which check is governing, and it will still be right when a check stops
-    being quadratic -- a moment magnifier, or a compression-only contact.
-    A test pins it against the closed form on a linear check.
-
-    Returns 0.0 when the structure is already over at zero wind, which is a
-    real answer and not a failure to converge.
+    Infinity means no crossing within the search range, not infinite capacity.
+    The report serialises this as null with an explicit range status.
     """
     if evaluate(lo) >= 1.0:
         return 0.0
     if evaluate(hi) < 1.0:
         return math.inf
-    while hi - lo > tol:
-        mid = 0.5 * (lo + hi)
-        if evaluate(mid) < 1.0:
+    while hi-lo > tol:
+        mid = (lo+hi)/2
+        if evaluate(mid) < 1:
             lo = mid
         else:
             hi = mid
-    return 0.5 * (lo + hi)
+    return (lo+hi)/2
 
 
-def analyse(data: dict, material, loads, holds: str = "lashed",
-            door: str = "shut") -> dict:
-    """The whole verdict for one dome: both bounds, every check, the speed."""
+def analyse(data, material, loads, holds="lashed", door="shut", speed_ms=20.0):
+    loads_mod.velocity_pressure(speed_ms, loads)
     unit = unit_demands(data, material, loads, holds, door)
-    per_rod = unit["per_rod"]
-
-    def worst_member(path, speed):
-        best_name, best_check, best_value = None, None, -1.0
-        for name, demand in per_rod.items():
-            for check, value in utilisations(
-                demand, unit, material, loads, speed, path
-            ).items():
-                if value > best_value:
-                    best_name, best_check, best_value = name, check, value
-        return best_name, best_check, best_value
-
-    def worst_sag(path, speed):
-        """Deepest sag between supports, as a fraction of its own span."""
-        worst = 0.0
-        where = None
-        for name, demand in per_rod.items():
-            state = member_state(demand, unit, material, loads, speed, path)
-            ratio = state["deflection_mm"] / demand["span_mm"]
-            if ratio > worst:
-                worst, where = ratio, (name, state["deflection_mm"])
-        return worst, where
-
     anchor = anchor_demand(data, loads, door)
+    per_span = unit["per_span"]
+    if not per_span:
+        raise ValueError("no live spans to screen")
 
-    def anchors(speed):
-        checks = anchor_utilisations(data, loads, speed, door, anchor)
-        name = max(("anchor_uplift", "anchor_shear"), key=lambda k: checks[k])
-        return name, checks[name]
+    def worst(path, speed):
+        candidates = []
+        for key, d in per_span.items():
+            candidates.extend((value, check, d["rod"], key)
+                              for check, value in utilisations(d, unit, material, loads, speed, path).items())
+        candidates.extend((value, check, "anchors", "") for check, value in
+                          anchor_utilisations(data, loads, speed, door, anchor).items())
+        return max(candidates)
 
     paths = {}
     for path in LOAD_PATHS:
-        def evaluate(v, _p=path):
-            member = worst_member(_p, v)[2]
-            return max(member, anchors(v)[1])
-
-        limit = limiting_speed(evaluate)
-        at = limit if math.isfinite(limit) and limit > 0 else 0.0
-        rod, check, value = worst_member(path, at)
-        anchor_name, anchor_value = anchors(at)
-        binding = check if value >= anchor_value else anchor_name
-        sag_ratio, sag_where = worst_sag(path, at)
+        threshold = limiting_speed(lambda v: worst(path, v)[0])
+        value, check, rod, key = worst(path, speed_ms)
+        sag, sag_key = max((member_state(d, unit, material, loads, speed_ms, path)["deflection_mm"]
+                            / d["span_mm"], key) for key, d in per_span.items())
+        at = threshold if math.isfinite(threshold) else 120.0
+        threshold_sag = max(member_state(d, unit, material, loads, at, path)["deflection_mm"]
+                            / d["span_mm"] for d in per_span.values())
+        _, threshold_check, threshold_rod, threshold_key = worst(path, at)
         paths[path] = {
-            "limit_ms": None if math.isinf(limit) else round(limit, 2),
-            "binding_check": binding,
-            # `bend_creep` is true of every bow at once -- it is a property
-            # of the diameter and the radius, not of one member -- so naming
-            # a rod for it would invite somebody to go and look at that rod.
-            "binding_rod": rod if binding in MEMBER_CHECKS else (
-                "every bow" if binding == "bend_creep" else None
-            ),
-            "member_utilisation": round(value, 4),
-            "anchor_utilisation": round(anchor_value, 4),
-            "sag_ratio": round(sag_ratio, 5),
-            "sag_mm": round(sag_where[1], 1) if sag_where else 0.0,
-            "sag_rod": sag_where[0] if sag_where else None,
-            # Past this the stiffness used to compute the answer is not the
-            # stiffness the deformed structure has, and the answer is void.
-            "linear_theory_holds": sag_ratio <= DEFLECTION_VOID,
+            "threshold_ms": round(threshold, 3) if math.isfinite(threshold) else None,
+            "threshold_status": "already_exceeded_at_zero_wind" if threshold == 0 else
+                "crossing_found" if math.isfinite(threshold) else "not_reached_through_120_ms",
+            "threshold_binding_check": threshold_check,
+            "threshold_binding_rod": threshold_rod,
+            "threshold_binding_span": threshold_key or None,
+            "threshold_linear_theory_holds": threshold_sag <= DEFLECTION_VOID,
+            "at_speed_ms": speed_ms, "utilisation": value, "binding_check": check,
+            "binding_rod": rod, "binding_span": key or None,
+            "sag_ratio": sag, "sag_span": sag_key,
+            "linear_theory_holds": sag <= DEFLECTION_VOID,
+            "status": "outside_linear_theory" if sag > DEFLECTION_VOID else "screening_only",
         }
-
-    # The check with no wind in it, reported on its own because a failure here
-    # is not a wind limit at all.
-    creep = unit["residual_stress_mpa"] / material.allowable("sustained", "tension")
+    strain = span.bend_strain(unit["rod_diameter_mm"], unit["radius_mm"])
+    allowable = material.allowable("sustained", "tension")
     return {
-        "variant": data["meta"]["variant"],
-        "material": material.name,
-        "holds": holds,
-        "door": door,
-        "rod_diameter_mm": unit["rod_diameter_mm"],
-        "radius_mm": unit["radius_mm"],
+        "schema": "star_dome_strength/2", "variant": data["meta"]["variant"],
+        "status": "screening_only", "operational_limit_ms": None,
+        "inputs": {"material": asdict(material), "loads": asdict(loads),
+                   "pressure_mesh": {"meridians": loads_mod.LOAD_MERIDIANS,
+                                     "parallels": loads_mod.LOAD_PARALLELS}},
+        "geometry_sha256": hashlib.sha256(json.dumps(data, sort_keys=True,
+            allow_nan=False, separators=(",", ":")).encode()).hexdigest(),
+        "material": material.name, "material_source": material.source,
+        "material_basis": "supplied_properties_not_a_guaranteed_batch_envelope",
+        "modulus_mpa": material.modulus_mpa, "holds": holds, "door": door,
+        "pressure_cases": loads_mod.pressure_cases(door, loads),
+        "wind_directions_deg": DIRECTION_SAMPLES,
+        "radius_mm": unit["radius_mm"], "rod_diameter_mm": unit["rod_diameter_mm"],
         "residual": {
-            "stress_mpa": round(unit["residual_stress_mpa"], 2),
-            "strain": round(span.bend_strain(unit["rod_diameter_mm"],
-                                             unit["radius_mm"]), 9),
-            "allowable_mpa": round(material.allowable("sustained", "tension"), 2),
-            "utilisation": round(creep, 4),
-            "passes": creep <= 1.0,
+            "strain": strain, "stress_mpa": unit["residual_stress_mpa"],
+            "allowable_mpa": allowable,
+            "utilisation": unit["residual_stress_mpa"]/allowable,
+            "passes": unit["residual_stress_mpa"] <= allowable,
+            "critical_modulus_mpa": allowable/strain,
+            "scope": "initial bend only, for the supplied E and allowable",
         },
-        "bendable_rod_mm": round(material.bendable_diameter(unit["radius_mm"]), 2),
-        "paths": paths,
-        "band_ms": [
-            paths["envelope"]["limit_ms"],
-            paths["membrane"]["limit_ms"],
-        ],
-        "note": (
-            "A band, not a number. The beam and membrane readings bound how "
-            "the bow carries the wind and nothing here decides between them; "
-            "a frame solve does. No connector is checked, the anchors are "
-            "shared equally when they are not, and the pressure coefficients "
-            "are a smooth hemisphere's."
-        ),
+        "paths": paths, "span_demands": per_span,
+        "anchors": anchor,
+        "anchors_at_speed": anchor_utilisations(data, loads, speed_ms, door, anchor),
+        "unverified": ["frame stability and geometric nonlinearity", "joint stiffness and strength",
+                       "drilled rod sections and splices", "local weave curvature",
+                       "soil and bearing capacities",
+                       "sustained compression properties", "actual cover and opening pressures",
+                       "printed parts, hardware and skirt weight in member checks",
+                       "continuous wind-direction maximum"],
+        "note": "Independent algebraic scenarios, not capacity bounds. Gravity bending "
+                "includes rods and tributary fabric in every scenario. Thresholds are "
+                "diagnostics, not operational wind limits or proof of failure of the real frame.",
     }
 
 
-def _speed(value) -> str:
-    if value is None:
-        return "  none"
-    if value <= 0.0:
-        return "  0.0 "
-    return f"{value:6.1f}"
-
-
-def format_analysis(data: dict, material, loads, holds: str = "lashed",
-                    door: str = "shut") -> str:
-    a = analyse(data, material, loads, holds, door)
+def format_analysis(data, material, loads, holds="lashed", door="shut", speed_ms=20.0):
+    a = analyse(data, material, loads, holds, door, speed_ms)
     r = a["residual"]
-    verdict = "passes" if r["passes"] else "FAILS"
-    out = [
-        f"--- {a['variant']} strength on {a['material']}  "
-        f"(held at: {'feet and tie marks' if holds == 'lashed' else 'every crossing'}, "
-        f"door {door})",
-        "",
-        "  before any wind at all -- the bow is bent and stays bent:",
-        f"    residual      {r['stress_mpa']:.1f} MPa at {r['strain'] * 100:.3f}% strain, "
-        f"against {r['allowable_mpa']:.1f} MPa allowed as a permanent stress",
-        f"    creep check   {r['utilisation']:.2f} of allowable -- {verdict}",
-        f"    this stock bends to {a['radius_mm']:.0f} mm at up to "
-        f"{a['bendable_rod_mm']:.1f} mm diameter; this dome carries "
-        f"{a['rod_diameter_mm']:.1f}",
-    ]
-    if not r["passes"]:
-        # There is no wind limit to report. The bow is over its permanent
-        # allowance standing in a calm, so every reading returns zero and a
-        # band of zeros would read like a band rather than like a refusal.
-        out += [
-            "",
-            "  there is no limiting wind speed to report: the rod is already "
-            "over its permanent",
-            "  allowance standing in a dead calm, and no wind makes that "
-            "better.",
-            f"    the fix is arithmetic -- {a['bendable_rod_mm']:.1f} mm rod at "
-            f"this radius, or a larger dome at this rod.",
-            "",
-            "  Judged against a standard's minimum, not a measured bar. A real "
-            "coil is usually",
-            "  better, and measuring one is milestone 3.",
-        ]
-        return "\n".join(out)
-
-    out += [
-        "",
-        "  limiting wind speed, by how the bow is assumed to carry the load:",
-        "    path        limit    binding check          on",
-    ]
-    for path in LOAD_PATHS:
-        p = a["paths"][path]
-        out.append(
-            f"    {path:11} {_speed(p['limit_ms'])} m/s  "
-            f"{p['binding_check']:20}  {p['binding_rod'] or '10 anchors'}"
-        )
-    out += [
-        "",
-        f"  the band is {_speed(a['paths']['envelope']['limit_ms']).strip()} to "
-        f"{_speed(a['paths']['membrane']['limit_ms']).strip()} m/s, and the "
-        "width of it is the finding.",
-        "",
-        "  " + a["note"],
-    ]
-    return "\n".join(out)
+    lines = [f"--- {a['variant']} strength screening on {a['material']} (E={a['modulus_mpa']:g} MPa)",
+             f"  wind {speed_ms:g} m/s; held at {holds}; door {door}; cpi cases {list(a['pressure_cases'])}",
+             "  operational wind limit: UNKNOWN",
+             f"  initial bend {r['stress_mpa']:.1f} MPa / {r['allowable_mpa']:.1f} MPa = {r['utilisation']:.3f}",
+             f"  E at this bend criterion's threshold: {r['critical_modulus_mpa']/1000:.2f} GPa",
+             "  Higher E increases initial bend stress; a minimum E is not a worst-case guarantee.",
+             "", "  scenario    utilisation  governing check         location     sag/span"]
+    for path, p in a["paths"].items():
+        lines.append(f"  {path:11} {p['utilisation']:10.2f}  {p['binding_check']:22} "
+                     f"{p['binding_span'] or p['binding_rod']:12} {p['sag_ratio']:.1%}  {p['status']}")
+        threshold = "not reached through 120 m/s" if p["threshold_ms"] is None else f"{p['threshold_ms']:.3f} m/s"
+        validity = "outside linear theory" if not p["threshold_linear_theory_holds"] else "algebraic screening only"
+        lines.append(f"    criterion crossing: {threshold} ({p['threshold_status']}; {p['threshold_binding_check']}; {validity})")
+    lines += ["", "  anchors: rigid base / equal stiffness, with force AND moment; wind only",
+              f"    uplift {a['anchors_at_speed']['anchor_uplift']:.2f}, shear {a['anchors_at_speed']['anchor_shear']:.2f} of placeholder capacities",
+              "", "  " + a["note"], "  Unverified: " + "; ".join(a["unverified"])]
+    return "\n".join(lines)
 
 
-def compare(data: dict, material, loads, holds: str = "lashed") -> dict:
-    """What each open choice is worth, in metres per second.
-
-    Three decisions nobody has made are priced here, on the membrane reading
-    because that is the one that is not refuted by the dome standing up:
-
-    - **the thirty unlashed crossings.** `span.py` already prices them at 5/3
-      in span and 2.78x in rod diameter. This is the same question in the
-      units a field rule is written in.
-    - **the door.** Free to shut, and the only mitigation in this whole
-      calculation that costs nothing and needs no part.
-    - **the stock.** Rebar at the standard's minimum against a pultruded rod.
-    """
-    def limit(mat, hold, door):
-        return analyse(data, mat, loads, hold, door)["paths"]["membrane"]["limit_ms"]
-
-    base = limit(material, holds, "shut")
-    other = "contact" if holds == "lashed" else "lashed"
-    out = {
-        "base_ms": base,
-        "holds": {holds: base, other: limit(material, other, "shut")},
-        "door": {"shut": base, "open": limit(material, holds, "open")},
-        "materials": {
-            name: limit(material_mod.load(name), holds, "shut")
-            for name in sorted(material_mod.load_all())
-        },
+def compare(data, material, loads, holds="lashed", speed_ms=20.0):
+    """Compare diagnostic utilisation at the same speed, not invented limits."""
+    def score(mat, held, door):
+        a = analyse(data, mat, loads, held, door, speed_ms)
+        return {p: a["paths"][p]["utilisation"] for p in LOAD_PATHS}
+    return {
+        "speed_ms": speed_ms, "status": "screening_only",
+        "holds": {h: score(material, h, "shut") for h in span.HOLDS},
+        "door": {d: score(material, holds, d) for d in loads_mod.DOOR_STATES},
+        "materials": {name: score(mat, holds, "shut") for name, mat in material_mod.load_all().items()},
     }
-    return out
 
 
-def _ratio(a, b) -> str:
-    if not a or not b:
-        return "   --"
-    return f"{a / b:.2f}x"
-
-
-def format_comparison(data: dict, material, loads,
-                      holds: str = "lashed") -> str:
-    if not analyse(data, material, loads, holds)["residual"]["passes"]:
-        return ("\n  nothing to price: the rod fails bent, and no choice on "
-                "this list is about that.")
-    c = compare(data, material, loads, holds)
-    base = c["base_ms"]
-    other = next(k for k in c["holds"] if k != holds)
-    out = [
-        "",
-        "  what the open choices are worth, on the membrane reading:",
-        f"    clamps      {_speed(c['holds'][holds]).strip()} -> "
-        f"{_speed(c['holds'][other]).strip()} m/s going {holds} -> {other}   "
-        f"({_ratio(c['holds'][other], base)})",
-        f"    the door    {_speed(c['door']['shut']).strip()} shut against "
-        f"{_speed(c['door']['open']).strip()} m/s open and facing the wind   "
-        f"({_ratio(c['door']['open'], base)})  -- free, and nobody has written it down",
-    ]
-    for name, value in c["materials"].items():
-        out.append(
-            f"    {name:11} {_speed(value).strip():>6} m/s   "
-            f"({_ratio(value, base)})"
-        )
+def format_comparison(data, material, loads, holds="lashed", speed_ms=20.0):
+    c = compare(data, material, loads, holds, speed_ms)
+    out = [f"\n  Scenario utilisations at {speed_ms:g} m/s (beam / membrane / envelope):"]
+    for group in ("holds", "door", "materials"):
+        for name, values in c[group].items():
+            out.append(f"    {group}/{name}: " + " / ".join(f"{values[p]:.2f}" for p in LOAD_PATHS))
     return "\n".join(out)

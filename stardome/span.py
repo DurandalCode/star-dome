@@ -207,7 +207,10 @@ def spans(data: dict, holds: str = "lashed") -> dict:
         name, family = rod["name"], rod["family"]
         items = []
         points = held[name]
+        live = live_intervals(rod)
         for (t_lo, kind_lo), (t_hi, kind_hi) in zip(points, points[1:]):
+            if not any(lo - TOL <= t_lo and t_hi <= hi + TOL for lo, hi in live):
+                continue
             gap = t_hi - t_lo
             if gap <= TOL:
                 continue

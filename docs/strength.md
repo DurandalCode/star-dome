@@ -1,196 +1,226 @@
-# What the rod can actually take
+# Calculation methods and their limits
 
-[`span.md`](span.md) measures the demand and then stops, in as many words:
-*"There is no modulus, no strength and no load anywhere in it."*
-[`configs/variants.toml`](../configs/variants.toml) says the same thing about
-its own contents — the rod diameters are *"engineering assumptions, not
-results"*. This is the first document in the project with all three in it.
+`stardome strength` reports diagnostic scenarios, **not capacity bounds**.
+The operational wind limit is unknown. The beam, membrane and combined
+calculations have no demonstrated ordering relative to the real flexible
+frame. Passing one, or even all three, does not establish safety; exceeding a
+criterion identifies a problem with that scenario or its inputs, not a proven
+failure of the built dome. [Decision 0028](decisions/0028-scenarios-are-not-capacity-bounds.md)
+replaces the bounding interpretation in decision 0023.
 
 ```bash
-make materials                          # what each candidate stock can take
-make loads WIND=20                      # what the wind does to the shell
-make strength                           # the limiting speed, and what binds it
-python3 -m stardome strength M --compare
-python3 -m stardome strength M --material pultruded_rod --door open
+python3 -m stardome strength M --wind 10
+python3 -m stardome strength S --wind 10 --modulus 60000
+python3 -m stardome strength M --wind 10 --compare
+python3 -m stardome strength M --wind 10 --json
+make strength WIND=10
 ```
 
-Three new inputs, and each is its own file so that a number can be argued with
-without touching the code: [`materials.toml`](../configs/materials.toml) for
-the stock, [`loads.toml`](../configs/loads.toml) for the wind, and every value
-in both carries the standard it came from.
+The JSON contract is `star_dome_strength/2`, with `status: screening_only`
+and `operational_limit_ms: null`. Version 1's `band_ms` and `limit_ms` are
+removed deliberately. Consumers must migrate to scenario `utilisation`,
+`at_speed_ms`, `binding_check`, `binding_span` and diagnostic `threshold_ms`.
+A threshold is never a suggested operating speed. Reports retain resolved
+material/load inputs, pressure mesh resolution and a SHA-256 geometry digest
+so a changed configuration can be distinguished from the previous result.
 
-## The answer is a band, and the width of it is the point
+## Material: stiffness can make prescribed bending worse
 
-A bow is a curved member held at intervals. How much of the wind it carries by
-bending and how much by arch action is not knowable in closed form — `span.md`
-says exactly this about the unknown constant in front of `w a⁴/EI` — so two
-bounding readings are computed and neither is preferred:
+The configured `gost31938` candidate retains the historical **GOST 31938-2012**
+reference values: E = 50 GPa and tensile strength = 800 MPa. They are not a
+measured batch, nor a verified set of properties under the replacement 2022
+edition. The [official standards register](https://protect.gost.ru/gost/details/0e7bbf20-144c-46ae-970f-a41e7fa9c072)
+records the replacement. Typical densities and shear moduli remain separately
+identified in `configs/materials.toml`.
 
-- **`beam`** — the bow spans between its supports and carries everything in
-  bending. `M = wa²/8`, no axial force.
-- **`membrane`** — the lattice is a discretised shell. A sphere under normal
-  pressure carries `n = pR/2` per unit width, so a bow takes `N = pRb/2` over
-  its strip and bends not at all.
+For a straight circular rod held at nominal radius R:
 
-On D6's worst span at 20 m/s the two differ by a factor of **670**: 1122 MPa
-of bending stress against 1.7 MPa of axial. Against an 800 MPa bar the first
-is impossible and the second is nothing. Quoting a single limiting speed
-across a gap that wide would be inventing confidence. Closing it is what a
-frame solve is for, and it is the next piece of work.
+- initial outer-fibre strain: ε₀ = d / (2R);
+- initial stress magnitude: σ₀ = E ε₀, on both tensile and compressive fibres;
+- assumed sustained tensile criterion: f_s = 0.20 × 0.70 × f_t;
+- assumed short-term criteria: f_td = 0.70 f_t / 1.5 and f_cd = 0.70 f_c / 1.5.
 
-## Before the wind blows, the rod is already loaded
+These reductions are screening assumptions. ACI 440.1R concerns **concrete
+reinforced with FRP bars** ([ACI scope](https://www.concrete.org/publications/internationalconcreteabstractsportal/m/details/id/51687817));
+borrowing its reduction factors does not validate a freestanding bent-rod
+frame. Sustained compression, resin, temperature, moisture, drilling and
+repeated assembly need stock-specific evidence.
 
-Every bow is bent to the dome radius and **stays bent** for as long as the
-dome is up. Glass composite fails under permanent stress at a fraction of its
-short-term strength — creep rupture, the governing limit state for this
-material and one with no equivalent in steel.
+For D6, d = 10 mm and R = 3000 mm, the initial stress rounds to **83 MPa**
+against the configured **112 MPa** sustained-tension criterion. The initial
+bend reaches that criterion at **67.2 GPa**. This only tests initial bending.
+For D4, d = 8 mm and R = 2000 mm, σ₀ rises from 100 MPa at E = 50 GPa to
+120 MPa at E = 60 GPa: the result switches from below to above 112 MPa.
+Both moduli exceed the old minimum. Consequently a minimum E is **not** a
+conservative input for prescribed curvature, even though higher E improves
+Euler stiffness and reduces load-induced deflection.
 
-So the first check has no wind in it at all. The reference stock is composite
-rebar to **GOST 31938**, at the minimum the standard permits, which allows
-**112 MPa allowed permanently** out of an 800 MPa bar. The reference dome M
-carries **83 MPa** of that before anything at all happens to it:
+`--modulus` overrides E in MPa to inspect this sensitivity. Keep strength
+properties explicit; a real batch needs measured E bounds, section dimensions,
+strength and sustained-bend tests. Do not invent an upper E by relabelling a
+standard's minimum. Nominal curvature omits the extra local curvature from
+weaving and fittings.
 
-| | D3 | D4 | D6 | D8 | D10 | D12 |
-|---|---|---|---|---|---|---|
-| strain from being bent | **0.267%** | 0.200% | 0.167% | 0.125% | 0.120% | 0.100% |
-| stress at E = 50 GPa | **133 MPa** | 100 | 83 | 63 | 60 | 50 |
-| against 112 MPa allowed permanently | **1.19** | 0.89 | 0.74 | 0.56 | 0.54 | 0.45 |
-| | **fails** | passes | passes | passes | passes | passes |
+## Wind: independent pressure cases
 
-**The rod is worked hardest on the smallest dome, and this inverts what the
-project has been assuming.** Every document here so far treats D12 as the
-risky end of the range and D3 as the safe one. On the stress that never comes
-off it is the other way round, for a dull reason: rod diameter is quantised at
-8, 10 and 12 mm while the radius halves, so `d/2R` is worst where the dome is
-smallest.
+The input is an assumed local peak gust V in m/s. q = ρV²/2 in Pa; negative
+or non-finite speeds are rejected. No site exposure, terrain, height conversion,
+reliability factors or validated design load combinations are supplied.
 
-Read as a bend radius instead, composite rebar at the minimum its standard
-permits may be left bent to:
+The external pressure approximation retains configured coefficients +0.8,
+−1.2, −0.4 along the windward-to-leeward meridian. Interpolation uses the
+angle to the windward direction. It is based on the smooth ground-level
+hemisphere idealisation; its use for a woven fabric cover and a raised skirt
+is unvalidated. This is not a complete EN 1991-1-4 design procedure.
 
-| rod | 8 mm | 10 mm | 12 mm |
-|---|---|---|---|
-| tightest radius it may be held at | **1.79 m** | 2.23 m | 2.68 m |
+Internal coefficients are independent cases:
 
-D3's radius is 1.5 m. That is the whole of its failure, and the fix is
-arithmetic rather than research: **6.7 mm rod, or a bigger dome.**
-[Decision 0009](decisions/0009-d3-on-a-skirt-is-dominated.md) already found D3
-dominated on floor area. This is a second, independent reason, and a harder
-one — the first was about value and this one is about the bar breaking.
+| Door scenario | cpi | Meaning |
+|---|---:|---|
+| shut | −0.3 and +0.2 | Unknown permeability: check both signs separately |
+| open, windward dominant opening | +0.72 | 0.90 × 0.8, assuming opening-area ratio ≥ 3 |
 
-## What the wind does
+EN 1991-1-4 §7.2.9(5) gives 0.75 at ratio 2 and 0.90 at ratio ≥ 3;
+§7.2.9(6), Note 2 uses both +0.2 and −0.3 when permeability cannot be
+estimated. See the [standard text](https://www.phd.eng.br/wp-content/uploads/2015/12/en.1991.1.4.2005.pdf)
+and the [JRC worked example](https://eurocodes.jrc.ec.europa.eu/sites/default/files/2022-06/SX016a-EN-EU.pdf).
+The project does not know the actual leakage or pressure inside connected
+corridors. `open` is a scenario, not an automatic envelope of every possible
+opening orientation. Both door modes currently integrate the closed cover
+surface; opening geometry and fabric flapping are not solved.
 
-It lifts. It does not push it over, and it does not push it over at any speed:
+Each facet carries F = −q(cpe − cpi) A n, with 10⁻⁶ converting Pa·mm² to N.
+The full signed resultant moment Σ(r × F) is measured about the ground origin.
+`loads.resultants` defaults to the positive internal-pressure case for uplift;
+`loads.analyse` reports both shut cases at azimuth 0. `strength` samples the
+whole circle at 18° steps and reports the directions. This finite sample does
+not certify a continuous directional maximum. Force and moment for an anchor
+case always come from the same direction and internal pressure.
 
-> Pressure acts normal to the shell. Every normal of a sphere is radial. So
-> every facet force passes through the sphere's centre — and for a bare dome
-> that centre sits **in the ground plane**. The resultant is a pure force with
-> no couple at all.
+## Live spans and tributary cover
 
-[`interior.md`](interior.md) ranks the variants on a `tip_index` and says of
-it, correctly, that "it is a shape comparison and it proves nothing about
-safety". This is the answer it declined to give: **the rigid-body failure mode
-is uplift on the ten driven angles, and tipping is not in the running.** A
-skirt is what creates a real overturning couple, by lifting the sphere's
-centre off the ground — a cost of a skirt that nobody had priced.
+Each bow is split at supports **within each surviving interval**. A removed
+middle segment has no span and no self-weight. A free crossing becomes a
+support only in the `contact` scenario; actual lashing and clamp stiffness
+remain unmeasured. Spans use nominal arc lengths, consistent with the cut
+schedule, not the extra length or stiffness of a woven route and splice.
 
-And the dome is nowhere near heavy enough to hold itself down:
+Cover facets are assigned to the nearest sampled point on a surviving bow,
+then to its live span. A point at a support shares its facet area equally
+between adjacent live spans. Skirt facets are excluded from bow demands and
+included in global resultants. All dome facet area is conserved, but nearest
+sample assignment is a discretisation, not a solved fabric-to-frame load path.
+For each span of length a, its representative width is b = tributary area / a.
+Every live span is checked separately; no per-bow average is combined with an
+unrelated longest span. The cache key includes all geometry, support mode and
+mesh resolution, so changing dimensions under an existing variant name cannot
+reuse stale areas or lengths.
 
-| at 20 m/s, door shut | D3 | D4 | D6 | D8 | D10 | D12 |
-|---|---|---|---|---|---|---|
-| lift, N | 873 | 1543 | 3463 | 6136 | 9584 | 13779 |
-| what it weighs, N | 128 | 195 | 352 | 528 | 894 | 1161 |
-| lift over weight | 6.8 | 7.9 | **9.8** | 11.6 | 10.7 | 11.9 |
+## Member equations and combinations
 
-A bare M weighs 36 kg and the wind at 20 m/s pulls up 353 kgf. Nothing about
-this structure holds it down except the pegs, which is exactly what
-[decision 0014](decisions/0014-the-cover-hangs-on-the-stakes.md) assumed when
-it hung the cover on them too.
+Use N and mm below. For a circular section, A, I and W = I/(d/2) include any
+configured tube bore. Gravity line load is
 
-## The limiting wind speed, and what sets it
+    wg = ρrod A 10⁻⁹ g + mfabric b 10⁻⁹ g   [N/mm]
 
-On composite rebar at the standard's minimum, held at feet and tie marks only:
+where ρrod is kg/m³ and mfabric is g/m². This treats all of the tributary
+weight as transverse uniform loading in a simply supported beam scenario.
+It is an explicit idealisation; actual orientation, continuous-arch action
+and redistribution require a frame model. Gravity bending remains present
+in **every** wind scenario:
 
-| | beam | membrane | what binds | on | with all 30 crossings clamped | with the door open |
-|---|---|---|---|---|---|---|
-| D3 | — | — | *fails bent* | — | — | — |
-| D4 | 4.0 | **11.8** | buckling | L4 | 16.6 | 9.1 |
-| D6 | 3.5 | **8.2** | buckling | L4 | 11.5 | 6.3 |
-| D8 | 2.4 | **4.6** | buckling | L4 | 6.5 | 3.6 |
-| D10 | 2.1 | **4.2** | buckling | L4 | 6.0 | 3.3 |
-| D12 | 1.3 | **3.0** | buckling | L4 | 4.2 | 2.3 |
+    Mg = wg a² / 8
 
-Three things to take from it.
+For each span, the directional and internal-pressure sample gives separate
+maxima cp_in = max(0, cpe − cpi) and cp_out = max(0, cpi − cpe). Let
+p_in = q cp_in 10⁻⁶ and p_out = q cp_out 10⁻⁶, in N/mm².
 
-**Stability governs, not strength.** Every variant that gets a number at all
-is stopped by buckling, not by the bar breaking. A 10 mm rod over D6's worst
-unsupported span carries **24.5 N** before it goes — and the rod's own weight
-over that span is 4.8 N. [`skirt.md`](skirt.md) noticed the same thing in
-passing about a diagonal: "a GFRP rod of the dome's own diameter buckles at
-well under a hundred newtons over a chord this long". It is true of the dome
-itself.
+| Wind scenario | Additional bending | Compression / tension |
+|---|---|---|
+| beam | Mw = max(p_in, p_out) b a² / 8 | Nc = Nt = 0 |
+| membrane | Mw = 0 | Nc = p_in Rb/2; Nt = p_out Rb/2 |
+| envelope | beam Mw | membrane Nc and Nt, checked separately |
 
-**The thirty clamps are worth about 1.4× in wind speed.**
-[`span.md`](span.md) priced them at 5/3 in span and 2.78× in rod diameter;
-this is the same question in the units a field rule is written in, and it is
-the first number [milestone 5](roadmap.md) has had in m/s. The gain is capped
-because the weak family swaps: with the free crossings clamped, family G's
-36° span becomes the worst, and G gains nothing from clamps because all four
-of its crossings were already lashed nodes. Exactly as `span.md` predicted,
-and the strength module reproduces it from the same spans.
+The membrane expression is an ideal spherical-shell analogy, not a solution
+of this sparse lattice. Pressure and suction do not buckle a member in the
+same way: **only Nc enters Euler**, never abs(Nt). The combined scenario
+adds separate worst actions which may not occur in one physical wind field.
+It is an algebraic diagnostic, not a third admissible equilibrium solution.
 
-**Shutting the door is worth about 1.3×, and it is free.** An open door facing
-the wind lets internal pressure in, which pushes outward everywhere the
-outside is already sucking. No part, no plastic, no decision — and it was
-never written down.
+The checked ratios are:
 
-## What the two bounds are each wrong about
+- initial bend: σ₀ / f_s;
+- sustained tension: (σ₀ + Mg/W) / f_s;
+- total tension: (σ₀ + (Mg+Mw)/W + Nt/A) / f_td;
+- total compression: (σ₀ + (Mg+Mw)/W + Nc/A) / f_cd;
+- Euler screening: Nc / (π²EI/a²), with pinned ends and effective length a.
 
-Both ends of the band are known to be wrong, and in known directions. That is
-more useful than it sounds, because it says which way the truth lies.
+Opposing stress relief is not credited. This still does not prove an upper
+bound for a curved member: imperfections, bending/compression interaction,
+local buckling, postbuckling and joint flexibility are absent. Sustained
+compression has no validated criterion here and remains an explicit gap.
 
-**The beam bound is refuted by the dome standing up.** Under it a D6 bow sags
-**80 mm between supports in a dead calm**, under nothing but its own weight —
-2.5% of the span. A Star Dome visibly does not do that when you erect one. So
-the beam reading is not conservative, it is *wrong*, and the truth lies
-towards the membrane end.
+Deflection is 5w a⁴/(384EI), with gravity always present and wind transverse
+only in the beam/combined scenarios. A sag/span above 10% marks
+`outside_linear_theory`; 10% is a diagnostic flag, not an allowable deflection
+or proof that smaller displacement validates all assumptions.
 
-**The membrane bound assumes the shell and then denies it.** It gives the bow
-the full shell thrust and then buckles it as a pin-ended strut over its whole
-unsupported span — as though the ninety rod-on-rod contacts that make it part
-of a shell were not there. A curved, laterally restrained member does not
-buckle at the straight-strut Euler load. This is the single most conservative
-assumption in the calculation and it is the one the frame solve removes.
+The search over 0–120 m/s locates a criterion crossing only:
 
-So the honest reading of the table is: **these are floors, and the real
-numbers are above them.** How far above is not something a closed form can
-say.
+- `already_exceeded_at_zero_wind`: the selected scenario exceeds a criterion
+  in calm; report the criterion and span, with threshold 0;
+- `crossing_found`: report the crossing and linear-theory flag;
+- `not_reached_through_120_ms`: serialize threshold as null, not infinity.
 
-## What this does not do
+With the default D6 inputs and lashed supports, rod and fabric gravity already
+exceed the assumed sustained-tension criterion in the beam gravity model.
+All three scenario thresholds are therefore zero. This replaces the old
+positive wind band; suppressing gravity to retain that band would hide the
+model's inconsistency. It is not proof that the actual dome fails in calm.
 
-- **No stock has been measured.** Every value in `materials.toml` is a
-  standard's minimum or a typical datasheet figure. A variant that passes here
-  passes on any conforming bar, which is the useful direction; a variant that
-  fails might still be fine on real stock, and the answer to that is to
-  measure a bar rather than to argue. [Milestone 3](roadmap.md) is unchanged.
-- **The pressure coefficients are a smooth sealed hemisphere's.** This is a
-  lattice of round rods under a flogging membrane with a hole in it. It is the
-  largest single uncertainty here by a wide margin, and no amount of precision
-  downstream of it is worth anything.
-- **The anchors share equally, which they do not.** The windward feet stand in
-  positive pressure and are pushed down; the side and lee feet are pulled up.
-  The worst foot sees more than the average, and how much more is a question
-  about how the lattice distributes load.
-- **No connector is checked.** `TERM`'s 5 mm wall, `SPLICE`'s sleeve in
-  bending, the fan node's plates, the base hub — none of them. Joint forces
-  are what a frame solve produces and a closed form cannot.
-- **The pull-out capacity of a driven angle is a placeholder**, and
-  `STAKE-BASE` has not even been chosen. That number is a soil question and
-  this repository has no soil in it.
-- **Snow is out of scope by operating rule.** The dome comes down before
-  winter. If one is ever left up, nothing here covers it, and the margin is
-  not close: 1.8 kPa of snow on a 6 m dome is 51 kN, against the 300 Pa this
-  document is about.
-- **Nothing here says how it fails.** Glass composite is brittle: no yield, no
-  warning, no redistribution. A utilisation of 1.0 is not a safe design point
-  for this material with people underneath, and the partial factor that
-  reflects that judgement is an input in `materials.toml`, not a result.
+## Anchors: equilibrium with moment, under stated support assumptions
+
+The new support screening assumes a rigid base and identical independent
+spring stiffness at every anchor. Vertical springs work in both directions:
+positive load is uplift, negative load requires compression bearing. This is
+especially restrictive for a bare dome whose feet have no proven rigid ring.
+No lower/upper bound for the real support reactions is claimed.
+
+Coordinates are projected to ground and centred at the anchor centroid.
+Solve Rzi = α + β yi − γ xi from ΣRz = Fz, ΣyRz = Mx,
+−ΣxRz = My. Translate the applied moment to that centroid first. In-plane
+load combines equal translation with torsion:
+
+    Rxi = Fx/n − Mz yi / Σ(x²+y²)
+    Ryi = Fy/n + Mz xi / Σ(x²+y²)
+
+Returned vectors are loads delivered to anchors, opposite to reactions on
+the dome. Their sum and all three moments reproduce the applied resultant.
+For a regular ring of radius r, an anchor aligned with a horizontal moment M
+has uplift Fz/n + 2M/(nr), illustrating why average Fz/n can be too small.
+
+Worst uplift and shear are reported with their pressure/direction witnesses.
+They can govern in different cases. Soil capacities remain placeholders;
+bearing, combined uplift/shear interaction, unequal stiffness, loss of contact,
+rod prestress, and footing movement are unverified. Global wind screening
+credits no favourable weight against uplift.
+
+## What remains before an operating limit
+
+The mass inventory includes nominal surviving bows, closed cover including
+door panels, hem rope and webbing. Optional plastic volume must be supplied
+by the caller. Steel hardware, skirt stock and unmeasured plastic are excluded
+explicitly. Member gravity includes only bows and tributary fabric, so the
+inventory total must not be mistaken for a complete applied gravity case.
+
+Next work needs measured rod and joint properties; equilibrium of the
+prestressed assembled frame; geometric nonlinearity and stability under
+consistent wind/gravity combinations; connector, drilled section, belt and
+soil checks; and comparison against controlled component and prototype tests.
+The [roadmap](roadmap.md) keeps structural validation and field rules open.
+
+Regression tests cover signed pressures, area conservation, cut intervals,
+cache invalidation, E sensitivity, gravity in every scenario, dimensional hand
+calculations, six-component anchor equilibrium, ring reactions and report
+semantics. Passing software tests verifies implementation of these assumptions;
+it does not validate the assumptions against a physical structure.
