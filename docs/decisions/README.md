@@ -86,6 +86,7 @@ writing the next.
 | [0026](0026-the-loop-is-bought-not-printed.md) | The angle is held by a bought U-bolt over the pad: any height, any leg up to the loop's span | the alternative since 0027 |
 | [0027](0027-the-wrap-closes-the-fourth-side.md) | A fifth printed piece wraps the angle on three sides; the pad is the fourth, and the bolts are the same two | accepted |
 | [0028](0028-scenarios-are-not-capacity-bounds.md) | Closed-form strength calculations are diagnostic scenarios, not capacity bounds; minimum E cannot guarantee bent-rod capacity | accepted |
+| [0029](0029-standards-supply-inputs-not-joint-laws.md) | Standard material candidates and a benchmarked nonlinear cap study do not replace connection laws or validate the whole structure | accepted |
 
 ## Not here yet
 

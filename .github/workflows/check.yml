@@ -21,6 +21,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  mechanics:
+    runs-on: ubuntu-latest
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Optional numerical dependencies
+        run: python3 -m pip install -r analysis/requirements.txt pytest
+      - name: Independent mechanics benchmarks
+        run: python3 -m pytest analysis/test_rod.py -q
+      - name: D4 and D6 cap smoke cases
+        run: |
+          python3 -m analysis.wind_study D4 --winds 0 5 10 -o exports/study-d4.json
+          python3 -m analysis.wind_study D6 --winds 0 5 10 -o exports/study-d6.json
+          python3 -c 'import json; from pathlib import Path; reports=[json.loads(p.read_text()) for p in Path("exports").glob("study-d*.json")]; assert len(reports)==2; assert all(r["assembly"]["status"]=="stable_equilibrium" and len(r["cases"])==3 and all(c["status"]=="stable_equilibrium" for c in r["cases"]) and r["operational_limit_ms"] is None for r in reports)'
+
   python:
     runs-on: ubuntu-latest
     steps:

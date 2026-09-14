@@ -9,34 +9,15 @@
 # All dimensions in millimetres (see AGENTS.md).
 #
 # ---------------------------------------------------------------------------
-# ROD DIAMETERS ARE PROVISIONAL -- AND ONE OF THEM IS NOW KNOWN TO BE WRONG
+# ROD DIAMETERS ARE PROVISIONAL
 #
-# The values below started as engineering *assumptions* rather than results,
-# and most of them still are. What has changed is that they have been checked:
-# configs/materials.toml, configs/loads.toml and `stardome strength` put a
-# modulus, a strength and a wind load behind the arithmetic for the first
-# time. See docs/strength.md.
-#
-# The one hard result: **D3's 8 mm rod cannot be bent to a 1500 mm radius and
-# left there.** Held permanently, composite rebar at the minimum GOST 31938
-# permits allows 0.224% outer-fibre strain; D3 works its rod at 0.267%. The
-# bar is over its creep-rupture limit standing in a dead calm, before any
-# wind. It wants 6.7 mm rod, or a bigger dome. D3 has no alias and nobody is
-# asked to build it, so the number is left here as the study result it is.
-#
-# Everything else passes that check -- and the margin GROWS with the dome,
-# which is the opposite of what this project assumed. Rod diameter is
-# quantised at 8, 10 and 12 mm while the radius halves, so d/2R is worst where
-# the dome is smallest.
-#
-# Still unchecked here: the connectors, the anchors in real soil, and which of
-# the two bounding readings of the wind is the true one -- a frame solve, not
-# a closed form. The rest of the old warning stands:
-#
-# Nothing below has been measured against a real coil of rod (milestone 3),
-# and the geometric model still says nothing by itself about whether a given
-# rod survives being bent to the required radius -- that answer now lives in
-# `stardome strength`, not here.
+# These dimensions select geometry, not a verified structural capacity.
+# Prescribed-bend stress increases with E. A standard minimum E does not
+# bound it from above. The legacy and 2022 material candidates have different
+# tensile minima, while sustained-load reductions remain assumptions.
+# Closed-form scenarios and the optional nonlinear cap study are documented
+# in docs/strength.md and docs/wind-study.md. Neither establishes a field
+# wind limit; connections, the skirt and ground support still need validation.
 #
 # Every bow in this design is bent to a radius equal to the dome radius, so
 # the required bend radius scales directly with the variant:

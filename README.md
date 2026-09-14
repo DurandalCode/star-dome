@@ -28,6 +28,7 @@ No paid CAD subscription is required by the intended workflow.
 docs/           design notes, roadmap, architecture, references
 configs/        named dome variants and camps (the source of truth for both)
 stardome/       Python geometry core — source of truth for the dome maths
+analysis/       optional nonlinear cap studies and mechanics benchmarks
 tests/          invariants, golden summaries, OpenSCAD parity checks
 dome/           OpenSCAD model: viewer and independent cross-check
 connectors/     FreeCAD-oriented connector design areas
@@ -50,6 +51,16 @@ python3 -m stardome strength --all    # diagnostic utilisations; operating wind 
 python3 -m stardome bom --all         # everything one dome is made of
 python3 -m stardome camp yard         # domes joined by corridors, from a plan
 make venv && make check               # invariants + test suite
+```
+
+An optional [nonlinear cap study](docs/wind-study.md) uses a separate numerical
+environment, current standard material candidates and explicit joint/fabric
+sensitivity scenarios. It does not establish an operating wind limit.
+
+```bash
+.venv/bin/python -m pip install -r analysis/requirements.txt
+OPENBLAS_NUM_THREADS=1 .venv/bin/python -m pytest analysis/test_rod.py -q
+OPENBLAS_NUM_THREADS=1 .venv/bin/python -m analysis.wind_study D6 --winds 0 5 10 -o exports/cap-d6.json
 ```
 
 `stardome/` has no third-party dependencies; `pytest` is needed only for the

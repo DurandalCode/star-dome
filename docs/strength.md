@@ -8,6 +8,11 @@ criterion identifies a problem with that scenario or its inputs, not a proven
 failure of the built dome. [Decision 0028](decisions/0028-scenarios-are-not-capacity-bounds.md)
 replaces the bounding interpretation in decision 0023.
 
+The next calculation stage is the optional [nonlinear cap study](wind-study.md):
+straight stress-free rods, assembly prestress, equilibrium/stability checks,
+current GOST candidates and explicit sensitivity to joints and fabric tension.
+Its fixed-support cap model does not close the whole-structure validation gap.
+
 ```bash
 python3 -m stardome strength M --wind 10
 python3 -m stardome strength S --wind 10 --modulus 60000
@@ -32,6 +37,12 @@ measured batch, nor a verified set of properties under the replacement 2022
 edition. The [official standards register](https://protect.gost.ru/gost/details/0e7bbf20-144c-46ae-970f-a41e7fa9c072)
 records the replacement. Typical densities and shear moduli remain separately
 identified in `configs/materials.toml`.
+
+The separate `gost31938_2022` candidate now records the verified ASK minima
+from table 5 of the 2022 edition. Select it explicitly with
+`--material gost31938_2022`; the legacy default keeps old runs reproducible.
+The optional cap study uses the new candidate. Sources and assumptions are
+listed in [wind-study.md](wind-study.md).
 
 For a straight circular rod held at nominal radius R:
 

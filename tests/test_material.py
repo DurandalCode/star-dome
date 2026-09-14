@@ -19,7 +19,7 @@ import pytest
 
 from stardome import config, material, span
 
-CANDIDATES = ["gost31938", "pultruded_rod", "gfrp_tube"]
+CANDIDATES = ["gost31938", "gost31938_2022", "pultruded_rod", "gfrp_tube"]
 VARIANTS = ["D3", "D4", "D6", "D8", "D10", "D12"]
 
 
@@ -114,6 +114,18 @@ def test_legacy_reference_is_named_but_minimum_modulus_is_not_conservative(mater
     assert m.bend_stress(8, 2000) == pytest.approx(100)
     assert stiffer.bend_stress(8, 2000) == pytest.approx(120)
     assert m.bend_utilisation(8,2000) < 1 < stiffer.bend_utilisation(8,2000)
+
+
+def test_2022_candidate_keeps_standard_minima_separate_from_legacy(materials):
+    m = materials["gost31938_2022"]
+    assert m.tensile_strength_mpa == 1000
+    assert m.modulus_mpa == 50000
+    assert m.compressive_strength_mpa == 300
+    assert m.density_kg_m3 == 2050
+    assert materials["gost31938"].tensile_strength_mpa == 800
+    # These are configured screening criteria, not standard dome allowables.
+    assert m.allowable("sustained", "tension") == pytest.approx(140)
+    assert m.allowable("short_term", "compression") == pytest.approx(140)
 
 
 @pytest.mark.parametrize("field,value", [("modulus_mpa",0), ("modulus_mpa",math.nan),
