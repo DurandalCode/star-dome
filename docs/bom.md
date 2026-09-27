@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8      40     261.1     2088.7   39.6%
+  BASE3-10                   8      40     323.6     2588.8   44.0%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -49,7 +49,7 @@ here multiplies by a density.
 ## What it showed the first time it ran
 
 **The base hubs were half the plastic in the dome.** On M, `BASE3` and `BASE2`
-together came to 4040 cm³ of 6891 — 59% — and one `BASE3-10` was 430 cm³, of
+together came to 4040 cm³ of 6882 — 59% — and one `BASE3-10` was 430 cm³, of
 which 258 was a single bottom plate. It was four and a half times the four-rod
 fan that holds twice as many rods.
 
@@ -59,18 +59,23 @@ by the 30 mm stake slot and the bolt spread around it rather than by the rod.
 What the list added was the price of it — and the price is what got the slot
 looked at again.
 
-**It is 2431 cm³ of 5273 now — 46%.** The slot is gone: the angle is met on a
+**It is 3044 cm³ of 5886 now — 52%.** The slot is gone: the angle is met on a
 pad on the outside of the bottom plate and closed in by a wrap, so the 31 mm
-band the slot needed is no longer added to the whole plate. One `BASE3-10` is
-261 cm³, of which 85 is the bottom plate and 18 is the wrap, against 430 and
-258 before. See [decision 0025](decisions/0025-the-angle-is-met-on-a-pad.md)
+band the slot needed is no longer added to the whole plate. The lower stack
+bolt pair is now enclosed by a broad flange shared by all plates. One
+`BASE3-10` is 324 cm³, against 430 before the slot was removed. See
+[decision 0025](decisions/0025-the-angle-is-met-on-a-pad.md)
 for the pad, [0026](decisions/0026-the-loop-is-bought-not-printed.md) for the
 bought loop that is now the alternative, and
-[0027](decisions/0027-the-wrap-closes-the-fourth-side.md) for the wrap.
+[0027](decisions/0027-the-wrap-closes-the-fourth-side.md) for the wrap, and
+[0028](decisions/0028-join-the-wrap-ears-and-add-upper-stack-bolts.md) for its
+solid bridge and four stack bolts, and
+[0029](decisions/0029-put-the-lower-stack-bolts-inside-the-base-plate.md) for
+the lower flange.
 
 `STAKE-BASE` is still the one position in the schedule with no answer at all,
 and nothing about it is drilled. Whichever angle is finally chosen, the only
-printed piece that has to follow it is the wrap — 18 cm³ of the hub's 261 —
+printed piece that has to follow it is the wrap — 59 cm³ of the hub's 324 —
 because it is the only one drawn round a bought section. Until it is chosen,
 the item the limiting wind speed hangs on is still sized by a guess.
 
@@ -83,7 +88,7 @@ and the number that matters is not the total but **where the work happens**:
 ```
   fastener          M5     half the rod, snapped (decision 0013)
     in the field    84     bolts, each with a nut and a tool at both ends; and 28 cross pins
-    in the shop     20     bolts, done up once and never touched again
+    in the shop     40     bolts, done up once and never touched again
     hinged          52     field bolts instead, 32 fewer, if the clamps are built with the hinged closure
 ```
 
@@ -93,6 +98,10 @@ is opened and closed at head height. Adding the two together hid the only
 number rule 1 cares about. See [`quick-release.md`](quick-release.md) for what
 the 84 costs and [decision 0020](decisions/0020-the-hinge-is-worth-more-than-the-lever.md)
 for the closure that removes a third of it.
+
+The fastener line counts the M5 connector schedule. The two M8 bolts that
+clamp each foot's angle wrap are specified on the FreeCAD parameter sheet and
+are additional field hardware: twenty for the ten feet of M.
 
 The other thing worth seeing: **107 parts is 207 prints.** A part is not a print
 — the fan is five plates, the base hub four and a wrap, a clamp two — and the

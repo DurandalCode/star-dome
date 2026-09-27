@@ -23,13 +23,16 @@ matters more than the total:
 | M, L, XL | bolts | pins |
 |---|---|---|
 | **worked in the field** | **84** | 28 |
-| worked in the shop | 20 | — |
+| worked in the shop | 40 | — |
+
+This M5 connector count excludes the two M8 angle-wrap bolts per foot, which
+are additional field hardware specified on the base hub's parameter sheet.
 
 The split is not tidiness. Every generator already states its own field
 sequence, and they do not agree about the bolt:
 
 - **`base_hub_v1`** — *"the stack is assembled once, on the ground or at home,
-  and the bow ends go in afterwards."* Its twenty bolts are done up before the
+  and the bow ends go in afterwards."* Its forty bolts are done up before the
   dome leaves the workshop and never touched again. What happens at the dome is
   a pin per arm.
 - **`fan_node_v2`** — *"open the stack → lay rod 1 → … → tighten two bolts."*
@@ -38,7 +41,7 @@ sequence, and they do not agree about the bolt:
   the rods, so sixty-four bolts, sixty-four nuts and thirty-two caps are loose
   objects in somebody's hand, up a ladder, in whatever weather the event has.
 
-So the honest target is not "104 bolts". It is **84**, and within those the
+So the honest target is **84 field bolts** out of 124 total, and within those the
 worst are the clamps, because a clamp is not one fastener to turn — it is
 **three loose pieces to not drop**.
 
@@ -223,8 +226,8 @@ is visible in a closed view:
 |---|---|---|
 | **bolts worked in the field** | **84** | **52** |
 | pins worked in the field | 28 | 28 |
-| fasteners fitted in the shop | 20 | 52 |
-| plastic | 6882 cm³ | 6824 cm³ |
+| fasteners fitted in the shop | 40 | 72 |
+| plastic | 5897 cm³ | about 5839 cm³ |
 
 Thirty-two field bolts become thirty-two pins pushed in at home, the clamp gets
 5% lighter, and its cap loses four fifths of its unsupported overhang along with

@@ -758,7 +758,7 @@ def test_the_base_hub_does_its_bolts_at_home(sched):
     assert hub, "every dome has base points"
     for part in hub:
         rows = {(r["type"], r["worked"]): r["count"] for r in part["fasteners"]}
-        assert rows[(connectors.BOLT, connectors.SHOP)] == 2
+        assert rows[(connectors.BOLT, connectors.SHOP)] == 4
         assert rows[(connectors.PIN, connectors.FIELD)] == part["bow_ends"]
 
     fan = _part(sched, "four_rod_fan")
@@ -775,7 +775,7 @@ def test_the_field_bolts_are_most_of_the_bolts(sched):
     assert tally["field"][connectors.BOLT] > tally["shop"][connectors.BOLT]
     if not any(p["kind"] == "skirt_collar" for p in sched["parts"]):
         assert tally["field"][connectors.BOLT] == 84
-    assert tally["shop"][connectors.BOLT] == 20
+    assert tally["shop"][connectors.BOLT] == 40
 
 
 def test_hinging_the_clamp_moves_work_out_of_the_field(sched):

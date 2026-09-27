@@ -32,6 +32,8 @@ reported rather than silently skipped.
 import json
 import os
 import sys
+import zipfile
+from xml.etree import ElementTree
 
 import FreeCAD as App
 import Part
@@ -159,6 +161,51 @@ def fresh_document(part_id):
     return App.newDocument(name)
 
 
+def save_document(doc, path):
+    """Save a document that opens with its manufactured pieces visible.
+
+    FreeCAD's command-line process writes the solids but omits GuiDocument.xml.
+    The GUI then opens the file with every shape hidden. A minimal view record
+    is enough to preserve visibility without depending on FreeCADGui headless.
+    Keep that record to visibility: a hand-written Transparency property made
+    BASE2-10 fail to open in the GUI while its BREP solids were unchanged.
+    Reference rods and bought steel stay available in the tree but hidden.
+    """
+    if getattr(App, "GuiUp", 0):
+        for obj in doc.Objects:
+            view = getattr(obj, "ViewObject", None)
+            if view is None:
+                continue
+            if obj.Name.startswith("Ref_"):
+                view.Visibility = False
+        doc.saveAs(path)
+        return
+    doc.saveAs(path)
+    providers = ElementTree.Element("ViewProviderData")
+    for obj in doc.Objects:
+        if obj.TypeId == "Spreadsheet::Sheet":
+            continue
+        provider = ElementTree.SubElement(providers, "ViewProvider", {
+            "name": obj.Name, "expanded": "0",
+        })
+        properties = ElementTree.SubElement(provider, "Properties", {
+            "Count": "1", "TransientCount": "0",
+        })
+        visibility = ElementTree.SubElement(properties, "Property", {
+            "name": "Visibility", "type": "App::PropertyBool", "status": "1",
+        })
+        ElementTree.SubElement(visibility, "Bool", {
+            "value": "false" if obj.Name.startswith("Ref_") else "true",
+        })
+    providers.set("Count", str(len(providers)))
+    root = ElementTree.Element("Document", {"SchemaVersion": "1"})
+    root.append(providers)
+    xml = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+    with zipfile.ZipFile(path, "a", compression=zipfile.ZIP_DEFLATED) as archive:
+        if "GuiDocument.xml" not in archive.namelist():
+            archive.writestr("GuiDocument.xml", xml)
+
+
 def export_pair(first, second, part_id, suffix_a, suffix_b):
     files = []
     facets = {}
@@ -252,7 +299,7 @@ def run():
             )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-            doc.saveAs(fcstd)
+            save_document(doc, fcstd)
 
             # Same ordering rule the other two follow: verify the solid before
             # meshing it, or exportStl leaves isValid() false afterwards.
@@ -318,7 +365,7 @@ def run():
             )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-            doc.saveAs(fcstd)
+            save_document(doc, fcstd)
             checks = collar["verify"](geo, dims, values)
 
             step_path, stl_path, facet_count = export_solid(
@@ -361,7 +408,7 @@ def run():
             )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-            doc.saveAs(fcstd)
+            save_document(doc, fcstd)
             checks = splice["verify"](geo, dims, values)
 
             step_path, stl_path, facet_count = export_solid(
@@ -404,7 +451,7 @@ def run():
             )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-            doc.saveAs(fcstd)
+            save_document(doc, fcstd)
             checks = term["verify"](geo, dims, values)
 
             files, facets = export_pair(
@@ -438,7 +485,7 @@ def run():
             )
             doc.recompute()
             fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-            doc.saveAs(fcstd)
+            save_document(doc, fcstd)
 
             # Verify BEFORE meshing. MeshPart.meshFromShape attaches
             # triangulation to the shape and leaves isValid() returning False
@@ -516,7 +563,7 @@ def run():
         doc.recompute()
 
         fcstd = os.path.join(OUT_DIR, part["id"] + ".FCStd")
-        doc.saveAs(fcstd)
+        save_document(doc, fcstd)
 
         # Same ordering rule as the fan: verify the solid before meshing it.
         checks = clamp["verify"](geo, dims, values)
