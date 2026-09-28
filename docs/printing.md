@@ -74,10 +74,10 @@ For S, with the rod at 8 mm:
 
 | | pieces each | hubs | prints | solid plastic |
 |---|---|---|---|---|
-| `BASE3-8` | 5 | 8 | 40 | 1594 cm³ |
-| `BASE2-8` | 4 | 2 | 8 | 264 cm³ |
+| `BASE3-8` | 5 | 8 | 40 | 2008 cm³ |
+| `BASE2-8` | 4 | 2 | 8 | 364 cm³ |
 
-**48 prints and 1858 cm³ of solid part.** Real filament is roughly half of
+**48 prints and 2372 cm³ of solid part.** Real filament is roughly half of
 that at a normal infill — call it a kilogram — and which half is a slicer's
 answer, not this project's. On a 220 × 220 bed one `BASE3-8` takes **two
 beds**: the four plates together, and the wrap on its own.

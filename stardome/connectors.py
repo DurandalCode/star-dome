@@ -125,10 +125,10 @@ _FASTENERS = {
     "two_rod_clamp":   [(BOLT, 2, FIELD)],
     "cut_termination": [(BOLT, 2, FIELD)],
     "four_rod_fan":    [(BOLT, 2, FIELD)],
-    # Two bolts through the plate stack, done up at home; then one cross pin
-    # per arm, because a slide-fit channel locates the rod and holds it
-    # against nothing.
-    "base_hub":        [(BOLT, 2, SHOP),
+    # Four M5 bolts through the plate stack, done up at home; then one cross
+    # pin per arm. The two M8 angle-wrap bolts are separate hardware described
+    # by the FreeCAD parameter sheet, not by this M5 schedule.
+    "base_hub":        [(BOLT, 4, SHOP),
                         (PIN, lambda part: part.get("bow_ends", 0), FIELD)],
     # Two pinching the post, and one per member end: two ring chords and two
     # braces, each on its own bolt through a lug.

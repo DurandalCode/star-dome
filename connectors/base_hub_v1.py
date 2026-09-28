@@ -58,13 +58,11 @@ down on the angle, let it find its own height whatever depth the ground gave,
 and let the angle stand proud above the foot for the cover's loops to drop
 over (decision 0014).
 
-What does all three is a **flat pad, a wrap, and two bolts**:
+What does all three is a **flat pad, a wrap, and two angle bolts**:
 
     down          the wrap clamps. Per foot at 20 m/s the ground takes 154 N
-                  of uplift and 188 N of shear (`make loads`), and two M8
-                  bolts hold that with the preload to spare -- see what it
-                  costs, below, because this is friction and friction in
-                  plastic creeps
+                  of uplift and 188 N of shear (`make loads`). This is still
+                  friction in plastic and needs a physical check
     height        ANY. Nothing is drilled, nothing is indexed, nothing has to
                   line up: hard ground that stops the angle 40 mm short is a
                   wrap done up 40 mm further down it
@@ -98,7 +96,7 @@ identical in a render and holds nothing.
 
 WHAT THE WRAP COSTS, AND WHAT IT DOES NOT
 
-It is the fifth print of the hub -- 18 cm3 against the hub's 243 -- and it is
+It is the fifth print of the hub -- about 59 cm3 for BASE3-10 -- and it is
 the ONE piece drawn round a bought section. So it is the one piece to reprint
 if a different angle is bought, and the hub does not move. The same two holes
 in the pad also take an M8 U-bolt of `stakeBoltSpan`, which is the
@@ -127,7 +125,8 @@ THE PARTS
     plate 1   middle   arm 1 down, arm 2 up      41.8103 deg between grooves
     plate 2   middle   arm 2 down, arm 3 up      37.3774 deg
     plate 3   cap      groove down for arm 3
-    wrap      closes round the angle under the bottom plate's pad
+    wrap      closes round the angle under the bottom plate's pad; a bridge
+              below the angle tip joins both bolt ears into one solid
 
 Five prints per hub, ten hubs per dome. The ten base points are two mirror
 sets of five, differing only in which side the G bow leaves on -- a planar
@@ -137,7 +136,7 @@ turn it into a second part.
 
 FIELD SEQUENCE
 
-    at home   bolt the four plates up: two bolts, nut captive in the bottom
+    at home   bolt the plate stack up: four bolts, nut captive in the bottom
               plate, head and washer down a counterbore in the cap. One tool,
               one end, and nothing to hold on the other side
     at the    drive the angle -> lay the hub's pad against it -> close the
@@ -253,7 +252,7 @@ INPUTS = [
     ("stakeBoltAt",            0.0,  "mm",  "how far below the hub centre the pair sits. 0 puts it as close in as their own nuts allow past the stack bolts, which is the shortest pad that works"),
     ("stakeWrapFit",           0.4,  "mm",  "clearance between the wrap and the angle, per side. Small: this is a part that is meant to touch"),
     ("stakeWrapGap",           0.6,  "mm",  "how far the wrap's rim stops short of the pad, so the bolts pull it onto the ANGLE and never bottom it out on the plate"),
-    ("stakeWrapGrip",          8.0,  "mm",  "how far the wrap reaches down the standing leg, either side, to brace it against turning"),
+    ("stakeWrapGrip",          8.0,  "mm",  "minimum reach down the standing leg; the solid bridge now extends past its full leg width"),
     ("stakeWrapLength",       32.0,  "mm",  "how much of the angle the wrap holds, along the angle"),
     ("stakeLugWidth",          0.0,  "mm",  "across the pad. 0 takes it from the U-bolt: its span plus a hole and a wall either side"),
     ("stakeLugThickness",      0.0,  "mm",  "through the pad, and it is what the U-bolt's legs bear on. 0 takes the plate's own floor, which is already more than the load needs"),
@@ -280,7 +279,7 @@ def empty_sector(azimuths):
     """The one sector with no arm in it, as (start, size) in degrees.
 
     Three arms spanning 79 deg leave 281 of nothing. That is where the stake
-    and both bolts have to live, so it is worth naming rather than assuming.
+    and the lower stack-bolt pair have to live, so it is worth naming.
     """
     ordered = sorted(a % 360.0 for a in azimuths)
     best = None
@@ -354,22 +353,22 @@ def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
     angle is a flat face and a hole, because the angle lies against the face
     that plate is PRINTED on and anything reaching round it would have to hang
     below the bed. A second piece has its own orientation, so it can be the
-    shape the joint wants -- and that shape is a shallow box:
+    shape the joint wants -- a wrap with a solid bridge below the steel tip:
 
         the pad          the standing leg's outer face
         the wrap's floor the same leg's inner face -- this is the clamped pair
         two side walls   the leg's two edges, so it cannot walk sideways
-        two prongs       `grip` deep, one either side, flanking the root of
-                         the leg that stands out, so it cannot turn
+        two reliefs      one either side for the root of the second leg
+        one bridge       below that leg's tip, joining both bolt ears to the
+                         central floor as a single printed solid
 
     Three sides from the wrap and the fourth from the pad, which is what was
     asked for, and it touches the steel on every one of them.
 
-    TWO PRONGS, NOT ONE. The angle's second leg stands out from one edge of
+    TWO RELIEFS, NOT ONE. The angle's second leg stands out from one edge of
     the first, so a wrap that braced only that edge would be handed -- and
-    half the feet take the hub turned over. Cutting the relief at both edges
-    costs a few grams and makes the piece indifferent to which way the angle
-    was driven and which way the hub is up.
+    half the feet take the hub turned over. The two reliefs make the wrap
+    indifferent to handedness; the bed-side bridge keeps them connected.
 
     THE RIM STOPS SHORT. `gap` holds the wrap's rim clear of the pad, so the
     bolts pull it onto the ANGLE rather than bottoming it on the plate. Without
@@ -382,8 +381,11 @@ def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
     half_out = span / 2.0 + bolt_r + wall
     z_rim = seat_z - gap
     z_floor = seat_z - thickness
-    z_prong = seat_z - grip
-    z_base = z_prong - wall
+    # The two edge reliefs split the former shallow wrap into three separate
+    # solids. Carry the bolt ears down past the tip of either possible second
+    # leg and join them to the floor with a full-width bed-side bridge.
+    z_relief_bottom = seat_z - max(leg + fit, grip)
+    z_base = z_relief_bottom - wall
     y0 = at_y - length / 2.0
 
     body = Part.makeBox(
@@ -398,9 +400,8 @@ def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
         )
     )
     # A relief at each edge for the leg that stands out of the section. It runs
-    # right through the wrap: that leg is as long as the section is deep and
-    # the wrap is a fraction of it, so a slot that stopped inside would stop
-    # the angle from ever seating.
+    # through the grip, stopping below the steel tip. The wall left underneath
+    # is the continuous connection from both bolt ears into the main body.
     for sign in (-1.0, 1.0):
         x0 = (
             -(leg / 2.0 + fit) if sign < 0
@@ -408,8 +409,9 @@ def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
         )
         body = body.cut(
             Part.makeBox(
-                thickness + 2.0 * fit, length + 2.0, z_rim - z_base + 2.0,
-                App.Vector(x0, y0 - 1.0, z_base - 1.0),
+                thickness + 2.0 * fit, length + 2.0,
+                z_rim - z_relief_bottom + 1.0,
+                App.Vector(x0, y0 - 1.0, z_relief_bottom),
             )
         )
     return body.removeSplitter()
@@ -452,12 +454,11 @@ def u_bolt(rod_radius, span, at_y, z_top_of_legs, z_bend):
 
 def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
                 azimuths, bolt_points=()):
-    """Hub disc, one arm per rod, and a boss per bolt.
+    """Hub disc, rod arms, an integral lower flange, and upper bolt bosses.
 
-    The bosses are not decoration. The bolts sit 35 mm out on azimuths 55 deg
-    either side of straight down and the hub disc reaches 22 mm -- so without
-    them the bolt holes were cut through open air and the stack had nothing
-    holding it together at all.
+    The lower bolt pair sits beyond the hub disc. A wide flange carries both
+    holes inside the plate outline, rather than attaching circular ears through
+    narrow radial webs. The upper pair sits in the gaps between rod arms.
 
     There used to be a tail here as well, carrying material out to and around
     the stake slot. The slot is gone and the tail went with it: the stake pad
@@ -470,12 +471,41 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
     )
     for az in azimuths:
         body = body.fuse(kit.arm(arm_length, arm_width, height, z_lo, az))
-    for point in bolt_points:
+    if len(bolt_points) >= 2:
+        left, right = sorted(bolt_points[:2], key=lambda point: point.x)
+
+        def tangent(point, side):
+            """Outer common tangent of the hub and one lower bolt circle."""
+            distance = math.hypot(point.x, point.y)
+            offset = (hub_radius - boss_radius) / distance
+            along = math.sqrt(1.0 - offset ** 2)
+            nx = (offset * point.x - side * along * point.y) / distance
+            ny = (side * along * point.x + offset * point.y) / distance
+            return ((hub_radius * nx, hub_radius * ny),
+                    (point.x + boss_radius * nx,
+                     point.y + boss_radius * ny))
+
+        left_hub, left_boss = tangent(left, -1.0)
+        right_hub, right_boss = tangent(right, 1.0)
+        flange_outline = [
+            left_hub, right_hub, right_boss,
+            (right.x, right.y - boss_radius),
+            (left.x, left.y - boss_radius), left_boss, left_hub,
+        ]
+        flange = Part.Face(Part.makePolygon([
+            App.Vector(x, y, z_lo) for x, y in flange_outline
+        ])).extrude(App.Vector(0, 0, height))
+        body = body.fuse(flange)
+        for point in (left, right):
+            body = body.fuse(Part.makeCylinder(
+                boss_radius, height, App.Vector(point.x, point.y, z_lo),
+                App.Vector(0, 0, 1),
+            ))
+    for point in bolt_points[2:]:
         boss = Part.makeCylinder(
             boss_radius, height, App.Vector(point.x, point.y, z_lo),
             App.Vector(0, 0, 1),
         )
-        # A web back to the hub, so the boss is carried rather than perched.
         reach = math.hypot(point.x, point.y)
         az = math.degrees(math.atan2(point.y, point.x))
         body = body.fuse(boss).fuse(
@@ -485,7 +515,7 @@ def plate_blank(hub_radius, arm_length, arm_width, boss_radius, z_lo, z_hi,
 
 
 def bolt_reach(bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back):
-    """How far out the two stack bolts must sit to miss every rod channel.
+    """How far out a stack-bolt group must sit to miss every rod channel.
 
     An arm is a RAY, not a line: the rods END at the hub and there is nothing
     on the far side. Treating them as lines -- which the first version did,
@@ -575,21 +605,35 @@ def build(values, fan_gaps=None):
     z_bottom = levels[0] - channel_r - tilt_slack - values["baseFloor"]
     z_top = levels[-1] + channel_r + tilt_slack + values["capThickness"]
 
-    # Two bolts, one either side of straight down, far enough round that each
-    # clears the nearest arm. fan_node_v2 puts them opposite each other, which
-    # works for a fan that spans 180; three arms spanning 79 put the opposite
-    # direction 2 deg from an arm, so they go side by side instead.
+    # Two bolts below the hub and two in the upper bow sector. Each must clear
+    # the channel and its wall in every plate.
     bolt_spread = min(sector_size / 2.0 - 12.0, 55.0)
-    bolt_azimuths = [stake_azimuth - bolt_spread, stake_azimuth + bolt_spread]
+    lower_bolt_azimuths = [stake_azimuth - bolt_spread,
+                           stake_azimuth + bolt_spread]
+    if len(azimuths) == 3:
+        upper_bolt_azimuths = [
+            (left + right) / 2.0 for left, right in zip(azimuths, azimuths[1:])
+        ]
+    else:
+        # A doorway foot has one bow gap. Put the pair just outside its two
+        # arms so it still has four stack bolts without overlapping bosses.
+        half_gap = gaps[0] / 2.0
+        upper_bolt_azimuths = [azimuths[0] - half_gap,
+                               azimuths[-1] + half_gap]
+    bolt_azimuths = lower_bolt_azimuths + upper_bolt_azimuths
     bolt_offset = bolt_reach(
-        bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back
+        lower_bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back
+    )
+    upper_bolt_offset = bolt_reach(
+        upper_bolt_azimuths, azimuths, boss_r, channel_r, wall, reach_back
     )
 
     bolt_points = [
         App.Vector(
-            kit.direction(az).x * bolt_offset, kit.direction(az).y * bolt_offset, 0.0
+            kit.direction(az).x * reach, kit.direction(az).y * reach, 0.0
         )
-        for az in bolt_azimuths
+        for az, reach in zip(bolt_azimuths,
+                             [bolt_offset] * 2 + [upper_bolt_offset] * 2)
     ]
 
     # --- where the angle is met ---------------------------------------------
@@ -625,7 +669,7 @@ def build(values, fan_gaps=None):
     # own radius.
     stake_at = values["stakeBoltAt"] or (hub_r + washer_r + wall)
     keep_off = boss_r + washer_r + 1.0
-    for point in bolt_points:
+    for point in bolt_points[:2]:
         sideways = abs(abs(point.x) - stake_span / 2.0)
         if sideways < keep_off:
             stake_at = max(
@@ -723,7 +767,7 @@ def build(values, fan_gaps=None):
             )
         )
 
-    # The nut pocket and the head counterbore for the two stack bolts. Both
+    # The nut pocket and the head counterbore for the four stack bolts. Both
     # open onto the face their plate is printed on -- the bottom plate's outer
     # face is its bed, and so is the cap's, because the cap prints flipped so
     # its channel faces up. Each gets a cone up to the shank, because the step
@@ -820,7 +864,10 @@ def build(values, fan_gaps=None):
     # The wrap, and the two holes through it. It is the fifth print of the hub
     # and the only piece of it that is drawn round a bought section, so it is
     # also the only piece that has to be reprinted if a different angle is
-    # bought -- 20 grams, against a hub that stays as it is.
+    # bought -- one replaceable piece against a hub that stays as it is.
+    wrap_grip = max(values["stakeLegWidth"] + values["stakeWrapFit"],
+                    values["stakeWrapGrip"])
+    wrap_depth = wrap_grip + wall - values["stakeWrapGap"]
     wrap = stake_wrap(
         values["stakeLegWidth"], values["stakeThickness"], stake_span,
         stake_r, wall, values["stakeWrapFit"], values["stakeWrapGap"],
@@ -830,15 +877,13 @@ def build(values, fan_gaps=None):
     for p in stake_points:
         wrap = wrap.cut(
             Part.makeCylinder(
-                stake_r, values["stakeWrapGrip"] + wall + 4.0,
-                App.Vector(p.x, p.y, z_bottom - values["stakeWrapGrip"]
-                           - wall - 2.0),
+                stake_r, wrap_depth + values["stakeWrapGap"] + 4.0,
+                App.Vector(p.x, p.y, z_bottom - wrap_grip - wall - 2.0),
                 App.Vector(0, 0, 1),
             )
         )
     wrap = wrap.removeSplitter()
-    wrap_depth = values["stakeWrapGrip"] + wall - values["stakeWrapGap"]
-    if not kit.has_volume(wrap):
+    if not kit.ok(wrap):
         raise RuntimeError("the stake wrap came out invalid")
     # It is a print of this hub like any other, so it travels with them: five
     # pieces per hub now, four plates and the wrap.
@@ -913,6 +958,7 @@ def build(values, fan_gaps=None):
         "stake_azimuth_deg": stake_azimuth,
         "bolt_azimuths_deg": bolt_azimuths,
         "bolt_offset_mm": bolt_offset,
+        "upper_bolt_offset_mm": upper_bolt_offset,
         "rod_levels_mm": levels,
         "pitch_mm": pitch,
         "hub_radius_mm": hub_r,
@@ -934,7 +980,7 @@ def build(values, fan_gaps=None):
         "wrap_width_mm": stake_span + 2.0 * (values["stakeBoltDiameter"] + wall),
         "wrap_length_mm": values["stakeWrapLength"],
         "wrap_depth_mm": wrap_depth,
-        "wrap_grip_mm": values["stakeWrapGrip"],
+        "wrap_grip_mm": wrap_grip,
         "wrap_fit_mm": values["stakeWrapFit"],
         "wrap_gap_mm": values["stakeWrapGap"],
         "stake_nut_af_mm": stake_bolt["nut_af"],
@@ -963,8 +1009,8 @@ def verify(geo, dims, values):
     plates = geo["plates"]
 
     for name, plate in zip(geo["names"], plates):
-        if not kit.has_volume(plate):
-            problems.append(f"{name}: not a valid solid")
+        if not kit.ok(plate):
+            problems.append(f"{name}: not one valid solid")
 
     # No plate may eat into a rod.
     interference = 0.0
@@ -1088,12 +1134,8 @@ def verify(geo, dims, values):
                 "the wrap's rim would land on the pad: with no gap the bolts "
                 "clamp the plate, not the angle"
             )
-        # And it has to brace a leg that is there to brace.
-        if dims["wrap_grip_mm"] >= dims["stake_leg_mm"]:
-            problems.append(
-                f"the wrap reaches {dims['wrap_grip_mm']:.1f} mm down a leg "
-                f"that is only {dims['stake_leg_mm']:.1f} mm long"
-            )
+        if dims["wrap_grip_mm"] < dims["stake_leg_mm"] + dims["wrap_fit_mm"]:
+            problems.append("the bridge does not clear the angle leg tip")
 
     # Nothing cut for the stake may take the wall out from under a rod.
     for cut in geo.get("stake_cuts", []):
@@ -1168,11 +1210,13 @@ def derived_rows(dims, values):
         ("fanSpread", round(dims["fan_spread_deg"], 4), "deg",
          "angle from the lowest arm to the highest"),
         ("emptySector", round(dims["empty_sector_deg"], 4), "deg",
-         "the sector with no arm; the stake pad and both bolts live here"),
+         "the sector with no arm; the stake pad and lower stack bolts live here"),
         ("stakeAzimuth", round(dims["stake_azimuth_deg"], 4), "deg",
          "where the pad reaches for the angle; straight down once installed"),
         ("boltOffset", round(dims["bolt_offset_mm"], 3), "mm",
-         "how far out the bolts sit"),
+         "how far out the lower stack-bolt pair sits"),
+        ("upperBoltOffset", round(dims["upper_bolt_offset_mm"], 3), "mm",
+         "how far out the added upper pair sits between the bow arms"),
         ("stackHeight", round(dims["stack_height_mm"], 3), "mm",
          "bottom of the base plate to top of the cap"),
         ("armLength", round(dims["arm_length_mm"], 3), "mm",
@@ -1229,7 +1273,7 @@ def derived_rows(dims, values):
         ("stackBolt",
          f"M{dims['chosen_from_rod'].get('fastenerSize', 0):g} x "
          f"{math.ceil(dims['stack_bolt_length_mm'] / 5.0) * 5:g}", "-",
-         "the two that hold the plates together: head and washer down the "
+         "four that hold the plates together: head and washer down the "
          "cap's counterbore, nut captive in the bottom plate"),
         ("wrapGap", round(dims["wrap_gap_mm"], 2), "mm",
          "how far the wrap's rim stops short of the pad. It is small and it "

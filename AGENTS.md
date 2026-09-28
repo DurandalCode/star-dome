@@ -45,6 +45,10 @@ This repository is a physical-design workspace for temporary Star Dome structure
 - Design crossing clamps, base nodes, belt attachments, and corridor interfaces.
 - Use parameters for rod diameter, clearance, wall thickness, fastener dimensions, and print tolerances.
 - Prefer connector families driven by a small set of parameters rather than unique hand-modeled parts.
+- For connector edits, follow [the AI CAD workflow](docs/ai-cad-workflow.md).
+  Open the exact regenerated `.FCStd` in graphical FreeCAD before claiming it
+  opens; headless shape checks and `make check` do not test the saved GUI view.
+  Base-hub changes require separate checks of `BASE2` and `BASE3`.
 
 ### Blender
 - Import generated full-detail dome geometry at 1:1 scale.
