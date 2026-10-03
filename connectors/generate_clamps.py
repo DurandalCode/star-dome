@@ -23,6 +23,13 @@ Outputs, per part, into exports/connectors/:
     <part id>_TopClamp.step / .stl
     <part id>.FCStd
 
+and one manifest for the variant, which is what `tools/print_plates.py` turns
+into a Bambu Studio project:
+
+    star_dome_<variant>_prints.json   each part's printable pieces, which of
+                                      them print upside down, how many a dome
+                                      takes
+
 What this deliberately does NOT do: the schedule's ``unsupported`` entries.
 Ten nodes of the baseline dome join four rods at one point, and the V1
 architecture holds two. That is a design gap, not an export setting, and it is
@@ -85,6 +92,7 @@ OUT_DIR = os.path.join(REPO, "exports", "connectors")
 SCHEDULE_PATH = os.path.join(
     REPO, "exports", "model", "star_dome_%s_connectors.json" % VARIANT.lower()
 )
+PRINTS_PATH = os.path.join(OUT_DIR, "star_dome_%s_prints.json" % VARIANT.lower())
 
 
 def load_clamp_module():
@@ -241,6 +249,28 @@ def build_part(clamp, part):
     return geo, dims, values
 
 
+def printable(part, generator, names, flipped):
+    """What the print export needs to know about one part, and nothing else.
+
+    The STL is the designed-frame one this run just wrote; `flipped` is the
+    generator's own FLIPPED_PIECES, the orientation its overhang check judged.
+    Turning and arranging is the print export's job, not this file's.
+    """
+    return {
+        "id": part["id"],
+        "generator": generator,
+        "count": part["count"],
+        "pieces": [
+            {
+                "piece": name,
+                "stl": "%s_%s.stl" % (part["id"], name),
+                "flipped": name in flipped,
+            }
+            for name in names
+        ],
+    }
+
+
 def export_solid(shape, stem):
     """kit.export_solid, bound to this run's output directory."""
     return kit.export_solid(shape, stem, OUT_DIR)
@@ -280,6 +310,7 @@ def run():
     sched = load_schedule()
     report = {"variant": sched["meta"]["variant"], "closure": STYLE,
               "built": [], "not_covered": []}
+    prints = []
 
     for part in sched["parts"]:
         generator = part.get("generator")
@@ -341,6 +372,9 @@ def run():
                     "checks": checks,
                 }
             )
+            prints.append(
+                printable(part, generator, geo["names"], base["FLIPPED_PIECES"])
+            )
             continue
 
         if generator == "skirt_collar_v1":
@@ -383,6 +417,9 @@ def run():
                     "mesh_facets": {"Collar": facet_count},
                     "checks": checks,
                 }
+            )
+            prints.append(
+                printable(part, generator, ["Collar"], collar["FLIPPED_PIECES"])
             )
             continue
 
@@ -430,6 +467,9 @@ def run():
                     "checks": checks,
                 }
             )
+            prints.append(
+                printable(part, generator, ["Ferrule"], splice["FLIPPED_PIECES"])
+            )
             continue
 
         if generator == "term_clamp_v1":
@@ -470,6 +510,12 @@ def run():
                     "mesh_facets": facets,
                     "checks": checks,
                 }
+            )
+            prints.append(
+                printable(
+                    part, generator, ["BottomClamp", "TopClamp"],
+                    term["FLIPPED_PIECES"],
+                )
             )
             continue
 
@@ -535,6 +581,9 @@ def run():
                     "checks": checks,
                 }
             )
+            prints.append(
+                printable(part, generator, geo["names"], fan["FLIPPED_PIECES"])
+            )
             continue
 
         if generator != "crossing_clamp_v1":
@@ -587,6 +636,12 @@ def run():
                 "checks": checks,
             }
         )
+        prints.append(
+            printable(
+                part, "crossing_clamp_v1", ["BottomClamp", "TopClamp"],
+                clamp["FLIPPED_PIECES"],
+            )
+        )
 
     for entry in sched["unsupported"]:
         report["not_covered"].append(
@@ -597,6 +652,13 @@ def run():
                 "why": entry["reason"],
             }
         )
+
+    with open(PRINTS_PATH, "w") as handle:
+        json.dump(
+            {"variant": sched["meta"]["variant"], "parts": prints},
+            handle, indent=2,
+        )
+    report["prints"] = PRINTS_PATH
 
     return report
 

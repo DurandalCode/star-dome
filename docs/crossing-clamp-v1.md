@@ -96,10 +96,14 @@ up to about 0.4 mm.
 
 ## Printability
 
-Both halves print flat on the bed with no supports; the cap is printed upside
-down so its saddle faces up. Verified on the solids: zero flat unsupported
-ceiling area in either part, worst overhang ≈ 43° from horizontal (the tapered
-transitions under the counterbore and above the nut pocket).
+Both halves print flat on the bed with no supports, **both as drawn**: the
+bottom with its groove up, the cap with its saddle down, so the saddle is a
+bridged arch. Both faces of the cap are flat — about 770 mm² of it touches the
+bed as drawn and 890 turned over — so either way is printable, and the
+overhang check picks: `kit.printability` finds about 71 mm² steeper than 45°
+as drawn against 414 turned over, at the default parameters. (This section
+used to say the cap prints upside down; that was measured with an earlier
+version of the check, before it counted a channel roof as a bridge.)
 
 The bed-contact faces are deliberately left unfilleted.
 

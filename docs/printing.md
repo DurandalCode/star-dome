@@ -1,26 +1,63 @@
 # Printing the connectors
 
 Everything in `exports/connectors` is in the frame the part is **designed** in,
-which is the wrong frame for a bed. `make prints` writes a second set that is
-in the right one:
+next to its STEP, its FreeCAD document and the reference rods — the right set
+for CAD and for the Blender scene, and the wrong one for a slicer. `make
+prints` turns it into Bambu Studio projects with the plates already laid out:
 
 ```bash
-make prints V=S BED=220x220      # exports/print/d4/
+make clamps V=S                  # build the parts, and the print manifest
+make prints V=S                  # exports/print/d4/
 ```
 
-Each piece comes out **turned onto the face it prints on and dropped so that
-face is z = 0**, and the same pieces come out again packed onto beds:
-
 ```
-  BASE3-8_Bottom.stl   one piece, ready to place
-  BASE3-8_bed1.stl     a bedful, already arranged
+  d4_dome.3mf            every printed piece the dome needs, at its count,
+                         arranged onto as many plates as it takes
+  BASE3-8.3mf            one of that part: the fit check, or a spare
+  CL2-8-70.5288.3mf      ...one per part
+  stl/BASE3-8_Cap.stl    each piece on its print face, for any other slicer
 ```
 
-So in the slicer: **place, do not rotate.** If a piece looks like it wants
-turning over, something has changed in the part and the overhang numbers
-`make clamps` reports no longer describe what is being printed.
+Open the `.3mf` and print it plate by plate. For S that is **212 pieces on 12
+plates** of a P2S. The arranging is Bambu Studio's own — `tools/print_plates.py`
+drives its command line — so the project opens exactly as the GUI would have
+packed it, and each piece is a separate object named after its file.
 
-## Which face each piece sits on, and why
+Every piece comes in **already on the face it prints on**. So in the slicer:
+**place, do not rotate.** If a piece looks like it wants turning over,
+something has changed in the part and the overhang numbers `make clamps`
+reports no longer describe what is being printed.
+
+The printer, process and filament are Bambu system presets — P2S, 0.4 mm
+nozzle, `0.20mm Standard`, PETG Basic by default — with the three settings
+below changed to what this page asks for. Any of the three presets is a flag:
+
+```bash
+tools/print_plates.py d4 --filament "Bambu PLA Basic @BBL P2S"   # fit check
+tools/print_plates.py d4 --printer "Bambu Lab X1 Carbon 0.4 nozzle" \
+    --process "0.20mm Standard @BBL X1C" --filament "Bambu PETG Basic @BBL X1C"
+tools/print_plates.py d4 --stl-only          # no Bambu Studio installed
+```
+
+A piece wider than the plate is named and left out rather than scaled. Why it
+is done this way rather than by laying beds out ourselves is
+[decision 0030](decisions/0030-bambu-studio-arranges-the-plates.md).
+
+## Which way up, per part
+
+Each generator says which of its pieces print upside down, in
+`FLIPPED_PIECES`, next to the overhang check that judged it; `make clamps`
+copies that into the manifest and `make prints` turns those pieces over.
+
+| part | turned over | why |
+|---|---|---|
+| base hub `BASE*` | Cap | below |
+| fan node `FAN4-*` | Cap | its channel faces down in the part's frame |
+| crossing clamp `CL2-*`, termination `TERM-*` | nothing | the cap's saddle prints as a bridged arch; turned over its ears overhang — [crossing-clamp-v1](crossing-clamp-v1.md#printability) |
+| skirt collar `COLLAR-*` | Collar | brace arm up leaves about a third of the steep area arm down does |
+| ferrule `SPLICE-*` | nothing | it lies down either way, and its bore wants support — it is the part best bought as tube, see `rod_splice_v2.py` |
+
+## Which face each base hub piece sits on, and why
 
 | piece | on the bed | why |
 |---|---|---|
@@ -79,11 +116,8 @@ For S, with the rod at 8 mm:
 
 **48 prints and 2372 cm³ of solid part.** Real filament is roughly half of
 that at a normal infill — call it a kilogram — and which half is a slicer's
-answer, not this project's. On a 220 × 220 bed one `BASE3-8` takes **two
-beds**: the four plates together, and the wrap on its own.
-
-`make prints` reports the packing and refuses to scale anything: a piece that
-does not fit the bed is named rather than shrunk.
+answer, not this project's. On a P2S's 256 × 256 plate one `BASE3-8` is **one
+plate**, wrap included.
 
 ## Settings
 
@@ -95,6 +129,9 @@ calculation**, and what a printed connector actually carries is milestone 8:
   round a hole or a channel rather than by the infill;
 - 30–40% infill;
 - no supports, no brim needed on the flat faces these sit on.
+
+The projects `make prints` writes carry the first three of those as changes to
+the process preset: four walls, 35% infill, supports off.
 
 ## The ten feet are one geometry
 

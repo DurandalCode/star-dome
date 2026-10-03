@@ -74,6 +74,11 @@ OUT_DIR = os.path.join(REPO, "connectors")
 SAVE_PATH = os.path.join(OUT_DIR, "star_dome_skirt_collar_v1.FCStd")
 USE_SPREADSHEET_IF_PRESENT = True
 
+# Brace arm up. Both ways round are real orientations (`verify` reports both);
+# arm up leaves about a third of the area steeper than 45 deg that arm down
+# does -- 254 mm2 against 787 at the default parameters.
+FLIPPED_PIECES = {"Collar"}
+
 # The post section is the hub's stake section. If one moves the other has to,
 # because they are the same piece of steel.
 INPUTS = [

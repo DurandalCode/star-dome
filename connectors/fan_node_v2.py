@@ -100,6 +100,11 @@ DEFAULT_FAN_GAPS = [37.377368, 41.810315, 37.377368, 63.434949]
 
 PLATE_NAMES = ["Bottom", "Mid1", "Mid2", "Mid3", "Cap"]
 
+# The cap prints flipped so its channel faces up; every other plate prints
+# with its upward channel up. A set, so the print export lays the pieces out
+# the same way the printability check judged them.
+FLIPPED_PIECES = {"Cap"}
+
 OVERHANG_LIMIT_DEG = kit.OVERHANG_LIMIT_DEG
 
 INPUTS = [
@@ -576,10 +581,8 @@ def verify(geo, dims, values):
     report["web_profile"] = webs
     report["rod_gap_mm"] = round(values["rodGap"], 3)
 
-    # The cap prints flipped so its channel faces up; every other plate prints
-    # with its upward channel up.
     report["printability"] = {
-        name: kit.printability(shape, flipped=(name == "Cap"))
+        name: kit.printability(shape, flipped=(name in FLIPPED_PIECES))
         for name, shape in zip(names, plates)
     }
 

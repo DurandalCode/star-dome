@@ -70,6 +70,10 @@ OUT_DIR = os.path.join(REPO, "connectors")
 SAVE_PATH = os.path.join(OUT_DIR, "star_dome_rod_splice_v2.FCStd")
 USE_SPREADSHEET_IF_PRESENT = True
 
+# Prints lying down as drawn, and the bore needs support that way -- see the
+# module docstring for why this one is better bought.
+FLIPPED_PIECES = set()
+
 # Drawn in the frame the connector schedule places it in: +X along the rod,
 # +Z outward from the dome centre. The part is a body of revolution about +X,
 # so only the pin holes care which way +Z points.
