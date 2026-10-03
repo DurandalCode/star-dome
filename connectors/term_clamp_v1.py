@@ -57,6 +57,9 @@ OUT_DIR = os.path.join(REPO, "connectors")
 SAVE_PATH = os.path.join(OUT_DIR, "star_dome_term_clamp_v1.FCStd")
 USE_SPREADSHEET_IF_PRESENT = True
 
+# Both halves print as drawn, the same way up `verify` judges them.
+FLIPPED_PIECES = set()
+
 CLAMP_SOURCE = os.path.join(REPO, "connectors", "crossing_clamp_v1.py")
 _CLAMP = None
 

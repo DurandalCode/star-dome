@@ -18,8 +18,10 @@ Architecture (see docs/crossing-clamp-v1.md for the reasoning):
                    rod B is pressed into its channel: one bolted joint clamps
                    both rods.
 
-Both halves print flat-on-bed with every rod groove facing up (print the cap
-upside down). No supports required.
+Both halves print flat-on-bed as drawn: the bottom with its groove up, the cap
+with its saddle down, so the saddle is a bridged arch. Turned over, the cap's
+ears overhang instead -- about 414 mm2 steeper than 45 deg against 71 as drawn,
+by `kit.printability` at the default parameters. No supports required.
 
 Run:  exec(open('<repo>/connectors/crossing_clamp_v1.py').read())
 inside FreeCAD, or via the FreeCAD MCP bridge, or `make clamps`.
@@ -57,6 +59,9 @@ SAVE_PATH = os.path.join(OUT_DIR, "star_dome_crossing_clamp_v1.FCStd")
 # If the document already carries a Parameters spreadsheet, its values win over
 # the defaults below. That makes the spreadsheet the editable parameter store.
 USE_SPREADSHEET_IF_PRESENT = True
+
+# Which piece prints the other way up: none. See the module docstring.
+FLIPPED_PIECES = set()
 
 # --------------------------------------------------------------------------
 # Input parameters. Units: mm, degrees.

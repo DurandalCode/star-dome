@@ -87,6 +87,7 @@ writing the next.
 | [0027](0027-the-wrap-closes-the-fourth-side.md) | A fifth printed piece wraps the angle on three sides; the pad is the fourth, and the bolts are the same two | refined by 0028 |
 | [0028](0028-join-the-wrap-ears-and-add-upper-stack-bolts.md) | The wrap ears join below the angle tip; two upper stack bolts bring the plate stack to four | refined by 0029 |
 | [0029](0029-put-the-lower-stack-bolts-inside-the-base-plate.md) | A wide flange encloses the lower stack-bolt pair within every base plate | accepted |
+| [0030](0030-bambu-studio-arranges-the-plates.md) | Print exports are Bambu Studio projects arranged by Bambu itself, for every part, not bed STLs for the hub | accepted |
 
 ## Not here yet
 
