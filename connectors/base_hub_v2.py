@@ -127,7 +127,7 @@ INPUTS = [
     ("channelExit",           18.0,  "mm",  "how far the channel runs on behind the centre and out"),
     ("tiltAllowance",          1.5,  "deg", "out-of-plane tilt a rod may arrive with; flares the tube mouth"),
     ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm"),
-    ("ribWidth",               0.0,  "mm",  "width of the rib under each tube. 0 takes 1.5 walls"),
+    ("ribWidth",               1.6,  "mm",  "width of the rib under each tube: four lines of a 0.4 nozzle. It holds the tube up while it prints and stiffens the arm across the fan; at 1.5 walls it was a quarter of the hub's plastic. 0 takes 1.5 walls"),
     ("coreRadius",             0.0,  "mm",  "the solid round the crossing. 0 takes the tube's outside radius plus a wall"),
     ("rodPinDiameter",         0.0,  "mm",  "cross pin through tube and rod. 0 takes it from the rod"),
     ("rodPinAt",              40.0,  "mm",  "how far along the tube the pin sits"),

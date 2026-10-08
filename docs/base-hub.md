@@ -45,6 +45,16 @@ The fit check found more than the channel:
 
 2.0 starts from those four points.
 
+## The ribs are thin
+
+The rib under each tube is 1.6 mm, four lines of a 0.4 nozzle, rather than
+1.5 walls. At 1.5 walls the ribs were about a quarter of the hub: `BASE3-8`
+went from 97.5 cm³ to 80.6, `BASE3-10` from 121 to 98. Supports instead of
+ribs would save a little more. But they have to be broken off every part,
+PETG holds on to them, and the arm loses the stiffness across the fan that a
+rib gives. A rib that tall and thin may wobble under the nozzle near its top;
+that is one of the things the first print is for.
+
 ## 2.0 in the field
 
 1. Drive the rebar.
