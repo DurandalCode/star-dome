@@ -308,7 +308,7 @@ def format_analysis(data: dict, schedule: dict,
             f"{s['braces_m']:.1f} m of brace strap"
         )
     out += [
-        f"  anchors     {m['anchors']:>8}     driven steel angles",
+        f"  anchors     {m['anchors']:>8}     driven steel rebars",
     ]
 
     f = a["fasteners"]

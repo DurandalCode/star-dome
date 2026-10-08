@@ -113,9 +113,14 @@ plates. 10 per dome.
 30 per dome, and whether they are needed at all is still open.
 
 **base hub** (`BASE3-d`) — the connector at a base point: the fan with one arm
-fewer, plus a pad and a wrap that close round a driven steel angle.
+fewer, plus a pad and a cradle that close round a driven steel rebar.
 
-**stake** (`STAKE-BASE`) — the driven steel angle at each base point. This is
+**cradle** — the base hub's fifth print: a block with a 90° vee that the two
+stake bolts pull onto the rebar, closing the pad into a ring round it. A round
+bar touches both flanks at any size, so one cradle takes every bar from 8 to
+18 mm. Replaced the angle's **wrap** — [0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
+
+**stake** (`STAKE-BASE`) — the driven steel rebar at each base point. This is
 what resists the dome spreading at its feet, through soil, the way a tent peg
 does. Hardware to specify, not a shape to design.
 

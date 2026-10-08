@@ -61,16 +61,16 @@ copies that into the manifest and `make prints` turns those pieces over.
 
 | piece | on the bed | why |
 |---|---|---|
-| Bottom | its outer face — the one the angle lies against | that face is flat, and everything the pad offers the angle is on it |
+| Bottom | its outer face — the one the rebar lies against | that face is flat, and everything the pad offers the bar is on it |
 | Mid1, Mid2 | lower face | channel up, so each groove is an open half-pipe |
 | Cap | its outer face, **upside down** | the cap's channel faces down in the part's frame; flipped, it faces the nozzle |
-| Wrap | its base | every pocket in it then opens upwards |
+| Cradle | its base | the vee then opens upwards, its flanks 45° slopes |
 
-That table is the whole reason the joint looks the way it does. The angle lies
+That table is the whole reason the joint looks the way it does. The bar lies
 against the face the bottom plate is printed on, so nothing printed with the
 plate can reach round the far side of it — which is why the pad is flat and
-why the wrap is a separate piece
-([decisions 0025 and 0027](decisions/0027-the-wrap-closes-the-fourth-side.md)).
+why the cradle is a separate piece
+([decisions 0025 and 0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md)).
 
 ## No supports
 
@@ -94,16 +94,20 @@ What the first hub is printed to answer:
 
 - **the rod channels.** 1.4 mm diametral clearance on a nominal rod, meant as
   a slide fit — push the real rod in and see. Composite rebar measures over its
-  winding, which is what `rodNominalDiameter` is for;
+  winding, which is what `rodNominalDiameter` is for. **First answer, from
+  the printed `BASE3-8`: a 10 mm composite rebar goes in, and an 8 mm one
+  rattles.** The channel is drawn too big for the rod it is named for. Not
+  corrected yet;
 - **the nut pockets.** An M5 nut has to drop into the bottom plate and stay
   put; the two M8s have to drop into the pad;
-- **the wrap on a real angle.** It is drawn round L30 with 0.4 mm of fit, and
-  the angle that gets bought will not be exactly L30;
+- **the cradle on real rebar.** It is drawn to take any bar from 8 to 18 mm,
+  so try the thinnest and the thickest that will be driven. On the thinnest
+  the rim should stop just short of the pad;
 - **the bolt lengths** in the parameter sheet: `stackBolt` and `stakeBolt`;
 - **the cross pins**, one per arm.
 
-None of that needs eight hubs. Print one `BASE3-8`, fit it to a rod and an
-angle, and change the numbers in the sheet before printing the rest.
+None of that needs eight hubs. Print one `BASE3-8`, fit it to a rod and a
+bar, and change the numbers in the sheet before printing the rest.
 
 ## What one dome's feet cost to print
 
@@ -111,13 +115,13 @@ For S, with the rod at 8 mm:
 
 | | pieces each | hubs | prints | solid plastic |
 |---|---|---|---|---|
-| `BASE3-8` | 5 | 8 | 40 | 2008 cm³ |
-| `BASE2-8` | 4 | 2 | 8 | 364 cm³ |
+| `BASE3-8` | 5 | 8 | 40 | 1778 cm³ |
+| `BASE2-8` | 4 | 2 | 8 | 307 cm³ |
 
-**48 prints and 2372 cm³ of solid part.** Real filament is roughly half of
+**48 prints and 2085 cm³ of solid part.** Real filament is roughly half of
 that at a normal infill — call it a kilogram — and which half is a slicer's
 answer, not this project's. On a P2S's 256 × 256 plate one `BASE3-8` is **one
-plate**, wrap included.
+plate**, cradle included.
 
 ## Settings
 

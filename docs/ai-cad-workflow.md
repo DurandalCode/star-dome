@@ -9,8 +9,8 @@ that file assigns them.
 1. Identify the exact part ID and variant. `BASE3-10` is the three-arm foot;
    `BASE2-10` is the two-arm doorway foot. A successful check of one does not
    cover the other.
-2. Name the physical piece and load path. The angle wrap (`Plate_Wrap`) has
-   its own M8 bolt ears. The M5 stack bolts pass through the plate stack. The
+2. Name the physical piece and load path. The rebar cradle (`Plate_Cradle`)
+   has its own pair of M8 bolts through the pad. The M5 stack bolts pass through the plate stack. The
    upper and lower pairs solve different placement problems. Refer to
    [0028](decisions/0028-join-the-wrap-ears-and-add-upper-stack-bolts.md) and
    [0029](decisions/0029-put-the-lower-stack-bolts-inside-the-base-plate.md).
