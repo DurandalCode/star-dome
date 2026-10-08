@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8      40     294.5     2356.0   42.1%
+  BASE3-10                   8       8     121.4      971.1   24.3%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -78,6 +78,11 @@ change; the wrap went, and a vee cradle of about 30 cm³ took its place on the
 same two bolts. One `BASE3-10` is 295 cm³. See
 [0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
 
+**And 1160 cm³ of 4001 — 29% — since base hub 2.0.** The plate stack is gone:
+a hub is one print, a tube per bow on a rib, and a sleeve for the rebar. One
+`BASE3-10` is 121 cm³. See
+[0032](decisions/0032-the-base-hub-is-one-print.md).
+
 `STAKE-BASE` is still the one position in the schedule with no answer at all,
 and nothing about it is drilled. It is a rebar now, and no printed piece has
 to follow its size: the cradle takes any bar from 8 to 18 mm. Until it is
@@ -92,23 +97,23 @@ and the number that matters is not the total but **where the work happens**:
 ```
   fastener          M5     half the rod, snapped (decision 0013)
     in the field    84     bolts, each with a nut and a tool at both ends; and 28 cross pins
-    in the shop     40     bolts, done up once and never touched again
+    in the shop      0     bolts, done up once and never touched again
     hinged          52     field bolts instead, 32 fewer, if the clamps are built with the hinged closure
 ```
 
 Each generator already stated its own field sequence and they do not agree: a
-base hub's stack is bolted up at home and only pinned at the dome, a fan node's
+base hub has no stack and is only pinned at the dome, a fan node's
 is opened and closed at head height. Adding the two together hid the only
 number rule 1 cares about. See [`quick-release.md`](quick-release.md) for what
 the 84 costs and [decision 0020](decisions/0020-the-hinge-is-worth-more-than-the-lever.md)
 for the closure that removes a third of it.
 
-The fastener line counts the M5 connector schedule. The two M8 bolts that
-clamp each foot's angle wrap are specified on the FreeCAD parameter sheet and
-are additional field hardware: twenty for the ten feet of M.
+The fastener line counts the M5 connector schedule. The two M8 set bolts in
+each foot's rebar sleeve are specified on the FreeCAD parameter sheet and are
+additional field hardware: twenty for the ten feet of M.
 
-The other thing worth seeing: **107 parts is 207 prints.** A part is not a print
-— the fan is five plates, the base hub four and a wrap, a clamp two — and the
+The other thing worth seeing: **107 parts is 169 prints.** A part is not a print
+— the fan is five plates, a clamp two, the base hub one — and the
 print farm
 works in prints.
 

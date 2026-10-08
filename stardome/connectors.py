@@ -88,10 +88,9 @@ UNDESIGNED = "undesigned"    # nothing exists and something must
 # FIELD and SHOP are not a tidy-up. Every generator already states its field
 # sequence, and they do not agree about the bolt:
 #
-#   base_hub_v1   "the stack is assembled once, on the ground or at home, and
-#                  the bow ends go in afterwards" -- its bolts are done up
-#                  before the dome leaves the workshop and are never touched
-#                  again. What happens at the dome is a pin per arm.
+#   base_hub_v2   one print, nothing to assemble: drop it on the driven bar,
+#                  push the bow ends in. What happens at the dome is a pin
+#                  per arm. (1.x's four stack bolts were shop work.)
 #   fan_node_v2   "open the stack -> lay rod 1 -> ... -> tighten two bolts" --
 #                  its bolts are undone and done up at head height.
 #   crossing_clamp_v1, term_clamp_v1
@@ -125,11 +124,10 @@ _FASTENERS = {
     "two_rod_clamp":   [(BOLT, 2, FIELD)],
     "cut_termination": [(BOLT, 2, FIELD)],
     "four_rod_fan":    [(BOLT, 2, FIELD)],
-    # Four M5 bolts through the plate stack, done up at home; then one cross
-    # pin per arm. The two M8 angle-wrap bolts are separate hardware described
-    # by the FreeCAD parameter sheet, not by this M5 schedule.
-    "base_hub":        [(BOLT, 4, SHOP),
-                        (PIN, lambda part: part.get("bow_ends", 0), FIELD)],
+    # Base hub 2.0 is one print: no stack, so no stack bolts. One cross pin
+    # per arm. The two M8 set bolts in the rebar sleeve are ground hardware,
+    # described by the FreeCAD parameter sheet, not by this rod-sized schedule.
+    "base_hub":        [(PIN, lambda part: part.get("bow_ends", 0), FIELD)],
     # Two pinching the post, and one per member end: two ring chords and two
     # braces, each on its own bolt through a lug.
     "skirt_collar":    [(BOLT, 2, FIELD),
@@ -301,7 +299,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
                 "tied": True,
                 "members": count,
                 "bow_ends": bows_here,
-                "generator": "base_hub_v1" if drawable else None,
+                "generator": "base_hub_v2" if drawable else None,
                 "state": GENERATED if drawable else UNDESIGNED,
                 "anchored_by_stake": on_ground,
                 "coplanar": fan["coplanar"],
@@ -941,7 +939,7 @@ def placements(data: dict, parts: list) -> list:
       and the lower at ``-angle/2``, ``z=-v/2``. So +Z is outward again, and
       +X is the bisector, oriented so the rod on the outside is the one at the
       positive angle.
-    - ``base_hub_v1`` draws the part in the frame it stands in: arm azimuths
+    - ``base_hub_v2`` draws the part in the frame it stands in: arm azimuths
       ARE their rises above horizontal, +X horizontal and -Y straight down.
       So +X runs along the base ring, +Y is world up and +Z is outward.
 
@@ -1257,7 +1255,7 @@ def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
     to 0027.
 
     How far off, this does not say either. That is a dimension of the hub, and
-    the hub is `base_hub_v1`'s business; this is the ground's frame.
+    the hub is `base_hub_v2`'s business; this is the ground's frame.
     """
     from . import vec
 
