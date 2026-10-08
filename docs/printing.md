@@ -109,10 +109,10 @@ For S, with the rod at 8 mm, at base hub 2.0:
 
 | | pieces each | hubs | prints | solid plastic |
 |---|---|---|---|---|
-| `BASE3-8` | 1 | 8 | 8 | 780 cm³ |
-| `BASE2-8` | 1 | 2 | 2 | 153 cm³ |
+| `BASE3-8` | 1 | 8 | 8 | 645 cm³ |
+| `BASE2-8` | 1 | 2 | 2 | 135 cm³ |
 
-**10 prints and 933 cm³ of solid part**, against 48 prints and 2085 cm³ at
+**10 prints and 780 cm³ of solid part**, against 48 prints and 2085 cm³ at
 1.1. Real filament is roughly half of that at a normal infill, and which half
 is a slicer's answer, not this project's.
 

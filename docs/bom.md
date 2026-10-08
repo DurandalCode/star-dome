@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8       8     121.4      971.1   24.3%
+  BASE3-10                   8       8      98.0      783.8   20.7%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -78,9 +78,9 @@ change; the wrap went, and a vee cradle of about 30 cm³ took its place on the
 same two bolts. One `BASE3-10` is 295 cm³. See
 [0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
 
-**And 1160 cm³ of 4001 — 29% — since base hub 2.0.** The plate stack is gone:
-a hub is one print, a tube per bow on a rib, and a sleeve for the rebar. One
-`BASE3-10` is 121 cm³. See
+**And 948 cm³ of 3790 — 25% — since base hub 2.0.** The plate stack is gone:
+a hub is one print, a tube per bow on a 1.6 mm rib, and a sleeve for the
+rebar. One `BASE3-10` is 98 cm³. See
 [0032](decisions/0032-the-base-hub-is-one-print.md).
 
 `STAKE-BASE` is still the one position in the schedule with no answer at all,
