@@ -11,6 +11,7 @@ superseded is frozen, and is not updated
 | 1.0 | `base-hub-1.0` | steel angle | a stack of flat plates, one channel per level; a pad on the bottom plate and a printed wrap round the angle ([0025](decisions/0025-the-angle-is-met-on-a-pad.md)–[0029](decisions/0029-put-the-lower-stack-bolts-inside-the-base-plate.md)) |
 | 1.1 | `base-hub-1.1` | rebar, 8–18 mm | 1.0 with the wrap replaced by a vee cradle on the same pad; the plates are identical ([0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md)) |
 | 2.0 | — | rebar, 8–18 mm | one print: a tube per bow on a rib, a sleeve for the bar ([0032](decisions/0032-the-base-hub-is-one-print.md)); not yet printed |
+| 2.0b | — | rebar, 8–18 mm | 2.0 with `ribs = 0`: bare tubes, printed on slicer tree supports. `BASE3-8` 69 cm³ against 2.0's 81; supports to break off, and no rib stiffening the arm. Printed side by side with 2.0 to choose |
 
 `connectors/base_hub_v1.py` is 1.1, and stays 1.1. `connectors/base_hub_v2.py`
 is 2.0, and is what the schedule builds.

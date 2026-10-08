@@ -127,6 +127,7 @@ INPUTS = [
     ("channelExit",           18.0,  "mm",  "how far the channel runs on behind the centre and out"),
     ("tiltAllowance",          1.5,  "deg", "out-of-plane tilt a rod may arrive with; flares the tube mouth"),
     ("minimumWall",            0.0,  "mm",  "0 takes it from rodDiameter: 0.4 of the rod, never under 3 mm"),
+    ("ribs",                   1.0,  "-",   "1 stands each tube on a rib to the bed: 2.0, no supports. 0 leaves the tubes bare for the slicer to support: 2.0b, less plastic and no fins, but supports to break off"),
     ("ribWidth",               1.6,  "mm",  "width of the rib under each tube: four lines of a 0.4 nozzle. It holds the tube up while it prints and stiffens the arm across the fan; at 1.5 walls it was a quarter of the hub's plastic. 0 takes 1.5 walls"),
     ("coreRadius",             0.0,  "mm",  "the solid round the crossing. 0 takes the tube's outside radius plus a wall"),
     ("rodPinDiameter",         0.0,  "mm",  "cross pin through tube and rod. 0 takes it from the rod"),
@@ -172,7 +173,7 @@ def place(shape, azimuth_deg, z):
     return shape
 
 
-def tube_on_rib(outer_r, rib_w, z, z_bed, x0, x1):
+def tube_on_rib(outer_r, rib_w, z, z_bed, x0, x1, ribs=True):
     """One arm's material, built along +X at height z: a tube and its rib.
 
     The rib runs straight down to the bed and widens into the tube at
@@ -186,6 +187,8 @@ def tube_on_rib(outer_r, rib_w, z, z_bed, x0, x1):
     half = rib_w / 2.0
     flare_end = tangent_z - (tangent_x - half) * math.tan(b)
     tube = Part.makeCylinder(outer_r, x1 - x0, App.Vector(x0, 0, z), App.Vector(1, 0, 0))
+    if not ribs:
+        return tube
     if z - outer_r <= z_bed + 1e-6:
         # The lowest tube sits on the bed already; give it a flat foot.
         foot = along_x(
@@ -303,7 +306,8 @@ def build(values, fan_gaps=None):
         # Tubes run forward only. Behind the centre the channel just leaves
         # through the core: a tube out there would stand on a rib the bar's
         # tunnel has to cut away, and come out as a ring hanging in the air.
-        arm = tube_on_rib(outer_r, rib_w, levels[k], z_bed, -wall, front)
+        arm = tube_on_rib(outer_r, rib_w, levels[k], z_bed, -wall, front,
+                          ribs=bool(values["ribs"]))
         body = body.fuse(place(arm, az, 0.0))
     # Its top stops half a wall over the vee's apex. A full wall would put it
     # exactly tangent to the lowest channel, and OCC does not survive a
@@ -410,7 +414,7 @@ def build(values, fan_gaps=None):
         ],
     }
     dims = {
-        "version": VERSION,
+        "version": VERSION if values["ribs"] else VERSION + "b",
         "chosen_from_rod": chosen,
         "fan_gaps_deg": gaps,
         "arm_azimuths_deg": azimuths,
@@ -476,6 +480,9 @@ def verify(geo, dims, values):
     if v > 0.5:
         problems.append(f"the hub is in the bar's way by {v:.1f} mm3")
 
+    # 2.0b has no ribs and is printed on slicer supports. Its tube undersides
+    # are horizontal cylinders, which this check counts as bridges, so it
+    # reads clean when it is not: there the supports are the slicer's job.
     printability = {"Hub": kit.printability(body, flipped=False)}
     return {
         "problems": problems,
