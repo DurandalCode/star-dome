@@ -84,10 +84,11 @@ writing the next.
 | [0024](0024-a-dome-is-cut-into-two-lengths.md) | A dome is cut into at most two section lengths, solved dome-wide rather than bow by bow | accepted |
 | [0025](0025-the-angle-is-met-on-a-pad.md) | The base hub meets its driven angle on a flat pad with one bolt, not in a slot through the plate | fastening replaced by 0026 |
 | [0026](0026-the-loop-is-bought-not-printed.md) | The angle is held by a bought U-bolt over the pad: any height, any leg up to the loop's span | the alternative since 0027 |
-| [0027](0027-the-wrap-closes-the-fourth-side.md) | A fifth printed piece wraps the angle on three sides; the pad is the fourth, and the bolts are the same two | refined by 0028 |
+| [0027](0027-the-wrap-closes-the-fourth-side.md) | A fifth printed piece wraps the angle on three sides; the pad is the fourth, and the bolts are the same two | refined by 0028; replaced by 0031 |
 | [0028](0028-join-the-wrap-ears-and-add-upper-stack-bolts.md) | The wrap ears join below the angle tip; two upper stack bolts bring the plate stack to four | refined by 0029 |
 | [0029](0029-put-the-lower-stack-bolts-inside-the-base-plate.md) | A wide flange encloses the lower stack-bolt pair within every base plate | accepted |
 | [0030](0030-bambu-studio-arranges-the-plates.md) | Print exports are Bambu Studio projects arranged by Bambu itself, for every part, not bed STLs for the hub | accepted |
+| [0031](0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md) | The stake is driven rebar, held by a vee cradle on the unchanged pad that takes any bar from 8 to 18 mm | replaces the wrap of 0027 and 0028 |
 
 ## Not here yet
 

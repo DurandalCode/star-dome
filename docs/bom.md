@@ -37,7 +37,7 @@ So the column is **present when the parts have been built and honestly absent
 when they have not**, rather than being an estimate either way:
 
 ```
-  BASE3-10                   8      40     323.6     2588.8   44.0%
+  BASE3-10                   8      40     294.5     2356.0   42.1%
   STAKE-BASE                10                            hardware
   HDR-8                      2                         nothing yet
 ```
@@ -73,11 +73,15 @@ solid bridge and four stack bolts, and
 [0029](decisions/0029-put-the-lower-stack-bolts-inside-the-base-plate.md) for
 the lower flange.
 
+**And 2753 cm³ of 5595 — 49% — since the stake became rebar.** The pad did not
+change; the wrap went, and a vee cradle of about 30 cm³ took its place on the
+same two bolts. One `BASE3-10` is 295 cm³. See
+[0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
+
 `STAKE-BASE` is still the one position in the schedule with no answer at all,
-and nothing about it is drilled. Whichever angle is finally chosen, the only
-printed piece that has to follow it is the wrap — 59 cm³ of the hub's 324 —
-because it is the only one drawn round a bought section. Until it is chosen,
-the item the limiting wind speed hangs on is still sized by a guess.
+and nothing about it is drilled. It is a rebar now, and no printed piece has
+to follow its size: the cradle takes any bar from 8 to 18 mm. Until it is
+chosen, the item the limiting wind speed hangs on is still sized by a guess.
 
 ## The fasteners are counted, and split
 

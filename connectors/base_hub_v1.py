@@ -33,84 +33,56 @@ Nothing in the geometry cares; only the installer does.
 
 **The empty sector points at the ground.** Three arms spanning 79 deg leave
 281 deg of nothing, and once the part is stood up that sector faces down. That
-is where the driven steel angle has to be met, and it is not a preference: the
+is where the driven stake has to be met, and it is not a preference: the
 one direction a foot has no room in is straight up. Vertical out of the hub is
 azimuth 90, the U arm sits at 79.19, and a rod is 5.7 mm across with a wall
 round it -- so the vertical line is inside that arm for its first 67 mm. Above
 a foot there is nothing but bows. Below it there is nothing at all.
 
-THE ANGLE IS MET ON A FLAT PAD AND CLOSED IN BY A WRAP
+THE REBAR IS MET ON A FLAT PAD AND CLOSED IN BY A CRADLE
 
-V1 ran the angle through an L-section slot cut clean across the base plate.
-It held, and it charged for it three times:
+The stake is a driven steel rebar (decision 0031). It used to be an angle, and
+the pad on the bottom plate was drawn for that angle: a flat face straight
+down from the hub with two M8 holes 50 mm apart and their nuts captive in the
+far side. The pad has not changed for the bar, and must not -- BASE3-8 bottom
+plates are already printed -- because a flat face and two holes is all a bar
+needs from it too.
 
-    the plate     46.8 mm thick over all 104 x 113 mm of it, because the slot
-                  band and the floor under it are added to the WHOLE plate --
-                  258 cm3 of the hub's 431, and the base hubs were 59% of
-                  the dome's plastic (docs/bom.md)
-    the print     2643 mm2 of flat slot roof at 0 deg of overhang, the worst
-                  face in the kit and the one docs/roadmap.md names
-    the fit       100 mm of slot that a driven angle must be straight and
-                  untwisted along before the hub will go on at all
+What goes round the far side is the **cradle**: a block with a 90 deg vee
+along the bar, bolted to the pad by those two holes. A round bar touches both
+flanks of a vee whatever its diameter, so the pad and the vee hold it on three
+lines -- the flat and two flanks -- at every size:
 
-None of that is what the slot was FOR. It was for three things: hold the hub
-down on the angle, let it find its own height whatever depth the ground gave,
-and let the angle stand proud above the foot for the cover's loops to drop
-over (decision 0014).
-
-What does all three is a **flat pad, a wrap, and two angle bolts**:
-
-    down          the wrap clamps. Per foot at 20 m/s the ground takes 154 N
+    down          the cradle clamps. Per foot at 20 m/s the ground takes 154 N
                   of uplift and 188 N of shear (`make loads`). This is still
                   friction in plastic and needs a physical check
-    height        ANY. Nothing is drilled, nothing is indexed, nothing has to
-                  line up: hard ground that stops the angle 40 mm short is a
-                  wrap done up 40 mm further down it
-    twist         the pad is flat and the wrap's pocket is 0.4 mm over the
-                  leg, so an angle a couple of degrees out of square beds into
-                  it instead of jamming on the way in
+    height        ANY. Nothing is drilled, nothing is indexed: hard ground that
+                  stops the bar 40 mm short is a cradle done up 40 mm further
+                  down it
+    size          ANY bar from `stakeRebarMin` to `stakeRebarMax`, 8 to 18 mm
+                  across the ribs as drawn. The vee is cut just shallow enough
+                  that on the thinnest bar the rim stops `stakeCradleGap`
+                  short of the pad; a thicker bar only stands it further off.
+                  So the bolts always pull on the steel, never on the plate
 
-WHY THE WRAP IS A SEPARATE PIECE AND NOT PART OF THE PLATE
+The angle's wrap fitted one leg width, and decision 0026 rejected a vee for it
+because a 90 deg vee and a 90 deg corner have parallel faces and meet at one
+size only. That is true of a corner and false of a round.
 
-Everything the bottom plate can offer the angle is a flat face and a hole.
-The angle lies against the face the plate is PRINTED on, so any material
+WHY THE CRADLE IS A SEPARATE PIECE AND NOT PART OF THE PLATE
+
+The bar lies against the face the plate is PRINTED on, so any material
 reaching round it would have to hang below that face, and below that face is
-the bed. That is not a preference and no amount of drawing gets round it.
+the bed. A second piece is printed in its own orientation: floor down, vee up,
+the flanks 45 deg slopes facing the nozzle.
 
-A second piece is printed in its own orientation, so it is allowed to be the
-shape the joint wants: a shallow box that takes the leg's inner face, both its
-edges, and -- through a relief at each end -- the root of the leg that stands
-out of the section. Three sides from the wrap, the fourth from the pad, and
-the steel is touched on all four.
+It is the fifth print of the hub -- 27 cm3 at BASE3-8, half what the wrap was --
+and it is symmetric about the bar, so turning the hub over for the mirror
+five feet does not turn it into a second part. The same two holes in the pad
+also take an M8 U-bolt of `stakeBoltSpan` (decision 0026).
 
-    the pad          the standing leg's outer face
-    the wrap's floor the same leg's inner face; this is the clamped pair
-    two side walls   its two edges, so it cannot walk sideways
-    two reliefs      the other leg passes through one of them, whichever way
-                     the angle was driven and whichever way the hub is up
-
-The rim of the wrap stops `stakeWrapGap` short of the pad, so the bolts pull
-it onto the ANGLE and never bottom it out on the plate. Without that the two
-bolts clamp plastic to plastic with the angle loose between them, which looks
-identical in a render and holds nothing.
-
-WHAT THE WRAP COSTS, AND WHAT IT DOES NOT
-
-It is the fifth print of the hub -- about 59 cm3 for BASE3-10 -- and it is
-the ONE piece drawn round a bought section. So it is the one piece to reprint
-if a different angle is bought, and the hub does not move. The same two holes
-in the pad also take an M8 U-bolt of `stakeBoltSpan`, which is the
-size-indifferent alternative and is written up in decision 0026.
-
-A 90 deg vee, which is what suggests itself for cradling an angle, is in
-decision 0026 as rejected and is worth repeating here because it looks right
-until it is drawn: a 90 deg vee and a 90 deg corner have PARALLEL faces, so
-they touch only when the corner reaches the apex. One vee fits one leg width
-and lets anything smaller rattle.
-
-The angle passes the hub as it always did -- it just passes BESIDE it now,
-inboard of the bottom plate's outer face, where the whole half-space is empty,
-instead of through a hole in the middle of it.
+The bar passes BESIDE the hub, along the bottom plate's outer face, where the
+whole half-space is empty.
 
 WHAT THIS PART DOES AND DOES NOT DO
 
@@ -125,23 +97,20 @@ THE PARTS
     plate 1   middle   arm 1 down, arm 2 up      41.8103 deg between grooves
     plate 2   middle   arm 2 down, arm 3 up      37.3774 deg
     plate 3   cap      groove down for arm 3
-    wrap      closes round the angle under the bottom plate's pad; a bridge
-              below the angle tip joins both bolt ears into one solid
+    cradle    the vee that closes the bottom plate's pad round the rebar
 
 Five prints per hub, ten hubs per dome. The ten base points are two mirror
 sets of five, differing only in which side the G bow leaves on -- a planar
-part turned over serves the other five, so it is still one geometry, and the
-wrap is drawn with a relief at both ends so that turning the hub over does not
-turn it into a second part.
+part turned over serves the other five, so it is still one geometry.
 
 FIELD SEQUENCE
 
     at home   bolt the plate stack up: four bolts, nut captive in the bottom
               plate, head and washer down a counterbore in the cap. One tool,
               one end, and nothing to hold on the other side
-    at the    drive the angle -> lay the hub's pad against it -> close the
-    dome      wrap round it and do up its two bolts -> push each bow end into
-              its channel -> pin it
+    at the    drive the rebar -> lay the hub's pad against it -> close the
+    dome      cradle round it and do up its two bolts -> push each bow end
+              into its channel -> pin it
 
 Note the order. The four-rod node has to be opened, a rod laid, a plate
 closed, the next rod laid, and so on, because it CLAMPS its rods. This one
@@ -167,9 +136,9 @@ them. They are cut now, the same way ``fan_node_v2`` cuts them:
                    is the cap's bed, because the cap prints flipped -- with a
                    cone down to the shank for the same reason
 
-The wrap's two bolts are the same: their nuts sit captive in the pad's far
+The cradle's two bolts are the same: their nuts sit captive in the pad's far
 face -- a face that points UP while the bottom plate prints, so the pockets
-need no cone and no support -- and the heads go under the wrap where a spanner
+need no cone and no support -- and the heads go under the cradle where a spanner
 reaches them from the side you are already kneeling on.
 
 Helpers come from connectors/kit.py, shared with the other live generators.
@@ -243,19 +212,19 @@ INPUTS = [
     ("capThickness",           6.0,  "mm",  "material above the cap's channel"),
     ("tiltAllowance",          1.5,  "deg", "radial tilt a rod may arrive with"),
     ("firstArmRise",       37.3774,  "deg", "how far the first arm rises above horizontal once installed; this is what ties the part's own frame to the ground"),
-    ("stakeLegWidth",         30.0,  "mm",  "each leg of the driven steel angle, across"),
-    ("stakeThickness",         3.0,  "mm",  "the angle's material thickness"),
-    ("stakeLength",          500.0,  "mm",  "how long the angle is; drawing only, and it is mostly in the ground"),
-    ("stakeStandProud",      120.0,  "mm",  "how much of the angle is left above the foot once it is driven. Drawing only, but it is the field rule the reference solid checks: the angle has to clear the hub over all of it, and what stands above is what the cover's loop drops over -- decision 0014"),
-    ("stakeBoltDiameter",      8.5,  "mm",  "clearance hole for each of the two bolts that pull the wrap onto the pad. 8.5 is M8"),
-    ("stakeBoltSpan",         50.0,  "mm",  "centre to centre of those two bolts, one either side of the angle. It is also the span of the U-bolt this same hole pair takes instead, if a loop is preferred to a printed wrap -- see decision 0026"),
+    ("stakeRebarDiameter",    12.0,  "mm",  "the driven steel rebar the reference solid draws, and the bar the cradle is drawn seated on. Drawing only: the cradle takes anything from stakeRebarMin to stakeRebarMax"),
+    ("stakeRebarMin",          8.0,  "mm",  "the thinnest bar the cradle must still clamp. Sets the vee's depth: on this bar the cradle's rim stops stakeCradleGap short of the pad"),
+    ("stakeRebarMax",         18.0,  "mm",  "the thickest bar the cradle must still seat, measured across the ribs -- 18 is a 16 mm rebar. Only has to touch both flanks below the mouth"),
+    ("stakeVeeAngle",         90.0,  "deg", "included angle of the cradle's vee. A round bar touches both flanks of a vee at ANY diameter, which is what makes one cradle universal"),
+    ("stakeLength",          500.0,  "mm",  "how long the rebar is; drawing only, and it is mostly in the ground"),
+    ("stakeStandProud",      120.0,  "mm",  "how much of the rebar is left above the foot once it is driven. Drawing only, but it is the field rule the reference solid checks: the bar has to clear the hub over all of it, and what stands above is what the cover's loop drops over -- decision 0014"),
+    ("stakeBoltDiameter",      8.5,  "mm",  "clearance hole for each of the two bolts that pull the cradle onto the pad. 8.5 is M8"),
+    ("stakeBoltSpan",         50.0,  "mm",  "centre to centre of those two bolts, one either side of the bar. It is also the span of the U-bolt this same hole pair takes instead -- see decision 0026"),
     ("stakeBoltAt",            0.0,  "mm",  "how far below the hub centre the pair sits. 0 puts it as close in as their own nuts allow past the stack bolts, which is the shortest pad that works"),
-    ("stakeWrapFit",           0.4,  "mm",  "clearance between the wrap and the angle, per side. Small: this is a part that is meant to touch"),
-    ("stakeWrapGap",           0.6,  "mm",  "how far the wrap's rim stops short of the pad, so the bolts pull it onto the ANGLE and never bottom it out on the plate"),
-    ("stakeWrapGrip",          8.0,  "mm",  "minimum reach down the standing leg; the solid bridge now extends past its full leg width"),
-    ("stakeWrapLength",       32.0,  "mm",  "how much of the angle the wrap holds, along the angle"),
-    ("stakeLugWidth",          0.0,  "mm",  "across the pad. 0 takes it from the U-bolt: its span plus a hole and a wall either side"),
-    ("stakeLugThickness",      0.0,  "mm",  "through the pad, and it is what the U-bolt's legs bear on. 0 takes the plate's own floor, which is already more than the load needs"),
+    ("stakeCradleGap",         0.6,  "mm",  "how far the cradle's rim stops short of the pad on the THINNEST bar, so the bolts pull it onto the bar and never bottom it out on the plate. Thicker bars only open it up"),
+    ("stakeCradleLength",     40.0,  "mm",  "how much of the bar the cradle holds, along the bar. Longer holds the hub square to the bar"),
+    ("stakeLugWidth",          0.0,  "mm",  "across the pad. 0 takes it from the bolt pair: its span plus a hole and a wall either side"),
+    ("stakeLugThickness",      0.0,  "mm",  "through the pad, and it is what the two nuts bear on. 0 takes the plate's own floor, which is already more than the load needs"),
     ("fastenerSize",            0.0,  "",    "which metric bolt: 0 chooses it from the rod -- half the rod, snapped to M3/M4/M5/M6/M8 -- and 3, 4, 5, 6 or 8 forces one"),
     ("fastenerDiameter",       0.0,  "mm",  "clearance hole for the bolt. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
     ("fastenerHeadDiameter",  0.0,  "mm",  "head / washer outside diameter. 0 takes it from rodDiameter -- see kit.FASTENERS; a real number overrides"),
@@ -316,105 +285,93 @@ def rod_channel(radius, length, azimuth_deg, z, tilt_deg, reach_back, steps=2):
     return solid
 
 
-def driven_angle(leg, thickness, seat_z, y_from, y_to):
-    """The steel angle as it stands in the ground, in the part's own frame.
+def driven_rebar(radius, seat_z, y_from, y_to):
+    """The steel rebar as it stands in the ground, in the part's own frame.
 
     Vertical, because you hammer it and the ground is down -- so it runs along
-    Y, not along an azimuth. One leg lies flat against the pad's seating face
-    at `seat_z` and is what the bolt goes through; the other drops away from it
-    inboard, where the whole half-space below the bottom plate is empty.
-
-    Which way that second leg points is free -- it meets nothing either way --
-    and it is drawn inboard so that the section reads as the L it is rather
-    than as a bar seen edge on.
+    Y, not along an azimuth. It lies against the pad's seating face at
+    `seat_z`, below the bottom plate, where the whole half-space is empty.
+    Drawn as the plain round it is clamped as; the ribs are not drawn.
     """
-    across = Part.makeBox(
-        leg, y_to - y_from, thickness,
-        App.Vector(-leg / 2.0, y_from, seat_z - thickness),
+    return Part.makeCylinder(
+        radius, y_to - y_from,
+        App.Vector(0.0, y_from, seat_z - radius), App.Vector(0, 1, 0),
     )
-    down = Part.makeBox(
-        thickness, y_to - y_from, leg,
-        App.Vector(-leg / 2.0, y_from, seat_z - leg),
+
+
+def vee_depth(half_angle_deg, r_min, r_max, gap):
+    """How deep the cradle's vee is, and what that does over a range of bars.
+
+    A round bar in a vee touches both flanks whatever its size: its centre
+    sits r / sin(a) above the apex, so its top is r (1 + 1/sin a) above it.
+    The pad is that top. So the vee is cut just shallow enough that on the
+    thinnest bar the rim still stops `gap` short of the pad -- and every
+    thicker bar only stands the cradle further off. That is the whole reason
+    this piece fits every bar in the range and the angle's wrap fitted one.
+
+    The other end of the range is where the bar touches the flanks: r cos^2 a
+    / sin a above the apex. It has to stay below the mouth, with a millimetre
+    of flank above it, or the bar is bearing on the edge.
+
+    Returns (depth, rim gap on the thickest bar, contact height on it).
+    """
+    s = math.sin(math.radians(half_angle_deg))
+    c = math.cos(math.radians(half_angle_deg))
+    depth = r_min * (1.0 + 1.0 / s) - gap
+    contact = r_max * c * c / s
+    if contact > depth - 1.0:
+        raise ValueError(
+            f"a {2.0 * r_max:g} mm bar touches the vee {contact:.1f} mm up a "
+            f"flank that is only {depth:.1f} mm deep: narrow the range or "
+            "open the vee"
+        )
+    return depth, r_max * (1.0 + 1.0 / s) - depth, contact
+
+
+def stake_cradle(span, bolt_r, wall, half_angle_deg, depth, length,
+                 z_apex, at_y):
+    """The cradle: a block with a vee that closes the pad into a ring.
+
+    WHY A VEE, WHEN 0026 REJECTED ONE. A 90 deg vee and a 90 deg corner have
+    parallel faces, so they meet at one size only; that was true of the angle.
+    A round bar touches both flanks of a vee at any diameter. With the pad as
+    the third side the bar is held on three lines -- two flanks and the flat
+    -- and the bolts squeeze all three. One cradle, every bar in the range.
+
+    WHY IT IS A SEPARATE PIECE, still. The bar lies against the face the
+    bottom plate is printed on, so anything reaching round it would hang
+    below the bed. The cradle is printed in its own orientation: floor down,
+    vee up, and the flanks are 45 deg slopes that face the nozzle.
+
+    THE RIM STOPS SHORT, on every bar: see vee_depth. The bolts always pull
+    it onto the steel, never onto the plate.
+    """
+    half_out = span / 2.0 + bolt_r + wall
+    z_base = z_apex - wall
+    z_rim = z_apex + depth
+    y0 = at_y - length / 2.0
+    body = Part.makeBox(
+        2.0 * half_out, length, z_rim - z_base,
+        App.Vector(-half_out, y0, z_base),
     )
-    return across.fuse(down).removeSplitter()
+    # The vee, as a triangular prism along the bar, apex down. It runs a
+    # millimetre past the rim and past both ends so the cut is clean.
+    over = 1.0
+    half_mouth = (depth + over) * math.tan(math.radians(half_angle_deg))
+    profile = Part.makePolygon([
+        App.Vector(0.0, y0 - over, z_apex),
+        App.Vector(half_mouth, y0 - over, z_rim + over),
+        App.Vector(-half_mouth, y0 - over, z_rim + over),
+        App.Vector(0.0, y0 - over, z_apex),
+    ])
+    vee = Part.Face(profile).extrude(App.Vector(0, length + 2.0 * over, 0))
+    return body.cut(vee).removeSplitter()
 
 
 def arc_height(radius, offset):
     """How far a circle of this radius has risen from its lowest point, `offset`
     to the side. Zero if the offset is outside the circle."""
     return math.sqrt(max(radius ** 2 - offset ** 2, 0.0))
-
-
-def stake_wrap(leg, thickness, span, bolt_r, wall, fit, gap, grip, length,
-               seat_z, at_y):
-    """The wrap: a separate piece that closes round the angle the pad cannot.
-
-    WHY IT IS A SEPARATE PIECE. Everything the bottom plate could offer the
-    angle is a flat face and a hole, because the angle lies against the face
-    that plate is PRINTED on and anything reaching round it would have to hang
-    below the bed. A second piece has its own orientation, so it can be the
-    shape the joint wants -- a wrap with a solid bridge below the steel tip:
-
-        the pad          the standing leg's outer face
-        the wrap's floor the same leg's inner face -- this is the clamped pair
-        two side walls   the leg's two edges, so it cannot walk sideways
-        two reliefs      one either side for the root of the second leg
-        one bridge       below that leg's tip, joining both bolt ears to the
-                         central floor as a single printed solid
-
-    Three sides from the wrap and the fourth from the pad, which is what was
-    asked for, and it touches the steel on every one of them.
-
-    TWO RELIEFS, NOT ONE. The angle's second leg stands out from one edge of
-    the first, so a wrap that braced only that edge would be handed -- and
-    half the feet take the hub turned over. The two reliefs make the wrap
-    indifferent to handedness; the bed-side bridge keeps them connected.
-
-    THE RIM STOPS SHORT. `gap` holds the wrap's rim clear of the pad, so the
-    bolts pull it onto the ANGLE rather than bottoming it on the plate. Without
-    that the joint is two bolts holding two pieces of plastic together with a
-    loose angle between them.
-
-    Printed floor-down: every pocket opens upwards, there is no roof anywhere
-    in it, and the face it sits on is flat.
-    """
-    half_out = span / 2.0 + bolt_r + wall
-    z_rim = seat_z - gap
-    z_floor = seat_z - thickness
-    # The two edge reliefs split the former shallow wrap into three separate
-    # solids. Carry the bolt ears down past the tip of either possible second
-    # leg and join them to the floor with a full-width bed-side bridge.
-    z_relief_bottom = seat_z - max(leg + fit, grip)
-    z_base = z_relief_bottom - wall
-    y0 = at_y - length / 2.0
-
-    body = Part.makeBox(
-        2.0 * half_out, length, z_rim - z_base,
-        App.Vector(-half_out, y0, z_base),
-    )
-    # The leg lies in here, and the floor of it is what does the clamping.
-    body = body.cut(
-        Part.makeBox(
-            leg + 2.0 * fit, length + 2.0, z_rim - z_floor,
-            App.Vector(-(leg / 2.0 + fit), y0 - 1.0, z_floor),
-        )
-    )
-    # A relief at each edge for the leg that stands out of the section. It runs
-    # through the grip, stopping below the steel tip. The wall left underneath
-    # is the continuous connection from both bolt ears into the main body.
-    for sign in (-1.0, 1.0):
-        x0 = (
-            -(leg / 2.0 + fit) if sign < 0
-            else leg / 2.0 - fit - thickness
-        )
-        body = body.cut(
-            Part.makeBox(
-                thickness + 2.0 * fit, length + 2.0,
-                z_rim - z_relief_bottom + 1.0,
-                App.Vector(x0, y0 - 1.0, z_relief_bottom),
-            )
-        )
-    return body.removeSplitter()
 
 
 def u_bolt(rod_radius, span, at_y, z_top_of_legs, z_bend):
@@ -636,15 +593,17 @@ def build(values, fan_gaps=None):
                              [bolt_offset] * 2 + [upper_bolt_offset] * 2)
     ]
 
-    # --- where the angle is met ---------------------------------------------
+    # --- where the stake is met ---------------------------------------------
     #
     # On the bottom plate's outer face, straight down from the hub: a flat pad
-    # the angle's leg lies against, and a U-bolt over the whole section, both
-    # legs of it through the pad and a nut on each.
+    # the rebar lies against, and two bolts through it that pull the cradle
+    # round the far side. The pad was drawn for the angle and has not changed
+    # for the bar: it is a flat face and two holes, and that is all a bar
+    # needs from it too.
     #
     # The face is the one the plate is printed on, and that is not a detail --
     # it is the whole reason the pad is on this side and this way up. Material
-    # on the far side of the angle would have to hang below that face, and on
+    # on the far side of the bar would have to hang below that face, and on
     # an FDM bed that is below the bed. So the plate offers a flat face and two
     # holes, and everything that goes round the other three sides is a SEPARATE
     # piece -- which is printed in its own orientation and is therefore allowed
@@ -748,7 +707,7 @@ def build(values, fan_gaps=None):
         )
     pad = pad.removeSplitter()
 
-    # The two bolts that pull the wrap on, and the nuts they land in. The
+    # The two bolts that pull the cradle on, and the nuts they land in. The
     # pockets open on the pad's far face -- which is the face pointing UP while
     # the bottom plate is printed, so they need no cone and no support, and the
     # nut is dropped in from outside once and turned never.
@@ -846,49 +805,52 @@ def build(values, fan_gaps=None):
             raise RuntimeError(f"plate {names[i]} came out invalid")
         plates.append(solid)
 
-    # The angle itself, drawn where it is driven: standing on the pad's face,
+    # The rebar itself, drawn where it is driven: standing on the pad's face,
     # mostly in the ground, and `stakeStandProud` of it above the foot. That
-    # last part is the interesting one -- it runs up PAST the hub, on the
-    # inboard side of the bottom plate, and what it has to miss up there is the
-    # whole part. So it is drawn over all of that length rather than stopping
-    # at the pad, and `verify` asks whether it touches anything.
+    # last part is the interesting one -- it runs up PAST the hub, along the
+    # bottom plate's outer face, and what it has to miss up there is the whole
+    # part. So it is drawn over all of that length rather than stopping at the
+    # pad, and `verify` asks whether it touches anything.
     proud = values["stakeStandProud"]
-    stake = driven_angle(
-        values["stakeLegWidth"],
-        values["stakeThickness"],
-        z_bottom,
-        -(values["stakeLength"] - proud),
-        proud,
+    bar_r = values["stakeRebarDiameter"] / 2.0
+    stake = driven_rebar(
+        bar_r, z_bottom, -(values["stakeLength"] - proud), proud,
     )
 
-    # The wrap, and the two holes through it. It is the fifth print of the hub
-    # and the only piece of it that is drawn round a bought section, so it is
-    # also the only piece that has to be reprinted if a different angle is
-    # bought -- one replaceable piece against a hub that stays as it is.
-    wrap_grip = max(values["stakeLegWidth"] + values["stakeWrapFit"],
-                    values["stakeWrapGrip"])
-    wrap_depth = wrap_grip + wall - values["stakeWrapGap"]
-    wrap = stake_wrap(
-        values["stakeLegWidth"], values["stakeThickness"], stake_span,
-        stake_r, wall, values["stakeWrapFit"], values["stakeWrapGap"],
-        values["stakeWrapGrip"], values["stakeWrapLength"],
-        z_bottom, -stake_at,
+    # The cradle, and the two holes through it. It is the fifth print of the
+    # hub, drawn seated on the reference bar; on any other bar in the range
+    # it sits nearer the pad or further off, and the bolts take up the rest.
+    half_vee = values["stakeVeeAngle"] / 2.0
+    vee_deep, gap_widest, contact_widest = vee_depth(
+        half_vee, values["stakeRebarMin"] / 2.0, values["stakeRebarMax"] / 2.0,
+        values["stakeCradleGap"],
     )
+    z_apex = z_bottom - bar_r - bar_r / math.sin(math.radians(half_vee))
+    cradle = stake_cradle(
+        stake_span, stake_r, wall, half_vee, vee_deep,
+        values["stakeCradleLength"], z_apex, -stake_at,
+    )
+    cradle_deep = vee_deep + wall
     for p in stake_points:
-        wrap = wrap.cut(
+        cradle = cradle.cut(
             Part.makeCylinder(
-                stake_r, wrap_depth + values["stakeWrapGap"] + 4.0,
-                App.Vector(p.x, p.y, z_bottom - wrap_grip - wall - 2.0),
+                stake_r, cradle_deep + 4.0,
+                App.Vector(p.x, p.y, z_apex - wall - 2.0),
                 App.Vector(0, 0, 1),
             )
         )
-    wrap = wrap.removeSplitter()
-    if not kit.ok(wrap):
-        raise RuntimeError("the stake wrap came out invalid")
+    cradle = cradle.removeSplitter()
+    if not kit.ok(cradle):
+        raise RuntimeError("the stake cradle came out invalid")
+    # One bolt length for the whole range: long enough to take a full nut on
+    # the thickest bar, and on the thinnest what is left over stands up the
+    # nut's own access column, which verify keeps clear.
+    bolt_needed = cradle_deep + gap_widest + lug_thick
+    bolt_spare = z_top - pad_top
     # It is a print of this hub like any other, so it travels with them: five
-    # pieces per hub now, four plates and the wrap.
-    names = names + ["Wrap"]
-    plates = plates + [wrap]
+    # pieces per hub, four plates and the cradle.
+    names = names + ["Cradle"]
+    plates = plates + [cradle]
 
     # A keep-out around each rod: the channel plus a wall, over the length the
     # part actually holds it. Nothing may be cut out of this.
@@ -947,7 +909,7 @@ def build(values, fan_gaps=None):
         ],
         "pad": pad,
         "stake": stake,
-        "wrap": wrap,
+        "cradle": cradle,
     }
     dims = {
         "chosen_from_rod": chosen,
@@ -967,24 +929,26 @@ def build(values, fan_gaps=None):
         "arm_width_mm": arm_w,
         "stake_reach_mm": stake_reach,
         "first_arm_rise_deg": values["firstArmRise"],
-        "stake_leg_mm": values["stakeLegWidth"],
-        "stake_thickness_mm": values["stakeThickness"],
+        "stake_rebar_mm": values["stakeRebarDiameter"],
+        "stake_rebar_min_mm": values["stakeRebarMin"],
+        "stake_rebar_max_mm": values["stakeRebarMax"],
         "stake_bolt_at_mm": stake_at,
         "stake_bolt_size": stake_size,
         "stake_bolt_mm": values["stakeBoltDiameter"],
         "stake_bolt_span_mm": stake_span,
-        "stake_bolt_length_mm": (
-            wrap_depth + values["stakeWrapGap"] + lug_thick
-        ),
+        "stake_bolt_length_mm": bolt_needed,
+        "stake_bolt_spare_mm": bolt_spare,
         "stake_bolt_bearing_mm": lug_thick - stake_bolt["nut_depth"],
-        "wrap_width_mm": stake_span + 2.0 * (values["stakeBoltDiameter"] + wall),
-        "wrap_length_mm": values["stakeWrapLength"],
-        "wrap_depth_mm": wrap_depth,
-        "wrap_grip_mm": wrap_grip,
-        "wrap_fit_mm": values["stakeWrapFit"],
-        "wrap_gap_mm": values["stakeWrapGap"],
+        "cradle_width_mm": 2.0 * (stake_span / 2.0 + stake_r + wall),
+        "cradle_length_mm": values["stakeCradleLength"],
+        "cradle_depth_mm": cradle_deep,
+        "vee_angle_deg": values["stakeVeeAngle"],
+        "vee_depth_mm": vee_deep,
+        "cradle_gap_min_mm": values["stakeCradleGap"],
+        "cradle_gap_max_mm": gap_widest,
+        "vee_contact_max_mm": contact_widest,
         "stake_nut_af_mm": stake_bolt["nut_af"],
-        "stake_offset_mm": abs(z_bottom) + values["stakeLegWidth"] / 2.0,
+        "stake_offset_mm": abs(z_bottom) + bar_r,
         "stake_stand_proud_mm": proud,
         "lug_width_mm": lug_w,
         "lug_thickness_mm": lug_thick,
@@ -1049,27 +1013,27 @@ def verify(geo, dims, values):
             f"stack is {dims['stack_height_mm']:.1f} mm, expected under {bound:.1f}"
         )
 
-    # The angle passes the hub rather than through it now, and that claim is
+    # The bar passes the hub rather than through it, and that claim is
     # the one thing about this design that could quietly stop being true: it is
     # drawn over its whole standing length, and it must touch nothing. A face
     # to face contact on the pad is not a touch -- it has no volume.
     if geo.get("stake") is not None:
         for name, plate in zip(geo["names"], plates):
-            if name == "Wrap":
+            if name == "Cradle":
                 continue      # the one piece that is meant to be against it
             v = kit.vol(plate.common(geo["stake"]))
             if v > 0.5:
                 problems.append(
-                    f"{name} is in the angle's way by {v:.1f} mm3 -- it has "
+                    f"{name} is in the bar's way by {v:.1f} mm3 -- it has "
                     f"{dims['stake_stand_proud_mm']:.0f} mm to stand proud in"
                 )
 
     # Every bolt has to pass through material, in every plate of the STACK --
-    # the wrap is not one of them and has its own two bolts. Cutting a hole
+    # the cradle is not one of them and has its own two bolts. Cutting a hole
     # through open air leaves the stack with nothing holding it together, and
     # it looks exactly the same in a render.
     for name, plate in zip(geo["names"], plates):
-        if name == "Wrap":
+        if name == "Cradle":
             continue
         for i, probe in enumerate(geo.get("bolt_probes", [])):
             v = kit.vol(plate.common(probe))
@@ -1084,7 +1048,7 @@ def verify(geo, dims, values):
         v = kit.vol(plates[0].common(probe))
         if v < 1.0:
             problems.append(
-                f"the U-bolt's leg {i + 1} has no pad round it: the hole is "
+                f"stake bolt {i + 1} has no pad round it: the hole is "
                 "cut through air"
             )
 
@@ -1095,47 +1059,52 @@ def verify(geo, dims, values):
             v = kit.vol(plate.common(access))
             if v > 0.5:
                 problems.append(
-                    f"{name} stands over the U-bolt's nut {i + 1} by "
+                    f"{name} stands over stake nut {i + 1} by "
                     f"{v:.1f} mm3: there is nowhere to put a spanner"
                 )
 
-    # The wrap closes round the angle, and that is the whole claim. Two things
-    # have to be true of it and they pull opposite ways: it must not cut into
-    # the steel, and it must not miss it either. The pocket is drawn
-    # `wrap_fit` clear on each side, so what verify can say is the first -- and
-    # that the rim really does stop short of the pad, because if it lands there
-    # the bolts clamp plastic to plastic and the angle is loose inside.
-    wrap = None
-    for name, plate in zip(geo["names"], plates):
-        if name == "Wrap":
-            wrap = plate
-    if wrap is not None:
+    # The cradle closes the pad into a ring round the bar, and that is the
+    # whole claim. On the reference bar it must touch and not cut; on every
+    # bar in the range its rim must stop short of the pad, or the bolts clamp
+    # plastic to plastic with the bar loose inside. vee_depth builds it that
+    # way and raises if the thickest bar would ride the mouth; this re-asks it
+    # of the numbers that came out.
+    cradle = geo.get("cradle")
+    if cradle is not None:
         if geo.get("stake") is not None:
-            v = kit.vol(wrap.common(geo["stake"]))
+            v = kit.vol(cradle.common(geo["stake"]))
             if v > 0.5:
                 problems.append(
-                    f"the wrap cuts into the angle by {v:.1f} mm3: it is drawn "
-                    f"for an L{dims['stake_leg_mm']:g} with "
-                    f"{dims['wrap_fit_mm']:.1f} mm of fit"
+                    f"the cradle cuts into the bar by {v:.1f} mm3"
                 )
         for name, plate in zip(geo["names"], plates):
-            if name == "Wrap":
+            if name == "Cradle":
                 continue
-            v = kit.vol(plate.common(wrap))
+            v = kit.vol(plate.common(cradle))
             if v > 0.5:
-                problems.append(f"the wrap runs into {name} by {v:.1f} mm3")
+                problems.append(f"the cradle runs into {name} by {v:.1f} mm3")
         for i, rod in enumerate(geo["rods"]):
-            v = kit.vol(wrap.common(rod))
+            v = kit.vol(cradle.common(rod))
             if v > 0.5:
-                problems.append(f"the wrap runs into rod {i + 1} by {v:.1f} mm3")
-        # The gap is what makes it a clamp rather than a sandwich of air.
-        if dims["wrap_gap_mm"] <= 0.0:
+                problems.append(f"the cradle runs into rod {i + 1} by {v:.1f} mm3")
+        if dims["cradle_gap_min_mm"] <= 0.0:
             problems.append(
-                "the wrap's rim would land on the pad: with no gap the bolts "
-                "clamp the plate, not the angle"
+                "on the thinnest bar the cradle's rim lands on the pad: the "
+                "bolts clamp the plate, not the bar"
             )
-        if dims["wrap_grip_mm"] < dims["stake_leg_mm"] + dims["wrap_fit_mm"]:
-            problems.append("the bridge does not clear the angle leg tip")
+        # One bolt length for the range: what the thinnest bar leaves over
+        # stands up the nut's access column, and must not run out of it.
+        bolt = 5 * math.ceil(dims["stake_bolt_length_mm"] / 5.0)
+        proud_of_nut = bolt - (
+            dims["stake_bolt_length_mm"]
+            - dims["cradle_gap_max_mm"] + dims["cradle_gap_min_mm"]
+        )
+        if proud_of_nut > dims["stake_bolt_spare_mm"]:
+            problems.append(
+                f"on the thinnest bar an M{dims['stake_bolt_size']:g} x "
+                f"{bolt:g} stands {proud_of_nut:.1f} mm up past its nut, and "
+                f"there is {dims['stake_bolt_spare_mm']:.1f} mm to stand into"
+            )
 
     # Nothing cut for the stake may take the wall out from under a rod.
     for cut in geo.get("stake_cuts", []):
@@ -1143,7 +1112,7 @@ def verify(geo, dims, values):
             v = kit.vol(cut.common(keepout))
             if v > 1.0:
                 problems.append(
-                    f"a U-bolt hole cuts {v:.1f} mm3 out of the wall around "
+                    f"a stake bolt hole cuts {v:.1f} mm3 out of the wall around "
                     f"rod {i + 1}"
                 )
 
@@ -1212,7 +1181,7 @@ def derived_rows(dims, values):
         ("emptySector", round(dims["empty_sector_deg"], 4), "deg",
          "the sector with no arm; the stake pad and lower stack bolts live here"),
         ("stakeAzimuth", round(dims["stake_azimuth_deg"], 4), "deg",
-         "where the pad reaches for the angle; straight down once installed"),
+         "where the pad reaches for the bar; straight down once installed"),
         ("boltOffset", round(dims["bolt_offset_mm"], 3), "mm",
          "how far out the lower stack-bolt pair sits"),
         ("upperBoltOffset", round(dims["upper_bolt_offset_mm"], 3), "mm",
@@ -1223,11 +1192,10 @@ def derived_rows(dims, values):
          "hub centre to the end of an arm"),
         ("refRodDrawn", round(dims["ref_rod_length_mm"], 1), "mm",
          "length of each reference rod; drawing only"),
-        ("stakeLeg", round(dims["stake_leg_mm"], 1), "mm",
-         "each leg of the driven angle"),
-        ("stakeSection", f"L{dims['stake_leg_mm']:g}x{dims['stake_leg_mm']:g}"
-         f"x{dims['stake_thickness_mm']:g}", "-",
-         "the angle to buy"),
+        ("stakeRebar",
+         f"{dims['stake_rebar_min_mm']:g} to {dims['stake_rebar_max_mm']:g}",
+         "mm", "any driven rebar in this range, the smaller across its core and "
+         "the larger across its ribs. One cradle takes all of it"),
         ("stakePlumb", "vertical", "-",
          "the stake axis is straight down once installed; that is what "
          "firstArmRise is for"),
@@ -1240,46 +1208,44 @@ def derived_rows(dims, values):
         ("stakeBolt",
          f"M{dims['stake_bolt_size']:g} x "
          f"{5 * math.ceil(dims['stake_bolt_length_mm'] / 5.0):g}, two of", "-",
-         "head and washer under the wrap, nut captive in the pad. The same "
-         f"pair of holes takes an M{dims['stake_bolt_size']:g} U-bolt of "
-         f"{dims['stake_bolt_span_mm']:g} mm span instead, if a bought loop "
-         "is preferred to a printed wrap -- decision 0026"),
-        ("wrapSize",
-         f"{dims['wrap_width_mm']:g} x {dims['wrap_length_mm']:g} x "
-         f"{dims['wrap_depth_mm']:.1f}", "mm",
-         "the fifth print of the hub: across, along the angle, and deep"),
-        ("wrapHolds", f"L{dims['stake_leg_mm']:g} + "
-         f"{dims['wrap_fit_mm']:.1f} fit", "-",
-         "the wrap is the one piece drawn round a BOUGHT section, so it is "
-         "the one piece to reprint if a different angle is bought. The hub "
-         "does not move"),
-        ("wrapGrip", round(dims["wrap_grip_mm"], 1), "mm",
-         "how far it reaches down the standing leg either side, which is what "
-         "stops the angle turning in it"),
+         "head and washer under the cradle, nut captive in the pad. Long "
+         "enough for the thickest bar; on a thinner one the spare stands up "
+         "the nut's access column. The same pair of holes takes an "
+         f"M{dims['stake_bolt_size']:g} U-bolt of "
+         f"{dims['stake_bolt_span_mm']:g} mm span instead -- decision 0026"),
+        ("cradleSize",
+         f"{dims['cradle_width_mm']:g} x {dims['cradle_length_mm']:g} x "
+         f"{dims['cradle_depth_mm']:.1f}", "mm",
+         "the fifth print of the hub: across, along the bar, and deep"),
+        ("cradleVee",
+         f"{dims['vee_angle_deg']:g} deg, {dims['vee_depth_mm']:.2f} deep", "-",
+         "a round bar touches both flanks at any diameter, and the pad is the "
+         "third side: three lines of contact on every bar in the range"),
+        ("cradleGap",
+         f"{dims['cradle_gap_min_mm']:.1f} to {dims['cradle_gap_max_mm']:.1f}",
+         "mm", "how far the rim stands off the pad, thinnest bar to thickest. "
+         "Never zero, so the bolts always pull on the steel"),
         ("stakeGrip", "friction", "-",
-         "the wrap clamps rather than bears, so the hub sits at whatever "
-         "height the ground gave the angle -- and the two bolts want checking "
+         "the cradle clamps rather than bears, so the hub sits at whatever "
+         "height the ground gave the bar -- and the two bolts want checking "
          "after the first night, because plastic under a preload creeps"),
         ("stakeBoltBearing", round(dims["stake_bolt_bearing_mm"], 2), "mm",
          "pad left under each nut pocket. At 20 m/s the ground takes 154 N of "
          "uplift per foot, and this joint is in clamp, not in bearing"),
         ("stakeStandProud", round(dims["stake_stand_proud_mm"], 1), "mm",
-         "leave this much of the angle above the foot: it clears the hub over "
+         "leave this much of the bar above the foot: it clears the hub over "
          "all of it, and the cover's loop drops over what is left"),
         ("stakeOffset", round(dims["stake_offset_mm"], 2), "mm",
-         "how far the angle's section sits inboard of the bow bundle. It is a "
-         "moment, and it is the one the ground and the angle's own bending "
-         "are best placed to take"),
+         "how far the bar's axis sits inboard of the bow bundle. It is a "
+         "moment, and it is the one the ground and the bar's own bending "
+         "are best placed to take. Drawn for the reference bar"),
         ("stackBolt",
          f"M{dims['chosen_from_rod'].get('fastenerSize', 0):g} x "
          f"{math.ceil(dims['stack_bolt_length_mm'] / 5.0) * 5:g}", "-",
          "four that hold the plates together: head and washer down the "
          "cap's counterbore, nut captive in the bottom plate"),
-        ("wrapGap", round(dims["wrap_gap_mm"], 2), "mm",
-         "how far the wrap's rim stops short of the pad. It is small and it "
-         "is the difference between clamping the angle and clamping the plate"),
         ("plateCount", dims["plate_count"], "-",
-         "prints per hub: the plates of the stack, plus the wrap"),
+         "prints per hub: the plates of the stack, plus the cradle"),
         ("rodFit", f"slide, {values['rodClearance']:g} mm", "-",
          "bolt the stack up first, then push the bow ends in and pin them"),
     ]
@@ -1310,10 +1276,10 @@ ROD_FAMILIES = ["L", "U", "G"]
 # Steel, and not one of the rod families: it is the one member here that is
 # bought rather than made.
 STAKE_COLOUR = (0.45, 0.45, 0.48)
-# The wrap is printed like the plates and belongs to the same family, but it
+# The cradle is printed like the plates and belongs to the same family, but it
 # is not in the stack, so it is the ramp's colour warmed up rather than the
 # next step of it.
-WRAP_COLOUR = (0.90, 0.78, 0.45)
+CRADLE_COLOUR = (0.90, 0.78, 0.45)
 
 
 def populate(doc, geo):
@@ -1355,8 +1321,8 @@ def apply_view(doc):
         view = getattr(obj, "ViewObject", None)
         if view is None:
             continue
-        if obj.Name == "Plate_Wrap":
-            view.ShapeColor = WRAP_COLOUR
+        if obj.Name == "Plate_Cradle":
+            view.ShapeColor = CRADLE_COLOUR
             view.Transparency = 0
         elif obj.Name.startswith("Plate_"):
             idx = PLATE_NAMES.index(obj.Name.split("_", 1)[1])

@@ -360,7 +360,7 @@ def _joint_parts(data: dict, rod_diameter: float) -> list:
             "standing_mm": round(standing, 3),
             "is_the_post": bool(skirt),
             "note": (
-                "A driven steel angle at each base point. This is what "
+                "A driven steel rebar at each base point. This is what "
                 "resists the dome spreading at its feet -- through soil, "
                 "the way a tent peg does -- and it is a size and a length "
                 "to specify rather than a shape to design. It does not "
