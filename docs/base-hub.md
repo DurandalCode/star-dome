@@ -32,11 +32,12 @@ The fit check found more than the channel:
   of the hub. A rod occupies one level, but every other level is solid across
   the same footprint. Seen end on, a printed stack is a block with three holes
   in it.
-- **The levels are inherited from the node, where they are needed.** At a
-  lashed node the rods pass through each other's crossing, so they cannot
-  share an axis and must stack. At a base point all three bows *end*, at one
-  point, in one plane ([`weave.base_fan`](../stardome/weave.py)). Nothing
-  forces them onto different levels.
+- **The levels stay.** At a base point the three bows meet at one point in
+  one plane ([`weave.base_fan`](../stardome/weave.py)), so the ends *could*
+  share a level. They keep the node's levels anyway: a bow should be able to
+  pass straight through the foot, and the hub should be able to take that
+  bow, so the channels run out both sides. What goes is the material between
+  them, not the levels.
 - **Five prints per hub is too many** for 10 hubs a dome.
 - **The cradle is a short grip**: 40 mm along the bar, and a loose piece to
   hold while two bolts are started.
