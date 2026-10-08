@@ -23,18 +23,19 @@ matters more than the total:
 | M, L, XL | bolts | pins |
 |---|---|---|
 | **worked in the field** | **84** | 28 |
-| worked in the shop | 40 | — |
+| worked in the shop | 0 | — |
 
-This M5 connector count excludes the two M8 angle-wrap bolts per foot, which
-are additional field hardware specified on the base hub's parameter sheet.
+This M5 connector count excludes the two M8 set bolts in each foot's rebar
+sleeve, which are additional field hardware specified on the base hub's
+parameter sheet. Base hub 2.0 has no stack bolts; 1.x had four per foot, done
+up in the shop.
 
 The split is not tidiness. Every generator already states its own field
 sequence, and they do not agree about the bolt:
 
-- **`base_hub_v1`** — *"the stack is assembled once, on the ground or at home,
-  and the bow ends go in afterwards."* Its forty bolts are done up before the
-  dome leaves the workshop and never touched again. What happens at the dome is
-  a pin per arm.
+- **`base_hub_v2`** — one print, nothing to assemble: drop it on the driven
+  bar and push the bow ends in. What happens at the dome is a pin per arm.
+  (1.x stacked plates on forty shop bolts; see [`base-hub.md`](base-hub.md).)
 - **`fan_node_v2`** — *"open the stack → lay rod 1 → … → tighten two bolts."*
   Its twenty are undone and done up at head height.
 - **`crossing_clamp_v1`** and **`term_clamp_v1`** — the cap comes off to admit
@@ -127,7 +128,7 @@ A pin in double shear, pulled out by hand.
 [Ideal](https://www.runsom.com/blog/guide-to-quick-release-pins/) where a joint
 *locates* rather than clamps, and useless where preload is the point.
 
-**Already in use, and the right place for it is not the clamp.** `base_hub_v1`
+**Already in use, and the right place for it is not the clamp.** `base_hub_v2`
 gives every arm a slide-fit channel and a cross pin precisely because it does
 not clamp; those 28 pins are the dome's existing tool-free fasteners. Turning
 them into hairpin clips is a small, obvious, separate change.
@@ -226,7 +227,7 @@ is visible in a closed view:
 |---|---|---|
 | **bolts worked in the field** | **84** | **52** |
 | pins worked in the field | 28 | 28 |
-| fasteners fitted in the shop | 40 | 72 |
+| fasteners fitted in the shop | 0 | 32 |
 | plastic | 5897 cm³ | about 5839 cm³ |
 
 Thirty-two field bolts become thirty-two pins pushed in at home, the clamp gets

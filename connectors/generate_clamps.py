@@ -104,7 +104,10 @@ def load_clamp_module():
 
 
 FAN_SOURCE = os.path.join(REPO, "connectors", "fan_node_v2.py")
-BASE_SOURCE = os.path.join(REPO, "connectors", "base_hub_v1.py")
+BASE_SOURCES = {
+    "base_hub_v1": os.path.join(REPO, "connectors", "base_hub_v1.py"),
+    "base_hub_v2": os.path.join(REPO, "connectors", "base_hub_v2.py"),
+}
 TERM_SOURCE = os.path.join(REPO, "connectors", "term_clamp_v1.py")
 SPLICE_SOURCE = os.path.join(REPO, "connectors", "rod_splice_v2.py")
 COLLAR_SOURCE = os.path.join(REPO, "connectors", "skirt_collar_v1.py")
@@ -138,7 +141,7 @@ def build_base(part):
     They agree for a three-arm hub and do not for a two-arm one, where the
     outer arm sits at 116.5651 deg and rises 63.4349.
     """
-    base = load_module(BASE_SOURCE)
+    base = load_module(BASE_SOURCES[part["generator"]])
     values = {alias: value for (alias, value, _u, _n) in base["INPUTS"]}
     values["rodDiameter"] = float(part["rod_diameter"])
     values["rodNominalDiameter"] = float(
@@ -319,7 +322,7 @@ def run():
             if stale:
                 report.setdefault("replaced", {})[part["id"]] = stale
 
-        if generator == "base_hub_v1":
+        if generator in BASE_SOURCES:
             base, geo, dims, values = build_base(part)
 
             doc = fresh_document(part["id"])

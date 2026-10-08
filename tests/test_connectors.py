@@ -150,7 +150,7 @@ def test_a_skirt_does_not_make_the_base_point_a_different_joint():
     for key in with_skirt:
         assert with_skirt[key]["members"] == without[key]["members"]
         assert with_skirt[key]["count"] == without[key]["count"]
-        assert with_skirt[key]["generator"] == "base_hub_v1"
+        assert with_skirt[key]["generator"] == "base_hub_v2"
         assert with_skirt[key]["state"] == connectors.GENERATED
         # The angle on the pad reaches the ground either way.
         assert with_skirt[key]["anchored_by_stake"] is True
@@ -268,7 +268,7 @@ def test_a_bare_dome_anchors_its_feet_with_a_stake_and_still_needs_a_hub():
         # The hub itself is drawn now -- it is the node's fan with one arm
         # fewer -- and every foot on a bare dome sits over a driven angle.
         assert hub["state"] == connectors.GENERATED
-        assert hub["generator"] == "base_hub_v1"
+        assert hub["generator"] == "base_hub_v2"
         assert hub["anchored_by_stake"] is True
 
     assert hubs["BASE3-10"]["members"] == 3
@@ -307,7 +307,7 @@ def test_the_doorway_takes_a_bow_off_the_two_feet_it_stands_between():
     assert jamb["families_in_fan_order"] == ["U", "G"]
     assert jamb["fan_gaps_deg"] == [37.377368]
     assert jamb["handed"] is True
-    assert jamb["generator"] == "base_hub_v1"
+    assert jamb["generator"] == "base_hub_v2"
 
 
 def test_a_cut_bow_ends_in_a_crossing_and_wants_a_part_that_knows_it():
@@ -745,20 +745,20 @@ def test_the_tally_is_the_parts_added_up(sched):
     assert tally["field_total"] + tally["shop_total"] == tally["total"]
 
 
-def test_the_base_hub_does_its_bolts_at_home(sched):
+def test_the_base_hub_has_no_stack_to_bolt(sched):
     """Where each generator says the work happens.
 
-    `base_hub_v1`: "the stack is assembled once, on the ground or at home,
-    and the bow ends go in afterwards" -- so its bolts are shop work and its
-    pins are field work. `fan_node_v2` opens its stack at the dome, so its
-    are not. If a generator's field sequence ever changes, this is what
+    `base_hub_v2` is one print: there is no stack, so no shop bolts at all,
+    and the only rod-sized fasteners are its pins, one per bow end, done up
+    in the field. `fan_node_v2` opens its stack at the dome, so its bolts are
+    field work. If a generator's field sequence ever changes, this is what
     notices.
     """
     hub = [p for p in sched["parts"] if p["kind"] == "base_hub"]
     assert hub, "every dome has base points"
     for part in hub:
         rows = {(r["type"], r["worked"]): r["count"] for r in part["fasteners"]}
-        assert rows[(connectors.BOLT, connectors.SHOP)] == 4
+        assert (connectors.BOLT, connectors.SHOP) not in rows
         assert rows[(connectors.PIN, connectors.FIELD)] == part["bow_ends"]
 
     fan = _part(sched, "four_rod_fan")
@@ -772,10 +772,10 @@ def test_the_field_bolts_are_most_of_the_bolts(sched):
     size, because the topology is. A skirt adds its collars on top.
     """
     tally = sched["fasteners"]
-    assert tally["field"][connectors.BOLT] > tally["shop"][connectors.BOLT]
+    assert tally["field"][connectors.BOLT] > tally["shop"].get(connectors.BOLT, 0)
     if not any(p["kind"] == "skirt_collar" for p in sched["parts"]):
         assert tally["field"][connectors.BOLT] == 84
-    assert tally["shop"][connectors.BOLT] == 40
+    assert tally["shop"].get(connectors.BOLT, 0) == 0
 
 
 def test_hinging_the_clamp_moves_work_out_of_the_field(sched):

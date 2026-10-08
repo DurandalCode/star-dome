@@ -51,26 +51,21 @@ copies that into the manifest and `make prints` turns those pieces over.
 
 | part | turned over | why |
 |---|---|---|
-| base hub `BASE*` | Cap | below |
+| base hub `BASE*` | nothing | one piece, on the floor of its rebar sleeve — below |
 | fan node `FAN4-*` | Cap | its channel faces down in the part's frame |
 | crossing clamp `CL2-*`, termination `TERM-*` | nothing | the cap's saddle prints as a bridged arch; turned over its ears overhang — [crossing-clamp-v1](crossing-clamp-v1.md#printability) |
 | skirt collar `COLLAR-*` | Collar | brace arm up leaves about a third of the steep area arm down does |
 | ferrule `SPLICE-*` | nothing | it lies down either way, and its bore wants support — it is the part best bought as tube, see `rod_splice_v2.py` |
 
-## Which face each base hub piece sits on, and why
+## How the base hub sits on the bed
 
-| piece | on the bed | why |
-|---|---|---|
-| Bottom | its outer face — the one the rebar lies against | that face is flat, and everything the pad offers the bar is on it |
-| Mid1, Mid2 | lower face | channel up, so each groove is an open half-pipe |
-| Cap | its outer face, **upside down** | the cap's channel faces down in the part's frame; flipped, it faces the nozzle |
-| Cradle | its base | the vee then opens upwards, its flanks 45° slopes |
-
-That table is the whole reason the joint looks the way it does. The bar lies
-against the face the bottom plate is printed on, so nothing printed with the
-plate can reach round the far side of it — which is why the pad is flat and
-why the cradle is a separate piece
-([decisions 0025 and 0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md)).
+2.0 is one piece, printed on the flat floor of its rebar sleeve with the fan
+plane horizontal. Each bow's tube stands on a rib that flares into it at 50°.
+Every channel and pin hole has a pointed roof at 50°, and so does the
+sleeve's vee. Nothing in it is a ceiling and nothing needs supports
+([decision 0032](decisions/0032-the-base-hub-is-one-print.md)). 1.x's five
+pieces, and why each sat the way it did, are in the
+[decisions 0025–0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
 
 ## No supports
 
@@ -96,14 +91,13 @@ What the first hub is printed to answer:
   a slide fit — push the real rod in and see. Composite rebar measures over its
   winding, which is what `rodNominalDiameter` is for. **First answer, from
   the printed `BASE3-8`: a 10 mm composite rebar goes in, and an 8 mm one
-  rattles.** The channel is drawn too big for the rod it is named for. Not
-  corrected yet;
-- **the nut pockets.** An M5 nut has to drop into the bottom plate and stay
-  put; the two M8s have to drop into the pad;
-- **the cradle on real rebar.** It is drawn to take any bar from 8 to 18 mm,
-  so try the thinnest and the thickest that will be driven. On the thinnest
-  the rim should stop just short of the pad;
-- **the bolt lengths** in the parameter sheet: `stackBolt` and `stakeBolt`;
+  rattles.** So the Ø9.4 channel is the fit for 10 mm composite, and 2.0
+  draws exactly that rather than deriving it from the rod;
+- **the nut pockets.** The two M8 nuts have to drop into the sleeve floor and
+  stay put while the hub goes onto the bar;
+- **the sleeve on real rebar.** It is drawn to take any bar from 8 to 18 mm,
+  so try the thinnest and the thickest that will be driven;
+- **the bolt length** in the parameter sheet: `stakeBolt`;
 - **the cross pins**, one per arm.
 
 None of that needs eight hubs. Print one `BASE3-8`, fit it to a rod and a
@@ -111,17 +105,16 @@ bar, and change the numbers in the sheet before printing the rest.
 
 ## What one dome's feet cost to print
 
-For S, with the rod at 8 mm:
+For S, with the rod at 8 mm, at base hub 2.0:
 
 | | pieces each | hubs | prints | solid plastic |
 |---|---|---|---|---|
-| `BASE3-8` | 5 | 8 | 40 | 1778 cm³ |
-| `BASE2-8` | 4 | 2 | 8 | 307 cm³ |
+| `BASE3-8` | 1 | 8 | 8 | 780 cm³ |
+| `BASE2-8` | 1 | 2 | 2 | 153 cm³ |
 
-**48 prints and 2085 cm³ of solid part.** Real filament is roughly half of
-that at a normal infill — call it a kilogram — and which half is a slicer's
-answer, not this project's. On a P2S's 256 × 256 plate one `BASE3-8` is **one
-plate**, cradle included.
+**10 prints and 933 cm³ of solid part**, against 48 prints and 2085 cm³ at
+1.1. Real filament is roughly half of that at a normal infill, and which half
+is a slicer's answer, not this project's.
 
 ## Settings
 
@@ -141,5 +134,4 @@ the process preset: four walls, 35% infill, supports off.
 
 Five of the ten base points are the mirror of the other five, and the hub
 serves both by being **turned over** — a rotation, not a reflection. There is
-no mirrored print of anything, and the wrap has a relief at both ends for the
-same reason. Print the same files ten times.
+no mirrored print of anything. Print the same files ten times.

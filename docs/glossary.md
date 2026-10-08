@@ -112,13 +112,20 @@ plates. 10 per dome.
 **crossing clamp** (`CL2-d-a`) — the two-rod connector at an unlashed crossing.
 30 per dome, and whether they are needed at all is still open.
 
-**base hub** (`BASE3-d`) — the connector at a base point: the fan with one arm
-fewer, plus a pad and a cradle that close round a driven steel rebar.
+**base hub** (`BASE3-d`) — the connector at a base point: three bow ends and
+the driven rebar. Since 2.0 it is one print — a tube per bow on a rib, and a
+sleeve for the bar ([`base-hub.md`](base-hub.md)).
 
-**cradle** — the base hub's fifth print: a block with a 90° vee that the two
-stake bolts pull onto the rebar, closing the pad into a ring round it. A round
-bar touches both flanks at any size, so one cradle takes every bar from 8 to
-18 mm. Replaced the angle's **wrap** — [0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md).
+**cradle** — base hub 1.1's fifth print: a block with a 90° vee that two
+bolts pull onto the rebar against the bottom plate's pad. A round bar touches
+both flanks at any size, so one cradle takes every bar from 8 to 18 mm.
+Replaced the angle's **wrap**
+([0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md)), and
+was replaced in turn by the **sleeve**.
+
+**sleeve** — base hub 2.0's tunnel for the rebar: 80 mm long, under the fan,
+with a vee roof that two set bolts push the bar into from below
+([0032](decisions/0032-the-base-hub-is-one-print.md)).
 
 **stake** (`STAKE-BASE`) — the driven steel rebar at each base point. This is
 what resists the dome spreading at its feet, through soil, the way a tent peg

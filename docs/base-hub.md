@@ -10,9 +10,10 @@ superseded is frozen, and is not updated
 |---|---|---|---|
 | 1.0 | `base-hub-1.0` | steel angle | a stack of flat plates, one channel per level; a pad on the bottom plate and a printed wrap round the angle ([0025](decisions/0025-the-angle-is-met-on-a-pad.md)–[0029](decisions/0029-put-the-lower-stack-bolts-inside-the-base-plate.md)) |
 | 1.1 | `base-hub-1.1` | rebar, 8–18 mm | 1.0 with the wrap replaced by a vee cradle on the same pad; the plates are identical ([0031](decisions/0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md)) |
-| 2.0 | — | rebar | in design |
+| 2.0 | — | rebar, 8–18 mm | one print: a tube per bow on a rib, a sleeve for the bar ([0032](decisions/0032-the-base-hub-is-one-print.md)); not yet printed |
 
-`connectors/base_hub_v1.py` is 1.1, and stays 1.1.
+`connectors/base_hub_v1.py` is 1.1, and stays 1.1. `connectors/base_hub_v2.py`
+is 2.0, and is what the schedule builds.
 
 ## What the printed set is for
 
@@ -43,3 +44,14 @@ The fit check found more than the channel:
   hold while two bolts are started.
 
 2.0 starts from those four points.
+
+## 2.0 in the field
+
+1. Drive the rebar.
+2. Drop the two M8 nuts into the pockets in the sleeve's tunnel floor.
+3. Lower the hub over the bar and do up the two M8 set bolts from below. The
+   bolts push the bar into the vee, so any bar from 8 to 18 mm is held.
+4. Push each bow end into its tube and pin it.
+
+The bar stands above the foot, past the fan, for the cover's loops to drop
+over.

@@ -88,7 +88,8 @@ writing the next.
 | [0028](0028-join-the-wrap-ears-and-add-upper-stack-bolts.md) | The wrap ears join below the angle tip; two upper stack bolts bring the plate stack to four | refined by 0029 |
 | [0029](0029-put-the-lower-stack-bolts-inside-the-base-plate.md) | A wide flange encloses the lower stack-bolt pair within every base plate | accepted |
 | [0030](0030-bambu-studio-arranges-the-plates.md) | Print exports are Bambu Studio projects arranged by Bambu itself, for every part, not bed STLs for the hub | accepted |
-| [0031](0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md) | The stake is driven rebar, held by a vee cradle on the unchanged pad that takes any bar from 8 to 18 mm | replaces the wrap of 0027 and 0028 |
+| [0031](0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md) | The stake is driven rebar, held by a vee cradle on the unchanged pad that takes any bar from 8 to 18 mm | replaces the wrap of 0027 and 0028; cradle replaced by 0032 |
+| [0032](0032-the-base-hub-is-one-print.md) | Base hub 2.0 is one print: a tube per bow on a rib, and a sleeve for the rebar; no stack, no stack bolts | accepted |
 
 ## Not here yet
 
