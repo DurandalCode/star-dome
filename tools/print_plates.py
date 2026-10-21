@@ -189,6 +189,29 @@ def plates_in(project):
     return config.count("<plate>")
 
 
+def mark_overrides(project):
+    """Tell Studio which process settings differ from the system preset.
+
+    The export writes the values but leaves `different_settings_to_system`
+    empty, and Studio then takes the project's process for an unmodified
+    system preset and loads that preset's own walls and infill over ours.
+    The three entries are print, filament, printer.
+    """
+    name = "Metadata/project_settings.config"
+    with zipfile.ZipFile(project) as archive:
+        entries = [(i, archive.read(i.filename)) for i in archive.infolist()]
+    rewritten = project + ".tmp"
+    with zipfile.ZipFile(rewritten, "w", zipfile.ZIP_DEFLATED) as archive:
+        for info, data in entries:
+            if info.filename == name:
+                config = json.loads(data)
+                config["different_settings_to_system"] = [
+                    ";".join(sorted(PROCESS_OVERRIDES)), "", ""]
+                data = json.dumps(config, indent=4).encode()
+            archive.writestr(info.filename, data)
+    os.replace(rewritten, project)
+
+
 def arrange(stls, counts, settings, project, work):
     """Load the pieces, clone each to its count, let Bambu pack the plates."""
     command = [
@@ -215,6 +238,7 @@ def arrange(stls, counts, settings, project, work):
             "Bambu Studio failed on %s: %s\n%s"
             % (os.path.basename(project), result.get("error_string", run.returncode), tail)
         )
+    mark_overrides(project)
     return plates_in(project)
 
 
