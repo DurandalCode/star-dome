@@ -130,8 +130,11 @@ calculation**, and what a printed connector actually carries is milestone 8:
 The projects `make prints` writes carry the first three of those as changes to
 the process preset: four walls, 35% infill, supports off.
 
-## The ten feet are one geometry
+## The ten feet are two prints
 
 Five of the ten base points are the mirror of the other five, and the hub
-serves both by being **turned over** — a rotation, not a reflection. There is
-no mirrored print of anything. Print the same files ten times.
+does not serve both turned over: that would put the rebar sleeve on the dome
+side at five feet and the outside at the rest. The five take the **mirror
+image**, `BASE3-8m` beside `BASE3-8` (and `BASE2-8m` beside `BASE2-8`), four
+and four. Same volume, same height, nothing on the part says which is which --
+label them off the bed ([0033](decisions/0033-the-base-hub-has-a-mirror-image.md)).

@@ -943,11 +943,11 @@ def placements(data: dict, parts: list) -> list:
       ARE their rises above horizontal, +X horizontal and -Y straight down.
       So +X runs along the base ring, +Y is world up and +Z is outward.
 
-    The ten base points come in two mirror sets. Turning the planar part over
-    about its own vertical axis is a rotation, not a reflection -- it maps a
-    local azimuth to 180 minus itself, which is exactly the difference between
-    the two sets -- so both sets are the same print and the basis says so by
-    flipping +X and +Z together.
+    The ten base points come in two mirror sets, and the hub is not turned
+    over for the second: it has a mirror-image twin (``BASEn-dm``), a part of
+    its own, and the basis is right-handed and unflipped for both. Turning it
+    over would put the sleeve for the rebar on the dome side at five feet and
+    the outside at the other five -- decision 0033.
 
     Origins sit at the middle of the rods the part holds, which is where every
     one of these generators centres its stack.
@@ -1203,37 +1203,93 @@ def _base_placement(part: dict, base: dict, fan: dict, bows: dict) -> dict:
     # A base fan is open rather than cyclic, so the only question is which end
     # of it the generator's first arm sits at -- and the two mirror sets of
     # feet answer it the other way round. The bow ends all stop at the hub, so
-    # there is no weave here to pin the stack: the part is turned over, which
-    # is what the two mirror sets have always meant.
-    for order in (
-        [a["rod"] for a in here["arms"]],
-        [a["rod"] for a in reversed(here["arms"])],
-    ):
-        want = [
-            (azimuths[k], _foot_direction(bows[r], point))
-            for k, r in enumerate(order)
-        ]
-        try:
-            ex, ey, ez, turned = _orient(
-                normal, want, [along, tuple(-c for c in along)],
-                f"the base hub at {base['name']}",
-            )
-        except ValueError:
-            continue
-        return {
-            "part": part["id"],
-            "kind": part["kind"],
-            "at": base["name"],
-            "origin_mm": [base["x"], base["y"], base["z"]],
-            "basis": _basis(ex, ey, ez),
-            "turned_over": turned,
-            "first_arm_rise_deg": round(first, 6),
-            "arms": order,
-        }
+    # there is no weave to pin the stack and the part could be turned over to
+    # suit. It is not: the hub's sleeve for the rebar sits on one face of the
+    # stack, and turning the part over puts it on the dome side at five feet
+    # and the outside at the other five. So the part is never turned, and the
+    # five feet that do not fit take its mirror image -- decision 0033.
+    for hand, mirror in (("as-drawn", False), ("mirrored", True)):
+        local = [180.0 - a if mirror else a for a in azimuths]
+        for order in (
+            [a["rod"] for a in here["arms"]],
+            [a["rod"] for a in reversed(here["arms"])],
+        ):
+            want = [
+                (local[k], _foot_direction(bows[r], point))
+                for k, r in enumerate(order)
+            ]
+            try:
+                ex, ey, ez, _turned = _orient(
+                    normal, want, [along, tuple(-c for c in along)],
+                    f"the base hub at {base['name']}", signs=(1.0,),
+                )
+            except ValueError:
+                continue
+            return {
+                "part": part["id"],
+                "kind": part["kind"],
+                "at": base["name"],
+                "origin_mm": [base["x"], base["y"], base["z"]],
+                "basis": _basis(ex, ey, ez),
+                "hand": hand,
+                "first_arm_rise_deg": round(first, 6),
+                "arms": order,
+            }
     raise ValueError(
-        f"base point {base['name']} matches neither arm order of "
+        f"base point {base['name']} matches neither hand of "
         f"{part['id']}; it is a third geometry and wants a part of its own"
     )
+
+
+def _split_base_hubs_by_hand(data: dict, part_list: list, spots: list) -> list:
+    """Make the mirror-image base hub a part of its own.
+
+    The placements say which feet the hub fits as drawn and which take its
+    mirror image. A part is one thing to print, bill and place, so the mirror
+    image is listed beside the hub with ``m`` on the end of its id, the nodes
+    it stands at, and the azimuths it is drawn at. Nothing is turned over:
+    decision 0033.
+
+    Which hand a foot takes depends on the fan and not on the weave, so it is
+    worked out here whether or not the model was woven, and the parts list is
+    the same either way. ``spots`` is retagged where it has anything to retag.
+    """
+    from . import geometry
+
+    bows = {b.name: b for b in geometry.build_bows()}
+    bases = {b["name"]: b for b in data["base_nodes"]}
+    fan = weave.base_fan(data, removed=_released(data))
+    out: list = []
+    for part in part_list:
+        out.append(part)
+        if part["kind"] != "base_hub":
+            continue
+        mine = [
+            _base_placement(part, bases[name], fan, bows) for name in part["nodes"]
+        ]
+        mirrored = [s for s in mine if s["hand"] == "mirrored"]
+        if not mirrored:
+            continue
+        twin = dict(part)
+        twin["id"] = part["id"] + "m"
+        twin["mirror_of"] = part["id"]
+        twin["nodes"] = sorted(s["at"] for s in mirrored)
+        twin["count"] = len(twin["nodes"])
+        twin["arm_azimuths_deg"] = [
+            round(180.0 - a, 6) for a in part["arm_azimuths_deg"]
+        ]
+        twin["note"] = (
+            f"The mirror image of {part['id']}: every arm at 180 deg minus "
+            "its azimuth, the same rod on the same level, the sleeve where "
+            "it was. " + part["note"]
+        )
+        part["nodes"] = sorted(s["at"] for s in mine if s["hand"] == "as-drawn")
+        part["count"] = len(part["nodes"])
+        for s in spots:
+            if s["part"] == part["id"] and s["at"] in twin["nodes"]:
+                s["part"] = twin["id"]
+        out.append(twin)
+    return out
 
 
 def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
@@ -1248,11 +1304,10 @@ def _stake_placement(part: dict, base: dict, fan: dict) -> dict:
 
     Which SIDE the angle ends up on is not settled here, and saying that it was
     is the one thing this frame used to get wrong. The pad is on the outer face
-    of the hub's bottom plate, and five of the ten feet take that hub turned
-    over -- that is what the two mirror sets have always meant -- so five
-    angles stand inboard of the bundle and five outboard. It was true of the
-    through slot before the pad and nobody had noticed. See decisions 0025
-    to 0027.
+    of the hub's bottom plate. Up to hub 1.1, five of the ten feet took that
+    hub turned over, so five angles stood inboard of the bundle and five
+    outboard. Since decision 0033 the five take the mirror-image hub instead,
+    and the pad is on the same side at all ten. See decisions 0025 to 0027.
 
     How far off, this does not say either. That is a dimension of the hub, and
     the hub is `base_hub_v2`'s business; this is the ground's frame.
@@ -1475,6 +1530,7 @@ def schedule(data: dict) -> dict:
     buildable = sum(p["count"] for p in part_list if p.get("generator"))
 
     spots = placements(data, part_list)
+    part_list = _split_base_hubs_by_hand(data, part_list, spots)
     woven = data["meta"].get("weave_mode") == "woven"
 
     # A part that comes in two hands is two prints, not one, and the count
@@ -1584,8 +1640,8 @@ def format_schedule(sched: dict) -> str:
             )
             lines.append(
                 f"      rods rise {rises} deg above horizontal; "
-                + (f"two mirror sets of {p['count'] // 2}, so one part "
-                   "turned over" if p["handed"] else "one orientation")
+                + (f"mirror image of {p['mirror_of']}" if p.get("mirror_of")
+                   else "one orientation")
             )
             lines.append(f"      {p['members']} members;  {p['note']}")
         else:

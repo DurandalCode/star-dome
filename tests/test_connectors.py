@@ -142,11 +142,13 @@ def test_a_skirt_does_not_make_the_base_point_a_different_joint():
     bare = connectors.schedule(model.build(config.load("M")))
 
     def hubs(sched):
-        return {p["id"].split("-")[0]: p for p in sched["parts"]
-                if p["kind"] == "base_hub"}
+        # Keyed by joint and hand, not size: BASE3-10 and BASE3-10m.
+        return {p["id"].split("-")[0] + ("m" if p.get("mirror_of") else ""): p
+                for p in sched["parts"] if p["kind"] == "base_hub"}
 
     with_skirt, without = hubs(skirted), hubs(bare)
-    assert set(with_skirt) == set(without) == {"BASE3", "BASE2"}
+    assert set(with_skirt) == set(without)
+    assert set(with_skirt) == {"BASE3", "BASE3m", "BASE2", "BASE2m"}
     for key in with_skirt:
         assert with_skirt[key]["members"] == without[key]["members"]
         assert with_skirt[key]["count"] == without[key]["count"]
@@ -272,7 +274,7 @@ def test_a_bare_dome_anchors_its_feet_with_a_stake_and_still_needs_a_hub():
         assert hub["anchored_by_stake"] is True
 
     assert hubs["BASE3-10"]["members"] == 3
-    assert hubs["BASE3-10"]["count"] == 8
+    assert hubs["BASE3-10"]["count"] + hubs["BASE3-10m"]["count"] == 8
 
     stake = _part(sched, "ground_stake")
     assert stake["count"] == 10
@@ -289,8 +291,8 @@ def test_the_doorway_takes_a_bow_off_the_two_feet_it_stands_between():
 
     What it does not cost is a second geometry. Both jambs keep the same pair
     of arms -- the U bow and the G bow -- at the same 37.3774 deg the node fan
-    already uses, and the two are mirror images, so one printed part turned
-    over serves both.
+    already uses, and the two are mirror images, so they take a hub and its
+    mirror image (decision 0033).
     """
     from stardome import connectors, doorway, model
 
@@ -301,7 +303,8 @@ def test_the_doorway_takes_a_bow_off_the_two_feet_it_stands_between():
 
     sched = connectors.schedule(data)
     jamb = _part(sched, "base_hub", "BASE2-10")
-    assert jamb["count"] == 2
+    assert jamb["count"] == 1
+    assert _part(sched, "base_hub", "BASE2-10m")["count"] == 1
     assert jamb["members"] == 2
     assert jamb["bow_ends"] == 2
     assert jamb["families_in_fan_order"] == ["U", "G"]
@@ -569,9 +572,32 @@ def test_the_four_rod_fan_never_has_to_be_turned_over():
     assert len(fans) == 10
     assert not any(f["turned_over"] for f in fans)
 
+
+def test_the_ten_feet_take_a_hub_and_its_mirror_and_nothing_is_turned_over():
+    """Turned over, the sleeve for the rebar changes sides at five of ten feet.
+
+    So the second mirror set takes the mirror-image hub instead (decision
+    0033): a part of its own, ``m`` on the end of the id, drawn with every
+    arm at 180 deg minus its azimuth.
+    """
+    from stardome import connectors
+
+    sched = connectors.schedule(_woven("M"))
     feet = [p for p in sched["placements"] if p["kind"] == "base_hub"]
-    turned = sum(1 for f in feet if f["turned_over"])
-    assert turned == 5, "the base hubs are two mirror sets of five"
+    assert len(feet) == 10
+    assert {f["hand"] for f in feet} == {"as-drawn", "mirrored"}
+    assert all("turned_over" not in f for f in feet)
+
+    hub = _part(sched, "base_hub", "BASE3-10")
+    twin = _part(sched, "base_hub", "BASE3-10m")
+    assert twin["mirror_of"] == "BASE3-10"
+    assert (hub["count"], twin["count"]) == (4, 4)
+    assert set(hub["nodes"]).isdisjoint(twin["nodes"])
+    assert twin["arm_azimuths_deg"] == pytest.approx(
+        [180.0 - a for a in hub["arm_azimuths_deg"]]
+    )
+    assert twin["fan_gaps_deg"] == hub["fan_gaps_deg"]
+    assert {f["part"] for f in feet if f["at"] in twin["nodes"]} == {"BASE3-10m"}
 
 
 def test_the_splice_is_a_ferrule_and_not_a_clamp():

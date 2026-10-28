@@ -66,3 +66,12 @@ that is one of the things the first print is for.
 
 The bar stands above the foot, past the fan, for the cover's loops to drop
 over.
+
+## The ten feet are two prints
+
+Five of the ten base points are the mirror of the other five. Since 2.0 they
+take the hub's **mirror image** (`BASE3-8m`, `BASE2-8m`) rather than the hub
+turned over, so the rebar sleeve is on the same side of the bundle at all
+ten ([0033](decisions/0033-the-base-hub-has-a-mirror-image.md)). Four and
+four of `BASE3`, one and one of `BASE2`. Hub 1.x is frozen and is still
+turned over.

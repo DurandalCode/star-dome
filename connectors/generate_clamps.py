@@ -148,6 +148,11 @@ def build_base(part):
         part.get("rod_nominal_diameter") or part["rod_diameter"]
     )
     values["firstArmRise"] = float(part["arm_azimuths_deg"][0])
+    if part.get("mirror_of"):
+        # The schedule lists the azimuths the mirrored part is drawn at; the
+        # generator reflects the part it would otherwise have drawn.
+        values["mirror"] = 1.0
+        values["firstArmRise"] = 180.0 - values["firstArmRise"]
     geo, dims = base["build"](values, fan_gaps=part["fan_gaps_deg"])
     return base, geo, dims, values
 

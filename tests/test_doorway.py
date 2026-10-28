@@ -631,10 +631,12 @@ def test_the_schedule_counts_every_doorway_not_the_first():
         weave_mode="woven",
     )
     counts = {p["id"]: p["count"] for p in connectors.schedule(data)["parts"]}
-    assert counts["BASE2-12"] == 4
-    assert counts["BASE3-12"] == 6
+    jambs = counts["BASE2-12"] + counts["BASE2-12m"]
+    plain = counts["BASE3-12"] + counts["BASE3-12m"]
+    assert jambs == 4
+    assert plain == 6
     assert counts["TERM-12-70.5288"] == 4
-    assert counts["BASE2-12"] + counts["BASE3-12"] == len(data["base_nodes"])
+    assert jambs + plain == len(data["base_nodes"])
 
 
 def test_the_cover_loses_every_opening():
