@@ -225,11 +225,11 @@ def analyse(data: dict) -> dict:
 def _mirrored(groups: dict) -> bool:
     """Do the base fans pair off into mirror images of each other?
 
-    A planar part turned over serves its mirror, so a family of fans that
-    pairs up is still one part. The mirror of a fan reverses the order of its
+    A planar part has a mirror-image twin, so a family of fans that pairs up
+    is still one design. The mirror of a fan reverses the order of its
     gaps and of its families, and the pairing only counts if the two sides are
     the same size -- one hub of one handedness and five of the other is not a
-    part turned over, it is two parts.
+    twin, it is two designs.
 
     A cut makes this worth doing properly. Before one there are exactly two
     groups of five; after one there are four, and a test that counted groups

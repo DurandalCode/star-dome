@@ -133,6 +133,7 @@ INPUTS = [
     ("rodPinDiameter",         0.0,  "mm",  "cross pin through tube and rod. 0 takes it from the rod"),
     ("rodPinAt",              40.0,  "mm",  "how far along the tube the pin sits"),
     ("firstArmRise",       37.3774,  "deg", "how far the first arm rises above horizontal once installed"),
+    ("mirror",                 0.0,  "-",   "1 draws the mirror image: every arm at 180 deg minus its azimuth, same rod on the same level, sleeve where it was. Five of the ten feet need it -- decision 0033"),
     ("stakeRebarDiameter",    12.0,  "mm",  "the bar the reference solid draws. Drawing only"),
     ("stakeRebarMin",          8.0,  "mm",  "the thinnest bar the sleeve must still clamp: the bolt has to reach it"),
     ("stakeRebarMax",         18.0,  "mm",  "the thickest, across the ribs; 18 is a 16 mm rebar. The tunnel is sized for it"),
@@ -264,6 +265,10 @@ def build(values, fan_gaps=None):
     if not 1 <= len(gaps) <= 2:
         raise ValueError(f"a base fan has one gap or two, got {len(gaps)}: {gaps}")
     azimuths = kit.azimuths_from_gaps(gaps, values["firstArmRise"])
+    if values["mirror"]:
+        # A reflection across the sleeve's own plane. The sleeve, the tunnel
+        # and the bolts are symmetric across it, so only the arms move.
+        azimuths = [180.0 - a for a in azimuths]
     arm_count = len(azimuths)
 
     rod_d = values["rodDiameter"]
@@ -418,6 +423,7 @@ def build(values, fan_gaps=None):
         "chosen_from_rod": chosen,
         "fan_gaps_deg": gaps,
         "arm_azimuths_deg": azimuths,
+        "mirrored": bool(values["mirror"]),
         "rod_levels_mm": levels,
         "pitch_mm": pitch,
         "channel_diameter_mm": channel_d,

@@ -75,7 +75,8 @@ one place anybody stands.
 
 It costs one more print and no new geometry. Both jambs keep the same pair of
 arms — the U bow and the G bow — at the same 37.3774° the node fan already
-uses, and the two are mirror images, so one part turned over serves both.
+uses, and the two are mirror images, so they take a hub and its mirror image
+([0033](decisions/0033-the-base-hub-has-a-mirror-image.md)).
 `BASE2` is `base_hub_v1` with one arm fewer.
 
 ### The fan was being cut at the wrong arm

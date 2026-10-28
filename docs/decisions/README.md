@@ -90,6 +90,7 @@ writing the next.
 | [0030](0030-bambu-studio-arranges-the-plates.md) | Print exports are Bambu Studio projects arranged by Bambu itself, for every part, not bed STLs for the hub | accepted |
 | [0031](0031-the-stake-is-rebar-and-a-vee-takes-any-bar.md) | The stake is driven rebar, held by a vee cradle on the unchanged pad that takes any bar from 8 to 18 mm | replaces the wrap of 0027 and 0028; cradle replaced by 0032 |
 | [0032](0032-the-base-hub-is-one-print.md) | Base hub 2.0 is one print: a tube per bow on a rib, and a sleeve for the rebar; no stack, no stack bolts | accepted |
+| [0033](0033-the-base-hub-has-a-mirror-image.md) | The second mirror set of feet takes the base hub's mirror image (`BASE3-8m`), not the hub turned over | reverses the turned-over reading of 0025–0032 |
 
 ## Not here yet
 
